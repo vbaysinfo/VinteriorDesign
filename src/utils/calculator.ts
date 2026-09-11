@@ -17,10 +17,6 @@ export const SHEET_LENGTH_MM = 2440;
 export const SHEET_WIDTH_MM = 1220;
 export const SAW_KERF_MM = 4;
 
-// Maximum width of a single factory carcass box before it must be split into
-// multiple boxes for handling, transport, and hinge/channel spacing.
-export const MAX_BOX_WIDTH_MM = 1200;
-
 // Resolve the working carcass depth for an item under a given project mode.
 // Semi Modular items left blank (depthMm 0) are civil-built shutter/frame
 // units with no factory box. Full Modular always fabricates a full carcass,
@@ -470,8 +466,15 @@ export function generateRoomBoxSummary(items: ModularItem[], forcedProjectType: 
   return items.map((item) => {
     const depthMm = getEffectiveDepthMm(item, forcedProjectType);
     const hasBox = depthMm > 0;
-    const boxCount = hasBox ? Math.max(1, Math.ceil(item.widthMm / MAX_BOX_WIDTH_MM)) : 0;
-    const boxWidthMm = hasBox ? Math.round(item.widthMm / boxCount) : item.widthMm;
+    // Matches generateCutListForItem exactly: every item is ONE continuous
+    // carcass (one pair of gables, one deck, one back panel) regardless of
+    // width, with shutters sized off that same full width. Reporting more
+    // than 1 box here without also splitting the actual gables/deck/back
+    // panel and re-sizing shutters per box would silently overstate what
+    // gets cut - shutters would then be the wrong size for a real seam and
+    // could gap or overlap where boxes meet.
+    const boxCount = hasBox ? 1 : 0;
+    const boxWidthMm = item.widthMm;
     const heightMm = item.heightMm;
 
     return {
