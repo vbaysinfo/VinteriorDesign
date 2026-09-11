@@ -61,17 +61,25 @@ export async function parseExcelFile(file: File): Promise<ModularItem[]> {
         const parsedItems: ModularItem[] = [];
 
         rawRows.forEach((row, index) => {
-          // Identify keys case-insensitively
+          // Identify keys case-insensitively. Patterns are checked in priority
+          // order across ALL keys first (most specific first) rather than all
+          // patterns against each key in column order - otherwise a loose
+          // pattern like 'h (ft)' (meant to catch "H (ft)") also matches
+          // inside "Widt-h (ft)" or "Dept-h (ft)" and steals the wrong column.
           const keys = Object.keys(row);
-          const getKey = (patterns: string[]) => {
-            return keys.find((k) => patterns.some((p) => k.toLowerCase().includes(p.toLowerCase())));
+          const getKey = (patterns: string[], exclude: Array<string | undefined> = []) => {
+            for (const p of patterns) {
+              const found = keys.find((k) => !exclude.includes(k) && k.toLowerCase().includes(p.toLowerCase()));
+              if (found) return found;
+            }
+            return undefined;
           };
 
           const roomKey = getKey(['room', 'location', 'area_name']);
           const descKey = getKey(['item', 'furniture', 'description', 'particular']);
           const widthFtKey = getKey(['width (ft)', 'width_ft', 'widthft', 'w (ft)', 'width']);
-          const heightFtKey = getKey(['height (ft)', 'height_ft', 'heightft', 'h (ft)', 'height']);
-          const depthFtKey = getKey(['depth (ft)', 'depth_ft', 'depthft', 'd (ft)', 'depth']);
+          const heightFtKey = getKey(['height (ft)', 'height_ft', 'heightft', 'h (ft)', 'height'], [widthFtKey]);
+          const depthFtKey = getKey(['depth (ft)', 'depth_ft', 'depthft', 'd (ft)', 'depth'], [widthFtKey, heightFtKey]);
           const wallKey = getKey(['wall', 'side', 'elevation']);
           const sNoKey = getKey(['s.no', 'sno', 'sl', 'no', '#']);
 

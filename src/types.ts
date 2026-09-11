@@ -108,6 +108,26 @@ export interface SheetLayout {
   primaryRipCuts?: number[];
 }
 
+// Per-item factory carcass box breakdown, computed independently under
+// a Semi Modular assumption and a Full Modular assumption so both can be
+// compared side by side for the same uploaded item list.
+export interface RoomBoxRow {
+  itemId: string;
+  room: string;
+  wall: WallType;
+  itemName: string;
+  category: UnitCategory;
+  hasBox: boolean; // false = civil-built shutter/frame only, no factory carcass box
+  boxCount: number; // number of physical carcass boxes this item is split into
+  boxWidthMm: number; // width of each individual box (item width split evenly across boxCount)
+  heightMm: number;
+  depthMm: number;
+  boxWidthFt: number;
+  heightFt: number;
+  depthFt: number;
+  volumeCuFtPerBox: number;
+}
+
 export interface MaterialBreakdown {
   totalSheets: number;
   totalPieces: number;

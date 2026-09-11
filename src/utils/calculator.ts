@@ -8,6 +8,7 @@ import {
   SheetLayout,
   RoomPerimeterInfo,
   RoomSkirtingOptions,
+  RoomBoxRow,
   WallType,
 } from '../types';
 
@@ -15,6 +16,30 @@ import {
 export const SHEET_LENGTH_MM = 2440;
 export const SHEET_WIDTH_MM = 1220;
 export const SAW_KERF_MM = 4;
+
+// Maximum width of a single factory carcass box before it must be split into
+// multiple boxes for handling, transport, and hinge/channel spacing.
+export const MAX_BOX_WIDTH_MM = 1200;
+
+// Resolve the working carcass depth for an item under a given project mode.
+// Semi Modular items left blank (depthMm 0) are civil-built shutter/frame
+// units with no factory box. Full Modular always fabricates a full carcass,
+// so blank depths fall back to factory-standard defaults per category.
+export function getEffectiveDepthMm(item: ModularItem, effectiveProjectType: ProjectType): number {
+  let d = item.depthMm;
+  if (d === 0) {
+    if (effectiveProjectType === 'full') {
+      if (item.category === 'wardrobe_shutter' || item.category === 'single_wardrobe') d = 560;
+      else if (item.category === 'kitchen_base' || item.category === 'tandem_box') d = 560;
+      else if (item.category === 'kitchen_overhead' || item.category === 'loft' || item.category === 'kitchen_loft') d = 330;
+      else if (item.category === 'sitting_box') d = 488;
+      else d = 350;
+    } else {
+      d = 0;
+    }
+  }
+  return d;
+}
 
 // Color palette for nesting diagram
 const PART_COLORS: Record<string, string> = {
@@ -71,19 +96,7 @@ export function generateCutListForItem(item: ModularItem, globalProjectType: Pro
   const h = item.heightMm;
   // If semi-modular and depth is 0, it's civil shutter frame
   // If full-modular and depth was 0, default to factory standard depth (e.g. 560mm for wardrobe, 320mm for loft/overhead)
-  let d = item.depthMm;
-  if (d === 0) {
-    if (pType === 'full') {
-      if (item.category === 'wardrobe_shutter' || item.category === 'single_wardrobe') d = 560;
-      else if (item.category === 'kitchen_base' || item.category === 'tandem_box') d = 560;
-      else if (item.category === 'kitchen_overhead' || item.category === 'loft' || item.category === 'kitchen_loft') d = 330;
-      else if (item.category === 'sitting_box') d = 488;
-      else d = 350;
-    } else {
-      // Semi modular frame/shutter depth is 0
-      d = 0;
-    }
-  }
+  const d = getEffectiveDepthMm(item, pType);
 
   const isBoxUnit = d > 0;
   const isFullModular = pType === 'full';
@@ -447,6 +460,37 @@ export function generateCutListForItem(item: ModularItem, globalProjectType: Pro
 // Generate all cut list parts for all items
 export function generateAllCutLists(items: ModularItem[], globalProjectType: ProjectType): CutListPart[] {
   return items.flatMap((item) => generateCutListForItem(item, globalProjectType));
+}
+
+// Room-wise factory carcass box breakdown for every item, evaluated under a
+// single forced project mode ('semi' or 'full') regardless of any per-item
+// override, so a Semi Modular run and a Full Modular run can be compared
+// side by side for the exact same uploaded item list.
+export function generateRoomBoxSummary(items: ModularItem[], forcedProjectType: ProjectType): RoomBoxRow[] {
+  return items.map((item) => {
+    const depthMm = getEffectiveDepthMm(item, forcedProjectType);
+    const hasBox = depthMm > 0;
+    const boxCount = hasBox ? Math.max(1, Math.ceil(item.widthMm / MAX_BOX_WIDTH_MM)) : 0;
+    const boxWidthMm = hasBox ? Math.round(item.widthMm / boxCount) : item.widthMm;
+    const heightMm = item.heightMm;
+
+    return {
+      itemId: item.id,
+      room: item.room,
+      wall: item.wall,
+      itemName: item.description,
+      category: item.category,
+      hasBox,
+      boxCount,
+      boxWidthMm,
+      heightMm,
+      depthMm,
+      boxWidthFt: mmToFt(boxWidthMm),
+      heightFt: mmToFt(heightMm),
+      depthFt: mmToFt(depthMm),
+      volumeCuFtPerBox: Number((mmToFt(boxWidthMm) * mmToFt(heightMm) * mmToFt(depthMm)).toFixed(2)),
+    };
+  });
 }
 
 // Calculate material usage breakdown from items and cut list

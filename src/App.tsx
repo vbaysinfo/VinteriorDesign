@@ -8,16 +8,17 @@ import { Cad2DViewer } from './components/Cad2DViewer';
 import { SpreadsheetEditor } from './components/SpreadsheetEditor';
 import { CuttingListViewer } from './components/CuttingListViewer';
 import { PricingReport } from './components/PricingReport';
+import { RoomBoxSchedule } from './components/RoomBoxSchedule';
 import { ItemInspectorDrawer } from './components/ItemInspectorDrawer';
 import { ProjectSettingsModal } from './components/ProjectSettingsModal';
-import { Layers, FileSpreadsheet, Scissors, Calculator, Info, UploadCloud, Maximize2, Minimize2 } from 'lucide-react';
+import { Layers, FileSpreadsheet, Scissors, Calculator, Info, UploadCloud, Maximize2, Minimize2, Boxes } from 'lucide-react';
 
 export default function App() {
   const [projectInfo, setProjectInfo] = useState<ProjectInfo>(DEFAULT_PROJECT_INFO);
   const [projectType, setProjectType] = useState<ProjectType>('semi');
   const [items, setItems] = useState<ModularItem[]>(INITIAL_ITEMS);
   const [selectedRoom, setSelectedRoom] = useState<string>('MBR');
-  const [activeTab, setActiveTab] = useState<'cad_layout' | 'spreadsheet' | 'cut_list' | 'pricing_bom'>('cad_layout');
+  const [activeTab, setActiveTab] = useState<'cad_layout' | 'spreadsheet' | 'cut_list' | 'box_schedule' | 'pricing_bom'>('cad_layout');
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [rates, setRates] = useState<FactoryRates>(DEFAULT_FACTORY_RATES);
@@ -161,6 +162,21 @@ export default function App() {
             </button>
 
             <button
+              onClick={() => setActiveTab('box_schedule')}
+              className={`px-3.5 py-2 rounded-lg text-xs font-bold flex items-center gap-2 transition ${
+                activeTab === 'box_schedule'
+                  ? 'bg-slate-900 text-white shadow-xs'
+                  : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+              }`}
+            >
+              <Boxes className="w-4 h-4 text-fuchsia-500" />
+              <span>Room Box Schedule</span>
+              <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-200 text-slate-700 font-mono">
+                Semi vs Full
+              </span>
+            </button>
+
+            <button
               onClick={() => setActiveTab('pricing_bom')}
               className={`px-3.5 py-2 rounded-lg text-xs font-bold flex items-center gap-2 transition ${
                 activeTab === 'pricing_bom'
@@ -250,7 +266,14 @@ export default function App() {
           </div>
         )}
 
-        {/* Tab 4: Pricing Report & BOM */}
+        {/* Tab 4: Room-Wise Box Schedule (Semi vs Full comparison) */}
+        {activeTab === 'box_schedule' && (
+          <div className="space-y-4">
+            <RoomBoxSchedule items={items} selectedRoom={selectedRoom} />
+          </div>
+        )}
+
+        {/* Tab 5: Pricing Report & BOM */}
         {activeTab === 'pricing_bom' && (
           <div className="space-y-4">
             <PricingReport
