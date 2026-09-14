@@ -244,6 +244,7 @@ export default function App() {
           <div className="space-y-4">
             <SpreadsheetEditor
               items={items}
+              cutList={cutList}
               projectType={projectType}
               selectedRoom={selectedRoom}
               onSelectRoom={setSelectedRoom}

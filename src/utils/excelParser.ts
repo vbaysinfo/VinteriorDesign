@@ -1,5 +1,5 @@
 import * as XLSX from 'xlsx';
-import { ModularItem, WallType, UnitCategory } from '../types';
+import { ModularItem, CutListPart, WallType, UnitCategory } from '../types';
 import { ftToMm, recalculateItemMetrics } from './calculator';
 
 // Helper to determine category from description
@@ -49,7 +49,7 @@ export async function parseExcelFile(file: File): Promise<ModularItem[]> {
         const workbook = XLSX.read(data, { type: 'array' });
         const firstSheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[firstSheetName];
-        
+
         // Convert to array of objects
         const rawRows = XLSX.utils.sheet_to_json<Record<string, any>>(worksheet, { defval: '' });
 
@@ -78,10 +78,21 @@ export async function parseExcelFile(file: File): Promise<ModularItem[]> {
           const roomKey = getKey(['room', 'location', 'area_name']);
           const descKey = getKey(['item', 'furniture', 'description', 'particular']);
           const widthFtKey = getKey(['width (ft)', 'width_ft', 'widthft', 'w (ft)', 'width']);
-          const heightFtKey = getKey(['height (ft)', 'height_ft', 'heightft', 'h (ft)', 'height'], [widthFtKey]);
+          // "Length" is this factory's word for the vertical/height dimension
+          // (Semi Modular = Width x Length; Full Modular = Width x Length x
+          // Depth) - accepted alongside the more generic "Height" header.
+          const heightFtKey = getKey(
+            ['length (ft)', 'length_ft', 'lengthft', 'height (ft)', 'height_ft', 'heightft', 'h (ft)', 'height', 'length'],
+            [widthFtKey]
+          );
           const depthFtKey = getKey(['depth (ft)', 'depth_ft', 'depthft', 'd (ft)', 'depth'], [widthFtKey, heightFtKey]);
           const wallKey = getKey(['wall', 'side', 'elevation']);
           const sNoKey = getKey(['s.no', 'sno', 'sl', 'no', '#']);
+          const quantityKey = getKey(['quantity', 'qty']);
+          const materialKey = getKey(['material']);
+          const noteKey = getKey(['note', 'remark']);
+          const laminateKey = getKey(['laminate color code', 'laminate code', 'colour code', 'color code', 'laminate']);
+          const edgeBindingKey = getKey(['edge binding', 'edge band', 'edging']);
 
           // Room carry-over (in spreadsheets, Room is often merged or blank in subsequent rows)
           if (roomKey && row[roomKey] && String(row[roomKey]).trim() !== '') {
@@ -104,6 +115,12 @@ export async function parseExcelFile(file: File): Promise<ModularItem[]> {
           const sNo = sNoKey && row[sNoKey] ? parseInt(row[sNoKey], 10) || (index + 1) : (index + 1);
           const wall = deduceWall(desc, wallKey ? String(row[wallKey]) : undefined);
           const category = categorizeDescription(desc);
+
+          const quantity = quantityKey && row[quantityKey] ? Math.max(1, parseInt(row[quantityKey], 10) || 1) : 1;
+          const materialCode = materialKey && row[materialKey] ? String(row[materialKey]).trim() : undefined;
+          const notes = noteKey && row[noteKey] ? String(row[noteKey]).trim() : undefined;
+          const laminateColorCode = laminateKey && row[laminateKey] ? String(row[laminateKey]).trim() : undefined;
+          const edgeBindingNote = edgeBindingKey && row[edgeBindingKey] ? String(row[edgeBindingKey]).trim() : undefined;
 
           // Defaults
           const item: ModularItem = {
@@ -128,6 +145,11 @@ export async function parseExcelFile(file: File): Promise<ModularItem[]> {
             shelfCount: category === 'expo' || category === 'shelves' ? 4 : 2,
             finishType: desc.toLowerCase().includes('glass') || desc.toLowerCase().includes('profile') ? 'Profile Glass' : 'Laminate',
             coreMaterial: currentRoom.toLowerCase().includes('kitchen') ? 'BWP Marine Ply' : 'BWR Commercial Ply',
+            quantity,
+            materialCode,
+            notes,
+            laminateColorCode,
+            edgeBindingNote,
           };
 
           parsedItems.push(recalculateItemMetrics(item));
@@ -144,7 +166,10 @@ export async function parseExcelFile(file: File): Promise<ModularItem[]> {
   });
 }
 
-// Export items to Excel workbook (.xlsx)
+// Export items to Excel workbook (.xlsx) - one row per furniture item.
+// "Length" is used instead of "Height" to match this factory's own
+// vocabulary: Semi Modular items are Width x Length (2D, no carcass box);
+// Full Modular items are Width x Length x Depth (3D carcass box).
 export function exportToExcel(items: ModularItem[], fileName = 'Modular_Factory_Estimation.xlsx') {
   const exportData = items.map((item) => ({
     'S.No': item.sNo,
@@ -152,15 +177,20 @@ export function exportToExcel(items: ModularItem[], fileName = 'Modular_Factory_
     'Wall': item.wall.toUpperCase(),
     'Item / Furniture Description': item.description,
     'Width (ft)': item.widthFt,
-    'Height (ft)': item.heightFt,
-    'Depth (ft) [blank = Frame/Shutter]': item.depthFt > 0 ? item.depthFt : '',
+    'Length (ft)': item.heightFt,
+    'Depth (ft) [Full Modular only, blank = Frame/Shutter]': item.depthFt > 0 ? item.depthFt : '',
     'Width (mm) auto': item.widthMm,
-    'Height (mm) auto': item.heightMm,
+    'Length (mm) auto': item.heightMm,
     'Depth (mm) auto': item.depthMm > 0 ? item.depthMm : '',
     'Calc. Basis (auto)': item.calcBasis,
     'Area (Sq.ft) / Volume (Cu.ft) (auto)': item.calcBasis === 'Area (Sq.ft)' ? item.areaSqFt : item.volumeCuFt,
+    'Quantity': item.quantity || 1,
     'Core Material': item.coreMaterial,
     'Finish': item.finishType,
+    'Material': item.materialCode || '',
+    'Laminate Color Code': item.laminateColorCode || '',
+    'Edge Binding': item.edgeBindingNote || '',
+    'Note': item.notes || '',
   }));
 
   const worksheet = XLSX.utils.json_to_sheet(exportData);
@@ -168,5 +198,38 @@ export function exportToExcel(items: ModularItem[], fileName = 'Modular_Factory_
   XLSX.utils.book_append_sheet(workbook, worksheet, 'Estimation Sheet');
 
   // Generate buffer and trigger download
+  XLSX.writeFile(workbook, fileName);
+}
+
+// Export the granular cut list (one row per physical panel/board) using the
+// exact factory cutting-software header names and spacing supplied by the
+// user's own CUT_LEST template - intentionally NOT relabeled, so the file
+// can be handed straight to that software. One blank, unlabeled column
+// (holding a stray "0") in the original template sits between NOTE and
+// MATERIAL; it is skipped here as it carries no real header/data.
+export function exportCutListFactoryFormat(cutList: CutListPart[], fileName = 'Cut_List_Factory_Format.xlsx') {
+  const exportData = cutList.map((p) => ({
+    'NAME': `${p.room} / ${p.itemName} - ${p.partName}`,
+    'LENGTH': p.lengthMm,
+    'WIDTH': p.widthMm,
+    'QUANTITY': p.qty,
+    'NOTE': p.notes || (p.sheetNumber ? `Sheet: ${p.sheetNumber}` : ''),
+    'MATERIAL': p.material,
+    'EDGING LENGTH  1': p.edgeL1 ? `${p.edgeThicknessMm}mm` : '',
+    'EDGING LENGTH  2': p.edgeL2 ? `${p.edgeThicknessMm}mm` : '',
+    'EDGING WIDTH 1': p.edgeW1 ? `${p.edgeThicknessMm}mm` : '',
+    'EDGING WIDTH 2': p.edgeW2 ? `${p.edgeThicknessMm}mm` : '',
+    // Net panel sizes above are the finished body size, not yet built up by
+    // banding thickness - defaults to "No" so the cutting software applies
+    // its own edge-banding allowance. Flip to "Yes" in the sheet if your
+    // LENGTH/WIDTH should be read as already including that allowance.
+    'INCLUDE EDGING THICKNESS': 'No',
+    'TYPE': p.partName,
+  }));
+
+  const worksheet = XLSX.utils.json_to_sheet(exportData);
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'Sheet1');
+
   XLSX.writeFile(workbook, fileName);
 }

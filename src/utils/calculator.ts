@@ -37,6 +37,12 @@ export function getEffectiveDepthMm(item: ModularItem, effectiveProjectType: Pro
   return d;
 }
 
+// Free-text material override for the exported/display material label.
+// Falls back to the structured coreMaterial dropdown when left blank.
+export function getCoreMaterialLabel(item: ModularItem): string {
+  return item.materialCode?.trim() ? item.materialCode.trim() : item.coreMaterial;
+}
+
 // Color palette for nesting diagram
 const PART_COLORS: Record<string, string> = {
   'Shutter': '#3b82f6', // blue
@@ -114,7 +120,7 @@ export function generateCutListForItem(item: ModularItem, globalProjectType: Pro
       widthMm: shutterWidth,
       thicknessMm: 18,
       qty: sCount,
-      material: `${item.coreMaterial} (${item.finishType})`,
+      material: `${getCoreMaterialLabel(item)} (${item.finishType})`,
       edgeL1: true,
       edgeL2: true,
       edgeW1: true,
@@ -142,7 +148,7 @@ export function generateCutListForItem(item: ModularItem, globalProjectType: Pro
       widthMm: faciaHeight,
       thicknessMm: 18,
       qty: dCount,
-      material: `${item.coreMaterial} (${item.finishType})`,
+      material: `${getCoreMaterialLabel(item)} (${item.finishType})`,
       edgeL1: true,
       edgeL2: true,
       edgeW1: true,
@@ -213,7 +219,7 @@ export function generateCutListForItem(item: ModularItem, globalProjectType: Pro
       widthMm: carcassDepth,
       thicknessMm: 18,
       qty: 1,
-      material: `${item.coreMaterial} (Laminate)`,
+      material: `${getCoreMaterialLabel(item)} (Laminate)`,
       edgeL1: true,
       edgeL2: false,
       edgeW1: true,
@@ -233,7 +239,7 @@ export function generateCutListForItem(item: ModularItem, globalProjectType: Pro
       widthMm: carcassDepth,
       thicknessMm: 18,
       qty: 1,
-      material: `${item.coreMaterial} (Laminate)`,
+      material: `${getCoreMaterialLabel(item)} (Laminate)`,
       edgeL1: true,
       edgeL2: false,
       edgeW1: true,
@@ -255,7 +261,7 @@ export function generateCutListForItem(item: ModularItem, globalProjectType: Pro
       widthMm: carcassDepth,
       thicknessMm: 18,
       qty: 1,
-      material: `${item.coreMaterial} (Laminate)`,
+      material: `${getCoreMaterialLabel(item)} (Laminate)`,
       edgeL1: true,
       edgeL2: false,
       edgeW1: false,
@@ -275,7 +281,7 @@ export function generateCutListForItem(item: ModularItem, globalProjectType: Pro
       widthMm: carcassDepth,
       thicknessMm: 18,
       qty: 1,
-      material: `${item.coreMaterial} (Laminate)`,
+      material: `${getCoreMaterialLabel(item)} (Laminate)`,
       edgeL1: true,
       edgeL2: false,
       edgeW1: false,
@@ -322,7 +328,7 @@ export function generateCutListForItem(item: ModularItem, globalProjectType: Pro
       widthMm: shelfDepth,
       thicknessMm: 18,
       qty: shelfCount,
-      material: `${item.coreMaterial} (Laminate)`,
+      material: `${getCoreMaterialLabel(item)} (Laminate)`,
       edgeL1: true,
       edgeL2: false,
       edgeW1: false,
@@ -411,7 +417,7 @@ export function generateCutListForItem(item: ModularItem, globalProjectType: Pro
       widthMm: 75,
       thicknessMm: 18,
       qty: 1,
-      material: `${item.coreMaterial} (${item.finishType})`,
+      material: `${getCoreMaterialLabel(item)} (${item.finishType})`,
       edgeL1: true,
       edgeL2: false,
       edgeW1: false,
@@ -437,7 +443,7 @@ export function generateCutListForItem(item: ModularItem, globalProjectType: Pro
       widthMm: w,
       thicknessMm: 18,
       qty: 1,
-      material: `${item.coreMaterial} (${item.finishType})`,
+      material: `${getCoreMaterialLabel(item)} (${item.finishType})`,
       edgeL1: true,
       edgeL2: true,
       edgeW1: true,
@@ -448,6 +454,16 @@ export function generateCutListForItem(item: ModularItem, globalProjectType: Pro
       notes: 'Decorative Wall Feature Paneling',
       areaSqMt: Number(((h * w) / 1_000_000).toFixed(3)),
     });
+  }
+
+  // Scale every part by how many identical copies of this item are needed.
+  const copies = Math.max(1, Math.round(item.quantity || 1));
+  if (copies > 1) {
+    return parts.map((p) => ({
+      ...p,
+      qty: p.qty * copies,
+      areaSqMt: Number((p.areaSqMt * copies).toFixed(3)),
+    }));
   }
 
   return parts;
@@ -892,7 +908,7 @@ export function calculateProjectCost(
   items: ModularItem[],
   rates: FactoryRates
 ): CostBreakdown {
-  const totalAreaSqFt = items.reduce((sum, item) => sum + item.areaSqFt, 0);
+  const totalAreaSqFt = items.reduce((sum, item) => sum + item.areaSqFt * Math.max(1, Math.round(item.quantity || 1)), 0);
 
   const carcassBoardCost = Math.round(material.ply18mmAreaSqFt * rates.plywood18mmPerSqFt);
   const shutterBoardCost = Math.round((material.ply18mmAreaSqFt * 0.35) * rates.plywood18mmPerSqFt);

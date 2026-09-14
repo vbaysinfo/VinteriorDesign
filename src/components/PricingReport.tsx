@@ -33,16 +33,19 @@ export const PricingReport: React.FC<PricingReportProps> = ({
   const comparisonGrandTotal = Math.round(costs.grandTotal * comparisonMultiplier);
   const differenceAmount = Math.abs(comparisonGrandTotal - costs.grandTotal);
 
-  // Group items cost by room
-  const totalProjectArea = items.reduce((s, i) => s + i.areaSqFt, 0);
+  // Group items cost by room (scaled by each item's quantity, so a unit
+  // built more than once contributes its full share of area/cost)
+  const qtyOf = (item: ModularItem) => Math.max(1, Math.round(item.quantity || 1));
+  const totalProjectArea = items.reduce((s, i) => s + i.areaSqFt * qtyOf(i), 0);
   const roomMap: Record<string, { count: number; areaSqFt: number; volumeCuFt: number; items: ModularItem[] }> = {};
   for (const item of items) {
     if (!roomMap[item.room]) {
       roomMap[item.room] = { count: 0, areaSqFt: 0, volumeCuFt: 0, items: [] };
     }
-    roomMap[item.room].count += 1;
-    roomMap[item.room].areaSqFt += item.areaSqFt;
-    roomMap[item.room].volumeCuFt += item.volumeCuFt;
+    const q = qtyOf(item);
+    roomMap[item.room].count += q;
+    roomMap[item.room].areaSqFt += item.areaSqFt * q;
+    roomMap[item.room].volumeCuFt += item.volumeCuFt * q;
     roomMap[item.room].items.push(item);
   }
 

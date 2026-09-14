@@ -1,10 +1,12 @@
 import React, { useState, useMemo } from 'react';
-import { ModularItem, WallType, ProjectType } from '../types';
+import { ModularItem, CutListPart, WallType, ProjectType } from '../types';
 import { ftToMm, mmToFt, recalculateItemMetrics } from '../utils/calculator';
-import { Plus, Trash2, Copy, Search, Filter, ArrowUpDown, FileSpreadsheet } from 'lucide-react';
+import { exportCutListFactoryFormat } from '../utils/excelParser';
+import { Plus, Trash2, Copy, Search, Filter, ArrowUpDown, FileSpreadsheet, Download } from 'lucide-react';
 
 interface SpreadsheetEditorProps {
   items: ModularItem[];
+  cutList: CutListPart[];
   projectType: ProjectType;
   selectedRoom: string;
   onSelectRoom: (room: string) => void;
@@ -15,6 +17,7 @@ interface SpreadsheetEditorProps {
 
 export const SpreadsheetEditor: React.FC<SpreadsheetEditorProps> = ({
   items,
+  cutList,
   projectType,
   selectedRoom,
   onSelectRoom,
@@ -77,6 +80,8 @@ export const SpreadsheetEditor: React.FC<SpreadsheetEditorProps> = ({
         const num = parseInt(value, 10) || 0;
         newItem.depthMm = num;
         newItem.depthFt = num > 0 ? mmToFt(num) : 0;
+      } else if (field === 'quantity') {
+        newItem.quantity = Math.max(1, parseInt(value, 10) || 1);
       }
 
       return recalculateItemMetrics(newItem);
@@ -111,6 +116,7 @@ export const SpreadsheetEditor: React.FC<SpreadsheetEditorProps> = ({
       shelfCount: 3,
       finishType: 'Laminate',
       coreMaterial: 'BWR Commercial Ply',
+      quantity: 1,
     };
     onUpdateItems([...items, recalculateItemMetrics(newItem)]);
   };
@@ -197,6 +203,21 @@ export const SpreadsheetEditor: React.FC<SpreadsheetEditorProps> = ({
             <Plus className="w-3.5 h-3.5" />
             <span>Add Row</span>
           </button>
+
+          {/* Export Factory Cut List (matches the user's CUT_LEST template headers exactly) */}
+          <button
+            onClick={() =>
+              exportCutListFactoryFormat(
+                cutList,
+                `Cut_List_Factory_Format_${projectType === 'semi' ? 'Semi_Modular' : 'Full_Modular'}.xlsx`
+              )
+            }
+            title="Export the current Semi/Full Modular cut list using your factory's exact CUT_LEST column headers (NAME, LENGTH, WIDTH, QUANTITY, NOTE, MATERIAL, EDGING..., TYPE)"
+            className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-lg flex items-center gap-1.5 shadow-xs transition"
+          >
+            <Download className="w-3.5 h-3.5" />
+            <span>Export Factory Cut List ({projectType === 'semi' ? 'Semi' : 'Full'} Modular)</span>
+          </button>
         </div>
       </div>
 
@@ -209,18 +230,27 @@ export const SpreadsheetEditor: React.FC<SpreadsheetEditorProps> = ({
               <th className="py-2.5 px-3 border-r border-slate-600 w-28">Room</th>
               <th className="py-2.5 px-2 border-r border-slate-600 text-center w-20">Wall</th>
               <th className="py-2.5 px-3 border-r border-slate-600 min-w-[180px]">Item / Furniture Description</th>
-              <th className="py-2.5 px-2 border-r border-slate-600 text-center bg-cyan-950/80 w-18">Width (ft)</th>
-              <th className="py-2.5 px-2 border-r border-slate-600 text-center bg-cyan-950/80 w-18">Height (ft)</th>
+              <th className="py-2.5 px-2 border-r border-slate-600 text-center bg-cyan-950/80 w-18">
+                Width (ft) <span className="text-[9px] font-normal block lowercase opacity-80">semi + full</span>
+              </th>
+              <th className="py-2.5 px-2 border-r border-slate-600 text-center bg-cyan-950/80 w-18">
+                Length (ft) <span className="text-[9px] font-normal block lowercase opacity-80">semi + full</span>
+              </th>
               <th className="py-2.5 px-2 border-r border-slate-600 text-center bg-cyan-950/80 min-w-[120px]">
-                Depth (ft) <span className="text-[9px] font-normal block lowercase opacity-80">[0=Frame/Shutter]</span>
+                Depth (ft) <span className="text-[9px] font-normal block lowercase opacity-80">[full modular only, 0=Frame/Shutter]</span>
               </th>
               <th className="py-2.5 px-2 border-r border-slate-600 text-center bg-slate-800 text-emerald-300 w-20">Width (mm)</th>
-              <th className="py-2.5 px-2 border-r border-slate-600 text-center bg-slate-800 text-emerald-300 w-20">Height (mm)</th>
+              <th className="py-2.5 px-2 border-r border-slate-600 text-center bg-slate-800 text-emerald-300 w-20">Length (mm)</th>
               <th className="py-2.5 px-2 border-r border-slate-600 text-center bg-slate-800 text-emerald-300 w-20">Depth (mm)</th>
               <th className="py-2.5 px-2 border-r border-slate-600 text-center w-28">Calc. Basis</th>
               <th className="py-2.5 px-3 border-r border-slate-600 text-right bg-amber-950/70 text-amber-200 min-w-[110px]">
                 Area / Volume
               </th>
+              <th className="py-2.5 px-2 border-r border-slate-600 text-center w-16">Qty</th>
+              <th className="py-2.5 px-3 border-r border-slate-600 min-w-[140px] bg-fuchsia-950/60">Laminate Color Code</th>
+              <th className="py-2.5 px-3 border-r border-slate-600 min-w-[140px] bg-fuchsia-950/60">Material</th>
+              <th className="py-2.5 px-3 border-r border-slate-600 min-w-[140px] bg-fuchsia-950/60">Edge Binding</th>
+              <th className="py-2.5 px-3 border-r border-slate-600 min-w-[140px]">Note</th>
               <th className="py-2.5 px-2 text-center w-20">Actions</th>
             </tr>
           </thead>
@@ -339,6 +369,61 @@ export const SpreadsheetEditor: React.FC<SpreadsheetEditorProps> = ({
                   {/* Area / Volume Result */}
                   <td className="py-1.5 px-3 border-r border-slate-200 text-right font-bold text-slate-800 bg-amber-50/40">
                     {item.calcBasis === 'Area (Sq.ft)' ? `${item.areaSqFt} Sq.ft` : `${item.volumeCuFt} Cu.ft`}
+                  </td>
+
+                  {/* Quantity (multiplies cut list & cost) */}
+                  <td className="py-1.5 px-2 border-r border-slate-200 text-center">
+                    <input
+                      type="number"
+                      min={1}
+                      step="1"
+                      value={item.quantity ?? 1}
+                      onChange={(e) => handleCellChange(item.id, 'quantity', e.target.value)}
+                      className="w-full text-center bg-transparent text-slate-800 font-bold focus:bg-white focus:ring-1 focus:ring-cyan-500 rounded"
+                    />
+                  </td>
+
+                  {/* Laminate Color Code */}
+                  <td className="py-1.5 px-3 border-r border-slate-200 font-sans">
+                    <input
+                      type="text"
+                      placeholder="e.g. Ivory - IV102"
+                      value={item.laminateColorCode || ''}
+                      onChange={(e) => handleCellChange(item.id, 'laminateColorCode', e.target.value)}
+                      className="w-full bg-transparent text-slate-800 placeholder:text-slate-400 focus:bg-white focus:ring-1 focus:ring-cyan-500 rounded px-1"
+                    />
+                  </td>
+
+                  {/* Material (free-text override for the exported Material label; blank = auto from Core Material + Finish) */}
+                  <td className="py-1.5 px-3 border-r border-slate-200 font-sans">
+                    <input
+                      type="text"
+                      placeholder={`${item.coreMaterial} (${item.finishType})`}
+                      value={item.materialCode || ''}
+                      onChange={(e) => handleCellChange(item.id, 'materialCode', e.target.value)}
+                      className="w-full bg-transparent text-slate-800 placeholder:text-slate-400 focus:bg-white focus:ring-1 focus:ring-cyan-500 rounded px-1"
+                    />
+                  </td>
+
+                  {/* Edge Binding note */}
+                  <td className="py-1.5 px-3 border-r border-slate-200 font-sans">
+                    <input
+                      type="text"
+                      placeholder="e.g. 2mm PVC all sides"
+                      value={item.edgeBindingNote || ''}
+                      onChange={(e) => handleCellChange(item.id, 'edgeBindingNote', e.target.value)}
+                      className="w-full bg-transparent text-slate-800 placeholder:text-slate-400 focus:bg-white focus:ring-1 focus:ring-cyan-500 rounded px-1"
+                    />
+                  </td>
+
+                  {/* Note */}
+                  <td className="py-1.5 px-3 border-r border-slate-200 font-sans">
+                    <input
+                      type="text"
+                      value={item.notes || ''}
+                      onChange={(e) => handleCellChange(item.id, 'notes', e.target.value)}
+                      className="w-full bg-transparent text-slate-800 focus:bg-white focus:ring-1 focus:ring-cyan-500 rounded px-1"
+                    />
                   </td>
 
                   {/* Actions */}

@@ -42,6 +42,10 @@ export interface ModularItem {
   finishType: 'Laminate' | 'Acrylic' | 'PU Paint' | 'Profile Glass' | 'Veneer';
   coreMaterial: 'BWP Marine Ply' | 'BWR Commercial Ply' | 'HDHMR' | 'Prelam MDF';
   notes?: string;
+  quantity?: number; // how many identical copies of this item to fabricate (default 1); scales every cut part's qty and area
+  laminateColorCode?: string; // free-text laminate color/code, e.g. "Ivory - IV102"
+  materialCode?: string; // free-text override for the exported "Material" label; falls back to `${coreMaterial} (${finishType})` when blank
+  edgeBindingNote?: string; // free-text summary of edge banding treatment for this item (display/export only - the real per-panel edge banding used for hardware/cost is computed automatically per part)
 }
 
 export interface CutListPart {
