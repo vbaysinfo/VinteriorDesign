@@ -27,6 +27,7 @@ interface CuttingListViewerProps {
   materials: MaterialBreakdown;
   projectType: ProjectType;
   selectedRoom: string;
+  onUpdatePartMaterial?: (partId: string, material: string) => void;
 }
 
 export const CuttingListViewer: React.FC<CuttingListViewerProps> = ({
@@ -34,6 +35,7 @@ export const CuttingListViewer: React.FC<CuttingListViewerProps> = ({
   materials,
   projectType,
   selectedRoom,
+  onUpdatePartMaterial,
 }) => {
   // Generate 2D sheet nesting layouts and assign sheetNumber to each piece
   const { layouts: sheetLayouts, updatedCutList } = useMemo(() => {
@@ -1058,8 +1060,15 @@ export const CuttingListViewer: React.FC<CuttingListViewerProps> = ({
                       <td className="py-1.5 px-3 border-r border-slate-200 font-sans text-[11px] text-slate-600">
                         {part.notes || (part.grainDirection === 'length' ? 'Vertical Grain (2.4m)' : 'Free Grain')}
                       </td>
-                      <td className="py-1.5 px-3 border-r border-slate-200 font-sans text-[11px] text-slate-600">
-                        {part.material}
+                      <td className="py-1.5 px-3 border-r border-slate-200 font-sans text-[11px]">
+                        <input
+                          type="text"
+                          value={part.material}
+                          onChange={(e) => onUpdatePartMaterial && onUpdatePartMaterial(part.id, e.target.value)}
+                          disabled={!onUpdatePartMaterial}
+                          title="Edit this panel's material - flows into this table's exports and the Factory Cut List export"
+                          className="w-full min-w-[160px] bg-transparent text-slate-600 focus:bg-white focus:ring-1 focus:ring-cyan-500 rounded px-1 disabled:cursor-default"
+                        />
                       </td>
                       <td className="py-1.5 px-2 border-r border-slate-200 text-center font-sans">
                         {part.edgeThicknessMm > 0 ? (

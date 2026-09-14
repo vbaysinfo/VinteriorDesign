@@ -24,6 +24,11 @@ export default function App() {
   const [rates, setRates] = useState<FactoryRates>(DEFAULT_FACTORY_RATES);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isCadFullWidth, setIsCadFullWidth] = useState<boolean>(true);
+  // Per-panel material overrides, keyed by CutListPart.id (stable across
+  // regeneration since it's derived from the item id + part type). Lets a
+  // user hand-edit an individual panel's material in the Cutting List tab
+  // without it being overwritten the next time items/projectType change.
+  const [partMaterialOverrides, setPartMaterialOverrides] = useState<Record<string, string>>({});
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -32,8 +37,16 @@ export default function App() {
 
   // Generate Cut List
   const cutList = useMemo(() => {
-    return generateAllCutLists(items, projectType);
-  }, [items, projectType]);
+    const generated = generateAllCutLists(items, projectType);
+    if (Object.keys(partMaterialOverrides).length === 0) return generated;
+    return generated.map((part) =>
+      partMaterialOverrides[part.id] !== undefined ? { ...part, material: partMaterialOverrides[part.id] } : part
+    );
+  }, [items, projectType, partMaterialOverrides]);
+
+  const handleUpdatePartMaterial = (partId: string, material: string) => {
+    setPartMaterialOverrides((prev) => ({ ...prev, [partId]: material }));
+  };
 
   // Calculate Materials
   const materials = useMemo(() => {
@@ -263,6 +276,7 @@ export default function App() {
               materials={materials}
               projectType={projectType}
               selectedRoom={selectedRoom}
+              onUpdatePartMaterial={handleUpdatePartMaterial}
             />
           </div>
         )}
