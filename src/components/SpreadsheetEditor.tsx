@@ -271,7 +271,7 @@ export const SpreadsheetEditor: React.FC<SpreadsheetEditorProps> = ({
                   </td>
 
                   {/* Room */}
-                  <td className="py-1.5 px-3 border-r border-slate-200">
+                  <td className="py-1.5 px-3 border-r border-slate-200" onClick={(e) => e.stopPropagation()}>
                     <input
                       type="text"
                       value={item.room}
@@ -281,7 +281,7 @@ export const SpreadsheetEditor: React.FC<SpreadsheetEditorProps> = ({
                   </td>
 
                   {/* Wall */}
-                  <td className="py-1.5 px-2 border-r border-slate-200 text-center">
+                  <td className="py-1.5 px-2 border-r border-slate-200 text-center" onClick={(e) => e.stopPropagation()}>
                     <select
                       value={item.wall}
                       onChange={(e) => handleCellChange(item.id, 'wall', e.target.value as WallType)}
@@ -295,7 +295,7 @@ export const SpreadsheetEditor: React.FC<SpreadsheetEditorProps> = ({
                   </td>
 
                   {/* Item Description */}
-                  <td className="py-1.5 px-3 border-r border-slate-200 font-sans">
+                  <td className="py-1.5 px-3 border-r border-slate-200 font-sans" onClick={(e) => e.stopPropagation()}>
                     <input
                       type="text"
                       value={item.description}
@@ -305,7 +305,7 @@ export const SpreadsheetEditor: React.FC<SpreadsheetEditorProps> = ({
                   </td>
 
                   {/* Width ft */}
-                  <td className="py-1.5 px-2 border-r border-slate-200 text-center bg-cyan-50/30">
+                  <td className="py-1.5 px-2 border-r border-slate-200 text-center bg-cyan-50/30" onClick={(e) => e.stopPropagation()}>
                     <input
                       type="number"
                       step="0.1"
@@ -316,7 +316,7 @@ export const SpreadsheetEditor: React.FC<SpreadsheetEditorProps> = ({
                   </td>
 
                   {/* Height ft */}
-                  <td className="py-1.5 px-2 border-r border-slate-200 text-center bg-cyan-50/30">
+                  <td className="py-1.5 px-2 border-r border-slate-200 text-center bg-cyan-50/30" onClick={(e) => e.stopPropagation()}>
                     <input
                       type="number"
                       step="0.1"
@@ -327,7 +327,7 @@ export const SpreadsheetEditor: React.FC<SpreadsheetEditorProps> = ({
                   </td>
 
                   {/* Depth ft (customizable for boxes, 0 for frames in semi-modular) */}
-                  <td className="py-1.5 px-2 border-r border-slate-200 text-center bg-cyan-50/30">
+                  <td className="py-1.5 px-2 border-r border-slate-200 text-center bg-cyan-50/30" onClick={(e) => e.stopPropagation()}>
                     <input
                       type="number"
                       step="0.1"
@@ -372,7 +372,7 @@ export const SpreadsheetEditor: React.FC<SpreadsheetEditorProps> = ({
                   </td>
 
                   {/* Quantity (multiplies cut list & cost) */}
-                  <td className="py-1.5 px-2 border-r border-slate-200 text-center">
+                  <td className="py-1.5 px-2 border-r border-slate-200 text-center" onClick={(e) => e.stopPropagation()}>
                     <input
                       type="number"
                       min={1}
@@ -384,7 +384,7 @@ export const SpreadsheetEditor: React.FC<SpreadsheetEditorProps> = ({
                   </td>
 
                   {/* Laminate Color Code */}
-                  <td className="py-1.5 px-3 border-r border-slate-200 font-sans">
+                  <td className="py-1.5 px-3 border-r border-slate-200 font-sans" onClick={(e) => e.stopPropagation()}>
                     <input
                       type="text"
                       placeholder="e.g. Ivory - IV102"
@@ -395,7 +395,7 @@ export const SpreadsheetEditor: React.FC<SpreadsheetEditorProps> = ({
                   </td>
 
                   {/* Material (free-text override for the exported Material label; blank = auto from Core Material + Finish) */}
-                  <td className="py-1.5 px-3 border-r border-slate-200 font-sans">
+                  <td className="py-1.5 px-3 border-r border-slate-200 font-sans" onClick={(e) => e.stopPropagation()}>
                     <input
                       type="text"
                       placeholder={`${item.coreMaterial} (${item.finishType})`}
@@ -406,7 +406,7 @@ export const SpreadsheetEditor: React.FC<SpreadsheetEditorProps> = ({
                   </td>
 
                   {/* Edge Binding note */}
-                  <td className="py-1.5 px-3 border-r border-slate-200 font-sans">
+                  <td className="py-1.5 px-3 border-r border-slate-200 font-sans" onClick={(e) => e.stopPropagation()}>
                     <input
                       type="text"
                       placeholder="e.g. 2mm PVC all sides"
@@ -417,7 +417,7 @@ export const SpreadsheetEditor: React.FC<SpreadsheetEditorProps> = ({
                   </td>
 
                   {/* Note */}
-                  <td className="py-1.5 px-3 border-r border-slate-200 font-sans">
+                  <td className="py-1.5 px-3 border-r border-slate-200 font-sans" onClick={(e) => e.stopPropagation()}>
                     <input
                       type="text"
                       value={item.notes || ''}
