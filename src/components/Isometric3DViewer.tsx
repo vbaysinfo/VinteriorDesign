@@ -1509,7 +1509,7 @@ export const Isometric3DViewer: React.FC<Isometric3DViewerProps> = ({
           {/* 3D MODULE FLOATING TAGS */}
           {showModuleTags && (
             <g className="pointer-events-none">
-              {layout3D.map((box) => {
+              {layout3D.modules.map((box) => {
                 const tagPoint = projectPoint({
                   x: box.x + box.w / 2,
                   y: box.y + box.h + 50,
