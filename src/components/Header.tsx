@@ -40,6 +40,19 @@ export const Header: React.FC<HeaderProps> = ({
       const parsed = await parseExcelFile(file);
       if (parsed.length > 0) {
         onUploadItems(parsed);
+      } else {
+        // Previously failed silently: 0 rows parsed left the project
+        // completely unchanged with no feedback, looking exactly like
+        // "nothing happened" - most commonly because the sheet has no
+        // column the parser recognizes as the item description (it needs
+        // one containing "item", "furniture", "description", or
+        // "particular"), so every row is skipped as empty.
+        alert(
+          `No items could be read from "${file.name}".\n\n` +
+          `Every row was skipped because no "Item / Furniture Description" column was found - a row with nothing in that column is treated as blank and ignored.\n\n` +
+          `Required: a Description column, plus Width and Height/Length columns.\n` +
+          `Click "Sample Excel" to download a template with the exact headers this app recognizes.`
+        );
       }
     } catch (err: any) {
       console.error('Failed to parse Excel file', err);
