@@ -2,6 +2,7 @@ import React, { useState, useMemo, useRef } from 'react';
 import { ModularItem, WallType, ProjectType } from '../types';
 import { Layers, ZoomIn, ZoomOut, Maximize2, Minimize2, Download, Eye, Grid, Box, Sliders, Type, RotateCcw, Move } from 'lucide-react';
 import { Isometric3DViewer } from './Isometric3DViewer';
+import { getEffectiveDepthMm } from '../utils/calculator';
 
 interface Cad2DViewerProps {
   items: ModularItem[];
@@ -31,6 +32,7 @@ export const Cad2DViewer: React.FC<Cad2DViewerProps> = ({
   const [showDimensions, setShowDimensions] = useState(true);
   const [showDatums, setShowDatums] = useState(true);
   const [showGrid, setShowGrid] = useState(true);
+  const [selectedShutter, setSelectedShutter] = useState<{ itemId: string; index: number } | null>(null);
   const [zoomLevel, setZoomLevel] = useState(1);
   const [pan, setPan] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [isPanning, setIsPanning] = useState(false);
@@ -838,6 +840,17 @@ export const Cad2DViewer: React.FC<Cad2DViewerProps> = ({
                   const shutterGapMm = sCount > 1 ? 3 : 0;
                   const shutterW = Math.floor((pos.w - (sCount - 1) * shutterGapMm) / sCount);
                   const shutterPitch = shutterW + shutterGapMm;
+                  // Same box-clearance rule as the real cut list (calculator.ts):
+                  // a box unit's shutter is 20mm shorter than the carcass to clear
+                  // the top/bottom decks; a civil-built frame's shutter is full height.
+                  const shutterPType = pos.item.projectType || projectType;
+                  const shutterIsBoxUnit = getEffectiveDepthMm(pos.item, shutterPType) > 0;
+                  const shutterHeight = shutterIsBoxUnit ? pos.h - 20 : pos.h;
+                  const isShutterSelected = (sIdx: number) =>
+                    selectedShutter?.itemId === pos.item.id && selectedShutter.index === sIdx;
+                  const selectedShutterIndex =
+                    selectedShutter?.itemId === pos.item.id && selectedShutter.index < sCount ? selectedShutter.index : -1;
+                  const selectedShutterX = selectedShutterIndex >= 0 ? pos.x + selectedShutterIndex * shutterPitch : 0;
 
                   // Dynamic compact badge inside cabinet
                   const badgeW = Math.min(pos.w - 20, Math.max(160, 240 * fontScale));
@@ -920,6 +933,7 @@ export const Cad2DViewer: React.FC<Cad2DViewerProps> = ({
                         Array.from({ length: sCount }).map((_, sIdx) => {
                           const sx = pos.x + sIdx * shutterPitch;
                           const isHingeLeft = sIdx % 2 === 0;
+                          const shutterSelected = isShutterSelected(sIdx);
                           return (
                             <g key={`shutter-${sIdx}`}>
                               {/* Real reveal gap between adjacent shutters (matches cut list exactly) */}
@@ -932,6 +946,28 @@ export const Cad2DViewer: React.FC<Cad2DViewerProps> = ({
                                   fill={themeStyles.bg}
                                 />
                               )}
+
+                              {/* Individual shutter hit-area + selection highlight - click to inspect THIS shutter's own cut size */}
+                              <rect
+                                x={sx}
+                                y={itemY}
+                                width={shutterW}
+                                height={pos.h}
+                                fill={shutterSelected ? themeStyles.selectedFill : 'transparent'}
+                                stroke={shutterSelected ? themeStyles.selectedStroke : 'transparent'}
+                                strokeWidth={shutterSelected ? 3 : 0}
+                                className="cursor-pointer hover:opacity-80"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  hasMovedRef.current = false;
+                                  setSelectedShutter((prev) =>
+                                    prev && prev.itemId === pos.item.id && prev.index === sIdx
+                                      ? null
+                                      : { itemId: pos.item.id, index: sIdx }
+                                  );
+                                  if (onSelectItem) onSelectItem(pos.item);
+                                }}
+                              />
 
                               {/* Architectural Door Swing Dashed Lines */}
                               {pos.h > 400 && pos.w > 200 && (
@@ -971,6 +1007,42 @@ export const Cad2DViewer: React.FC<Cad2DViewerProps> = ({
                             </g>
                           );
                         })
+                      )}
+
+                      {/* Selected Shutter Measurement Callout */}
+                      {selectedShutterIndex >= 0 && (
+                        <g className="pointer-events-none">
+                          <rect
+                            x={selectedShutterX}
+                            y={Math.max(0, itemY - Math.round(56 * fontScale))}
+                            width={Math.max(shutterW, Math.round(190 * fontScale))}
+                            height={Math.round(48 * fontScale)}
+                            rx="5"
+                            fill={themeStyles.selectedFill}
+                            stroke={themeStyles.selectedStroke}
+                            strokeWidth="2"
+                          />
+                          <text
+                            x={selectedShutterX + Math.max(shutterW, Math.round(190 * fontScale)) / 2}
+                            y={Math.max(0, itemY - Math.round(56 * fontScale)) + Math.round(20 * fontScale)}
+                            textAnchor="middle"
+                            fill={themeStyles.text}
+                            fontSize={Math.round(18 * fontScale)}
+                            fontWeight="bold"
+                          >
+                            Shutter {selectedShutterIndex + 1} of {sCount}
+                          </text>
+                          <text
+                            x={selectedShutterX + Math.max(shutterW, Math.round(190 * fontScale)) / 2}
+                            y={Math.max(0, itemY - Math.round(56 * fontScale)) + Math.round(40 * fontScale)}
+                            textAnchor="middle"
+                            fill={themeStyles.text}
+                            fontSize={Math.round(20 * fontScale)}
+                            fontWeight="bold"
+                          >
+                            {shutterW} × {shutterHeight} mm
+                          </text>
+                        </g>
                       )}
 
                       {/* Cabinet Annotation Label (Bounded inside box) */}
