@@ -73,11 +73,17 @@ export default function App() {
   // Upload Excel items
   const handleUploadItems = (newItems: ModularItem[]) => {
     setItems(newItems);
+    setSelectedItemId(null);
+    setPartMaterialOverrides({});
     // Auto select first room from uploaded items
     if (newItems.length > 0 && newItems[0].room) {
       setSelectedRoom(newItems[0].room);
     }
-    showToast(`Successfully uploaded ${newItems.length} modular items from Excel sheet!`);
+    // Jump straight to the CAD 2D layout so the freshly uploaded sheet is
+    // immediately visible as a drawing, not left sitting on whatever tab
+    // the user happened to be on.
+    setActiveTab('cad_layout');
+    showToast(`Successfully uploaded ${newItems.length} modular items from Excel sheet! Converted to CAD layout.`);
   };
 
   // Reset to original uploaded template
@@ -85,7 +91,20 @@ export default function App() {
     setItems(INITIAL_ITEMS);
     setProjectType('semi');
     setSelectedRoom('MBR');
+    setSelectedItemId(null);
+    setPartMaterialOverrides({});
     showToast('Reset to factory master dataset');
+  };
+
+  // Full clear: wipe every item so the project starts empty, ready for a
+  // fresh Excel upload. Distinct from "Reset" above, which reloads the
+  // built-in sample dataset rather than emptying the project.
+  const handleClearProject = () => {
+    setItems([]);
+    setSelectedItemId(null);
+    setSelectedRoom('ALL');
+    setPartMaterialOverrides({});
+    showToast('Project cleared. Upload an Excel sheet to start fresh.');
   };
 
   // Export PDF
@@ -114,6 +133,7 @@ export default function App() {
         onUploadItems={handleUploadItems}
         onExportPdf={handleExportPdf}
         onResetSampleData={handleResetSampleData}
+        onClearProject={handleClearProject}
         onOpenSettings={() => setIsSettingsOpen(true)}
       />
 

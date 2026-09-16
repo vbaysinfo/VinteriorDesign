@@ -1,6 +1,6 @@
 import React, { useRef } from 'react';
 import { ProjectInfo, ProjectType } from '../types';
-import { Upload, Download, FileSpreadsheet, FileText, Layers, RefreshCw, Settings2 } from 'lucide-react';
+import { Upload, Download, FileSpreadsheet, FileText, Layers, RefreshCw, Settings2, Trash2 } from 'lucide-react';
 import { parseExcelFile, exportToExcel } from '../utils/excelParser';
 import { ModularItem } from '../types';
 import { INITIAL_ITEMS } from '../data/initialData';
@@ -14,6 +14,7 @@ interface HeaderProps {
   onUploadItems: (items: ModularItem[]) => void;
   onExportPdf: () => void;
   onResetSampleData: () => void;
+  onClearProject: () => void;
   onOpenSettings: () => void;
 }
 
@@ -26,6 +27,7 @@ export const Header: React.FC<HeaderProps> = ({
   onUploadItems,
   onExportPdf,
   onResetSampleData,
+  onClearProject,
   onOpenSettings,
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -49,6 +51,14 @@ export const Header: React.FC<HeaderProps> = ({
 
   const handleDownloadSampleExcel = () => {
     exportToExcel(INITIAL_ITEMS, 'Modular_Estimation_Sample_Template.xlsx');
+  };
+
+  const handleClearClick = () => {
+    if (items.length === 0) return;
+    const confirmed = window.confirm(
+      `Clear the entire project? This removes all ${items.length} items so you can upload a fresh Excel sheet. This cannot be undone.`
+    );
+    if (confirmed) onClearProject();
   };
 
   return (
@@ -160,6 +170,16 @@ export const Header: React.FC<HeaderProps> = ({
             title="Reload Original Factory Dataset"
           >
             <RefreshCw className="w-4 h-4" />
+          </button>
+
+          {/* Clear Project (full wipe, ready for a fresh Excel upload) */}
+          <button
+            onClick={handleClearClick}
+            className="px-2.5 py-1.5 bg-slate-800 hover:bg-rose-900/60 text-slate-400 hover:text-rose-300 rounded-lg border border-slate-700 hover:border-rose-800 flex items-center gap-1.5 transition"
+            title="Clear Project: remove all items so you can upload a fresh Excel sheet from scratch"
+          >
+            <Trash2 className="w-4 h-4" />
+            <span className="hidden md:inline text-xs font-semibold">Clear Project</span>
           </button>
         </div>
       </div>
