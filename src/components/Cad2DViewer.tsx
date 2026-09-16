@@ -27,7 +27,7 @@ export const Cad2DViewer: React.FC<Cad2DViewerProps> = ({
   const [activeWall, setActiveWall] = useState<WallType | 'all'>('front');
   const [viewMode, setViewMode] = useState<'elevation' | 'floor_plan' | 'isometric_3d'>('elevation');
   const [cadTheme, setCadTheme] = useState<CadTheme>('dark_cad');
-  const [fontSizeLevel, setFontSizeLevel] = useState<'normal' | 'large' | 'xl'>('large'); // default 'large' so text is immediately clear and legible
+  const [fontSizeLevel, setFontSizeLevel] = useState<'normal' | 'large' | 'xl'>('large'); // default 'large' (1.7x) - bigger than before, but 'xl' (2.2x) can clip labels off the left edge on narrower rooms
   const [showDimensions, setShowDimensions] = useState(true);
   const [showDatums, setShowDatums] = useState(true);
   const [showGrid, setShowGrid] = useState(true);
@@ -44,7 +44,7 @@ export const Cad2DViewer: React.FC<Cad2DViewerProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
 
-  const fontScale = fontSizeLevel === 'normal' ? 1.0 : fontSizeLevel === 'large' ? 1.35 : 1.75;
+  const fontScale = fontSizeLevel === 'normal' ? 1.25 : fontSizeLevel === 'large' ? 1.7 : 2.2;
 
   // Zoom and Pan Handlers
   const handleZoomIn = () => {
@@ -398,9 +398,9 @@ export const Cad2DViewer: React.FC<Cad2DViewerProps> = ({
                     ? 'bg-cyan-600 text-white shadow-xs'
                     : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                 }`}
-                title={`Text Scale: ${lvl === 'normal' ? 'Standard 1x' : lvl === 'large' ? 'Large 1.4x' : 'Extra Large 1.8x'}`}
+                title={`Text Scale: ${lvl === 'normal' ? 'Standard 1.25x' : lvl === 'large' ? 'Large 1.7x' : 'Extra Large 2.2x'}`}
               >
-                {lvl === 'normal' ? '1x' : lvl === 'large' ? '1.4x' : '1.8x'}
+                {lvl === 'normal' ? '1.25x' : lvl === 'large' ? '1.7x' : '2.2x'}
               </button>
             ))}
           </div>
