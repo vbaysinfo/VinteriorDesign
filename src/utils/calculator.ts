@@ -106,7 +106,14 @@ export function generateCutListForItem(item: ModularItem, globalProjectType: Pro
   // 1. Shutter / Doors / Front Paneling
   if (item.category !== 'tv_panel' && item.category !== 'partition' && item.category !== 'tandem_box') {
     const sCount = Math.max(1, item.shutterCount || (w > 1800 ? 4 : w > 1000 ? 3 : w > 500 ? 2 : 1));
-    const shutterWidth = Math.round((w - (sCount - 1) * 3) / sCount);
+    // Floor (never round up): all sCount shutters share this one width, so
+    // rounding up even by 0.5mm compounds across every shutter - e.g. at
+    // w=2440mm with 4 shutters, Math.round gives 608mm each, and
+    // 4x608 + 3x3mm gaps = 2441mm, 1mm WIDER than the 2440mm opening
+    // (worse cases reach +2mm). Flooring instead guarantees the shutters
+    // plus their 3mm reveals never exceed the opening, at the cost of at
+    // most ~1mm extra reveal spread across the gaps.
+    const shutterWidth = Math.floor((w - (sCount - 1) * 3) / sCount);
     const shutterHeight = isBoxUnit ? h - 20 : h; // 20mm clearance or full height
     
     parts.push({
@@ -133,7 +140,9 @@ export function generateCutListForItem(item: ModularItem, globalProjectType: Pro
   // 2. Drawers (if tandem box or drawer count > 0)
   if (item.drawerCount > 0) {
     const dCount = item.drawerCount;
-    const faciaHeight = Math.round((h - (dCount * 5)) / dCount);
+    // Same reasoning as the shutter width above: floor so dCount identical
+    // drawer fronts sharing one height can never combine to exceed h.
+    const faciaHeight = Math.floor((h - (dCount * 5)) / dCount);
     const faciaWidth = w - 10;
     
     // Drawer Facia

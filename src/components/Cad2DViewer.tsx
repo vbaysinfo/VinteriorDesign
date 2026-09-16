@@ -830,7 +830,14 @@ export const Cad2DViewer: React.FC<Cad2DViewerProps> = ({
                   const isSelected = selectedItemId === pos.item.id;
                   const itemY = wallHeight - pos.y - pos.h; // convert from bottom datum to top-left SVG coords
                   const sCount = pos.item.shutterCount || (pos.w > 1800 ? 4 : pos.w > 1000 ? 3 : pos.w > 500 ? 2 : 1);
-                  const shutterW = pos.w / sCount;
+                  // Match the real cut list exactly (calculator.ts): a 3mm
+                  // reveal between adjacent shutters, floored so sCount
+                  // identical shutter widths can never combine to exceed
+                  // pos.w - i.e. what's drawn here is what actually gets cut,
+                  // and the doors are shown with real clearance, not touching.
+                  const shutterGapMm = sCount > 1 ? 3 : 0;
+                  const shutterW = Math.floor((pos.w - (sCount - 1) * shutterGapMm) / sCount);
+                  const shutterPitch = shutterW + shutterGapMm;
 
                   // Dynamic compact badge inside cabinet
                   const badgeW = Math.min(pos.w - 20, Math.max(160, 240 * fontScale));
@@ -911,19 +918,18 @@ export const Cad2DViewer: React.FC<Cad2DViewerProps> = ({
                       ) : (
                         // Shutters and Swing Dashed Arcs
                         Array.from({ length: sCount }).map((_, sIdx) => {
-                          const sx = pos.x + sIdx * shutterW;
+                          const sx = pos.x + sIdx * shutterPitch;
                           const isHingeLeft = sIdx % 2 === 0;
                           return (
                             <g key={`shutter-${sIdx}`}>
-                              {/* Vertical divider line */}
+                              {/* Real reveal gap between adjacent shutters (matches cut list exactly) */}
                               {sIdx > 0 && (
-                                <line
-                                  x1={sx}
-                                  y1={itemY}
-                                  x2={sx}
-                                  y2={itemY + pos.h}
-                                  stroke={themeStyles.cabinetStroke}
-                                  strokeWidth="1.5"
+                                <rect
+                                  x={sx - shutterGapMm}
+                                  y={itemY}
+                                  width={shutterGapMm}
+                                  height={pos.h}
+                                  fill={themeStyles.bg}
                                 />
                               )}
 
