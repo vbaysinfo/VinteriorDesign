@@ -77,15 +77,24 @@ export async function parseExcelFile(file: File): Promise<ModularItem[]> {
 
           const roomKey = getKey(['room', 'location', 'area_name']);
           const descKey = getKey(['item', 'furniture', 'description', 'particular']);
-          const widthFtKey = getKey(['width (ft)', 'width_ft', 'widthft', 'w (ft)', 'width']);
+          // Single-letter patterns like 'w (ft)'/'h (ft)'/'d (ft)' are a last
+          // resort, tried only after the full bare word - a wrapped header
+          // cell (e.g. "Height/Length" on one line, "(ft)" on the next,
+          // joined by a real newline character, not a space) won't match the
+          // exact "height (ft)" pattern, and 'h (ft)' as a substring also
+          // matches inside "Dept-h (ft)" or "Widt-h (ft)". Trying the bare
+          // word first means a genuine "Height" or "Width" header is found
+          // before that generic fallback ever gets a chance to steal an
+          // unrelated column.
+          const widthFtKey = getKey(['width (ft)', 'width_ft', 'widthft', 'width', 'w (ft)']);
           // "Length" is this factory's word for the vertical/height dimension
           // (Semi Modular = Width x Length; Full Modular = Width x Length x
           // Depth) - accepted alongside the more generic "Height" header.
           const heightFtKey = getKey(
-            ['length (ft)', 'length_ft', 'lengthft', 'height (ft)', 'height_ft', 'heightft', 'h (ft)', 'height', 'length'],
+            ['length (ft)', 'length_ft', 'lengthft', 'height (ft)', 'height_ft', 'heightft', 'height', 'length', 'h (ft)'],
             [widthFtKey]
           );
-          const depthFtKey = getKey(['depth (ft)', 'depth_ft', 'depthft', 'd (ft)', 'depth'], [widthFtKey, heightFtKey]);
+          const depthFtKey = getKey(['depth (ft)', 'depth_ft', 'depthft', 'depth', 'd (ft)'], [widthFtKey, heightFtKey]);
           const wallKey = getKey(['wall', 'side', 'elevation']);
           const sNoKey = getKey(['s.no', 'sno', 'sl', 'no', '#']);
           const quantityKey = getKey(['quantity', 'qty']);
