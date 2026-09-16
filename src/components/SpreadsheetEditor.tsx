@@ -82,6 +82,8 @@ export const SpreadsheetEditor: React.FC<SpreadsheetEditorProps> = ({
         newItem.depthFt = num > 0 ? mmToFt(num) : 0;
       } else if (field === 'quantity') {
         newItem.quantity = Math.max(1, parseInt(value, 10) || 1);
+      } else if (field === 'projectType') {
+        newItem.projectType = value === 'semi' || value === 'full' ? value : undefined;
       }
 
       return recalculateItemMetrics(newItem);
@@ -110,7 +112,9 @@ export const SpreadsheetEditor: React.FC<SpreadsheetEditorProps> = ({
       calcBasis: projectType === 'semi' ? 'Area (Sq.ft)' : 'Volume (Cu.ft)',
       areaSqFt: 28,
       volumeCuFt: projectType === 'semi' ? 0 : 50.4,
-      projectType,
+      // No per-item override here - the new row inherits whichever
+      // Semi/Full Modular mode is active at any time, matching every
+      // other item unless the user explicitly overrides it.
       shutterCount: 2,
       drawerCount: 0,
       shelfCount: 3,
@@ -247,6 +251,9 @@ export const SpreadsheetEditor: React.FC<SpreadsheetEditorProps> = ({
                 Area / Volume
               </th>
               <th className="py-2.5 px-2 border-r border-slate-600 text-center w-16">Qty</th>
+              <th className="py-2.5 px-2 border-r border-slate-600 text-center w-28">
+                Type Override <span className="text-[9px] font-normal block lowercase opacity-80">blank=inherit</span>
+              </th>
               <th className="py-2.5 px-3 border-r border-slate-600 min-w-[140px] bg-fuchsia-950/60">Laminate Color Code</th>
               <th className="py-2.5 px-3 border-r border-slate-600 min-w-[140px] bg-fuchsia-950/60">Material</th>
               <th className="py-2.5 px-3 border-r border-slate-600 min-w-[140px] bg-fuchsia-950/60">Edge Binding</th>
@@ -381,6 +388,19 @@ export const SpreadsheetEditor: React.FC<SpreadsheetEditorProps> = ({
                       onChange={(e) => handleCellChange(item.id, 'quantity', e.target.value)}
                       className="w-full text-center bg-transparent text-slate-800 font-bold focus:bg-white focus:ring-1 focus:ring-cyan-500 rounded"
                     />
+                  </td>
+
+                  {/* Per-item Semi/Full override - blank inherits the header toggle */}
+                  <td className="py-1.5 px-2 border-r border-slate-200 text-center" onClick={(e) => e.stopPropagation()}>
+                    <select
+                      value={item.projectType || ''}
+                      onChange={(e) => handleCellChange(item.id, 'projectType', e.target.value)}
+                      className="text-[10px] font-sans font-bold uppercase bg-slate-100 hover:bg-slate-200 px-1 py-0.5 rounded text-slate-700 focus:outline-hidden w-full"
+                    >
+                      <option value="">Inherit</option>
+                      <option value="semi">Semi</option>
+                      <option value="full">Full</option>
+                    </select>
                   </td>
 
                   {/* Laminate Color Code */}

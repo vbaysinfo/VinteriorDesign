@@ -35,7 +35,7 @@ export interface ModularItem {
   calcBasis: 'Area (Sq.ft)' | 'Volume (Cu.ft)';
   areaSqFt: number;
   volumeCuFt: number;
-  projectType: ProjectType; // Can override per item or inherit
+  projectType?: ProjectType; // Optional per-item override; blank/undefined inherits the project-wide Semi/Full Modular toggle
   shutterCount: number;
   drawerCount: number;
   shelfCount: number;

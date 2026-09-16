@@ -93,6 +93,7 @@ export async function parseExcelFile(file: File): Promise<ModularItem[]> {
           const noteKey = getKey(['note', 'remark']);
           const laminateKey = getKey(['laminate color code', 'laminate code', 'colour code', 'color code', 'laminate']);
           const edgeBindingKey = getKey(['edge binding', 'edge band', 'edging']);
+          const projectTypeKey = getKey(['project type', 'modular type', 'fabrication type', 'semi/full', 'semi / full']);
 
           // Room carry-over (in spreadsheets, Room is often merged or blank in subsequent rows)
           if (roomKey && row[roomKey] && String(row[roomKey]).trim() !== '') {
@@ -122,6 +123,17 @@ export async function parseExcelFile(file: File): Promise<ModularItem[]> {
           const laminateColorCode = laminateKey && row[laminateKey] ? String(row[laminateKey]).trim() : undefined;
           const edgeBindingNote = edgeBindingKey && row[edgeBindingKey] ? String(row[edgeBindingKey]).trim() : undefined;
 
+          // Optional per-row Semi/Full override. Left undefined (not 'semi')
+          // when absent or unrecognized, so the item inherits whichever
+          // project-wide mode is active instead of being locked to one -
+          // this is deliberately NOT a default value, see ModularItem.projectType.
+          let projectTypeOverride: 'semi' | 'full' | undefined;
+          if (projectTypeKey && row[projectTypeKey]) {
+            const raw = String(row[projectTypeKey]).trim().toLowerCase();
+            if (raw.includes('full')) projectTypeOverride = 'full';
+            else if (raw.includes('semi')) projectTypeOverride = 'semi';
+          }
+
           // Defaults
           const item: ModularItem = {
             id: `item-${Date.now()}-${index}`,
@@ -139,7 +151,7 @@ export async function parseExcelFile(file: File): Promise<ModularItem[]> {
             calcBasis: dFt > 0 ? 'Volume (Cu.ft)' : 'Area (Sq.ft)',
             areaSqFt: Number((wFt * hFt).toFixed(2)),
             volumeCuFt: dFt > 0 ? Number((wFt * hFt * dFt).toFixed(2)) : 0,
-            projectType: 'semi',
+            projectType: projectTypeOverride,
             shutterCount: wFt > 6 ? 4 : wFt > 3 ? 2 : 1,
             drawerCount: category === 'tandem_box' ? 3 : category === 'sitting_box' ? 2 : 0,
             shelfCount: category === 'expo' || category === 'shelves' ? 4 : 2,
@@ -191,6 +203,8 @@ export function exportToExcel(items: ModularItem[], fileName = 'Modular_Factory_
     'Laminate Color Code': item.laminateColorCode || '',
     'Edge Binding': item.edgeBindingNote || '',
     'Note': item.notes || '',
+    'Project Type [blank = inherit Semi/Full Modular toggle]':
+      item.projectType === 'full' ? 'Full Modular' : item.projectType === 'semi' ? 'Semi Modular' : '',
   }));
 
   const worksheet = XLSX.utils.json_to_sheet(exportData);
