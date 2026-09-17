@@ -17,8 +17,11 @@ import { Layers, FileSpreadsheet, Scissors, Calculator, Info, UploadCloud, Maxim
 export default function App() {
   const [projectInfo, setProjectInfo] = useState<ProjectInfo>(DEFAULT_PROJECT_INFO);
   const [projectType, setProjectType] = useState<ProjectType>('semi');
-  const [items, setItems] = useState<ModularItem[]>(INITIAL_ITEMS);
-  const [selectedRoom, setSelectedRoom] = useState<string>('MBR');
+  // Fresh start: the app opens with no items so nobody mistakes the built-in
+  // sample dataset for their own project data. Use "Load Sample Data" in the
+  // header (onResetSampleData) to bring in INITIAL_ITEMS on demand.
+  const [items, setItems] = useState<ModularItem[]>([]);
+  const [selectedRoom, setSelectedRoom] = useState<string>('ALL');
   const [activeTab, setActiveTab] = useState<'cad_layout' | 'spreadsheet' | 'cut_list' | 'box_schedule' | 'pricing_bom'>('cad_layout');
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);

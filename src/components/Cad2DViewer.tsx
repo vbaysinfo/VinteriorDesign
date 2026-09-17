@@ -284,6 +284,25 @@ export const Cad2DViewer: React.FC<Cad2DViewerProps> = ({
     document.body.removeChild(link);
   };
 
+  // Fresh project with nothing uploaded yet: show a guided empty state
+  // instead of a blank/confusing drawing canvas with no walls or units.
+  if (items.length === 0) {
+    return (
+      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+        <div className="flex flex-col items-center justify-center text-center py-24 px-6">
+          <div className="p-4 bg-cyan-50 text-cyan-600 rounded-full mb-4">
+            <Layers className="w-8 h-8" />
+          </div>
+          <h3 className="font-semibold text-slate-800 text-base mb-1.5">No Project Data Yet</h3>
+          <p className="text-sm text-slate-500 max-w-sm">
+            Upload an Excel quotation sheet using "Upload Excel" in the header to generate the 2D
+            AutoCAD layout, cutting list, and pricing for your project.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   // If 3D Isometric view is active, render full 3D interactive visualizer
   if (viewMode === 'isometric_3d') {
     return (
