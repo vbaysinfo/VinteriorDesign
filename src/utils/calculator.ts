@@ -583,6 +583,47 @@ export function generateRoomBoxSummary(items: ModularItem[], forcedProjectType: 
 
 // Calculate material usage breakdown from items and cut list
 export function calculateMaterialUsage(cutList: CutListPart[]): MaterialBreakdown {
+  // An empty cut list (Clear Project, or before anything's been uploaded)
+  // must report zero everything. Every count below is built on
+  // Math.max(1, ...) floors (never show "0 sheets" for a real, tiny job) -
+  // without this guard those floors instead invent a phantom 1 sheet, 1
+  // laminate sheet, 32 minifix fasteners, and a nonzero "68% yield" out of
+  // thin air for a project that has nothing in it at all.
+  if (cutList.length === 0) {
+    return {
+      totalSheets: 0,
+      totalPieces: 0,
+      ply18mmSheets: 0,
+      ply18mmAreaSqFt: 0,
+      ply9mmSheets: 0,
+      ply9mmAreaSqFt: 0,
+      ply6mmSheets: 0,
+      ply6mmAreaSqFt: 0,
+      innerLaminateSheets: 0,
+      outerLaminateSheets: 0,
+      edgeBandMeters: 0,
+      edgeBand2mmMeters: 0,
+      edgeBand08mmMeters: 0,
+      softCloseHingesPairs: 0,
+      totalHingesPieces: 0,
+      tandemBoxChannels: 0,
+      drawerChannels: 0,
+      handles: 0,
+      shelfSupports: 0,
+      fastenersMinifixCount: 0,
+      grossBoardAreaSqFt: 0,
+      netPartsAreaSqFt: 0,
+      overallUtilizationPercent: 0,
+      usableOffcutAreaSqFt: 0,
+      totalScrapWasteSqFt: 0,
+      wastePercent: 0,
+      skirtingLinearMeters: 0,
+      skirtingPiecesCount: 0,
+      skirtingFromOffcutsMeters: 0,
+      skirtingPlinthHeightMm: 100,
+    };
+  }
+
   let ply18mmAreaSqMt = 0;
   let ply9mmAreaSqMt = 0;
   let ply6mmAreaSqMt = 0;
@@ -977,6 +1018,29 @@ export function calculateProjectCost(
   items: ModularItem[],
   rates: FactoryRates
 ): CostBreakdown {
+  // An empty project (Clear Project, or before any upload) must cost zero.
+  // packingTransportCost below is a flat lump sum applied unconditionally -
+  // without this guard it (plus the material side's own phantom-1-sheet
+  // floors) would show a nonzero "Total Project Budget" for a project with
+  // nothing in it.
+  if (items.length === 0) {
+    return {
+      carcassBoardCost: 0,
+      shutterBoardCost: 0,
+      backPanelCost: 0,
+      innerLaminateCost: 0,
+      outerLaminateCost: 0,
+      edgeBandCost: 0,
+      hardwareCost: 0,
+      factoryLaborCost: 0,
+      packingTransportCost: 0,
+      installationCost: 0,
+      subtotal: 0,
+      taxAmount: 0,
+      grandTotal: 0,
+    };
+  }
+
   const totalAreaSqFt = items.reduce((sum, item) => sum + item.areaSqFt * Math.max(1, Math.round(item.quantity || 1)), 0);
 
   const carcassBoardCost = Math.round(material.ply18mmAreaSqFt * rates.plywood18mmPerSqFt);
