@@ -209,7 +209,32 @@ export const StackedHorizontalBarChart: React.FC<StackedHorizontalBarChartProps>
         {data.map((row, ri) => {
           const y = ri * rowH + (rowH - barH) / 2;
           const total = totals[ri];
-          let acc = 0;
+
+          // Every nonzero series gets a floor on its rendered width so a
+          // small-but-real value (a low-waste room's Waste segment) never
+          // shrinks to an invisible sliver next to a much larger one - a bar
+          // that visually reads as "just one color" is a bar that's hiding
+          // data. Segments are laid out from these rendered widths (not the
+          // raw proportional ones) so they still tile edge to edge with no
+          // gaps or overlap; the trade-off is the total can run slightly
+          // past its "true" proportional length when a floor kicks in.
+          const MIN_SEG_W = 6;
+          const rawWidths = row.values.map((v) => (v / max) * plotW);
+          const renderedWidths = rawWidths.map((rw, si) =>
+            row.values[si] > 0 ? Math.max(rw, MIN_SEG_W) : 0
+          );
+
+          // Lay segments out edge-to-edge from the floored widths (not the
+          // raw proportional ones), so the floor never creates a gap or an
+          // overlap between segments.
+          let runningX = labelW;
+          const segmentPositions = renderedWidths.map((fullW) => {
+            const segX = runningX;
+            runningX += fullW;
+            return segX;
+          });
+          const renderedTotalW = runningX - labelW;
+
           return (
             <g key={row.label}>
               <text
@@ -238,15 +263,14 @@ export const StackedHorizontalBarChart: React.FC<StackedHorizontalBarChartProps>
                 </title>
               </rect>
               {row.values.map((v, si) => {
-                const segStart = acc;
-                acc += v;
-                const x = labelW + (segStart / max) * plotW;
-                const w = Math.max(0, (v / max) * plotW - (si < row.values.length - 1 ? gap : 0));
+                const fullW = renderedWidths[si];
+                if (fullW <= 0) return null;
+                const w = Math.max(0, fullW - (si < row.values.length - 1 ? gap : 0));
                 const isDimmed = hover !== null && hover.row === ri && hover.seg !== -1 && hover.seg !== si;
                 return (
                   <rect
                     key={si}
-                    x={x}
+                    x={segmentPositions[si]}
                     y={y}
                     width={w}
                     height={barH}
@@ -263,7 +287,7 @@ export const StackedHorizontalBarChart: React.FC<StackedHorizontalBarChartProps>
                 );
               })}
               <text
-                x={labelW + (total / max) * plotW + 6}
+                x={labelW + renderedTotalW + 6}
                 y={y + barH / 2}
                 dominantBaseline="central"
                 fontSize="11"

@@ -12,7 +12,6 @@ import { HorizontalBarChart, MaterialCompositionBar, StackedHorizontalBarChart }
 const CHART_COLOR_USED = '#2a78d6';
 const CHART_COLOR_OFFCUT = '#1baf7a';
 const CHART_COLOR_WASTE = '#d03b3b';
-const CHART_COLOR_SQFT = '#2a78d6';
 const CHART_COLOR_SHEETS = '#4a3aa7';
 const CHART_COLOR_LAMINATE = '#eb6834';
 
@@ -228,18 +227,6 @@ export const AnalyticsReport: React.FC<AnalyticsReportProps> = ({ items, cutList
               }))}
             seriesLabels={['Used', 'Waste']}
             seriesColors={[CHART_COLOR_USED, CHART_COLOR_WASTE]}
-            unit=" sq.ft"
-          />
-        </div>
-
-        {/* Total Sq.ft by Room - which rooms actually carry the most work */}
-        <div className="border border-slate-200 rounded-xl p-4 mt-4">
-          <h4 className="text-xs font-bold text-slate-900 mb-3 flex items-center gap-1.5">
-            <Square className="w-3.5 h-3.5 text-cyan-600" /> Total Sq.ft by Room
-          </h4>
-          <HorizontalBarChart
-            data={[...roomStats].sort((a, b) => b.totalAreaSqFt - a.totalAreaSqFt).map((rs) => ({ label: rs.room, value: rs.totalAreaSqFt }))}
-            color={CHART_COLOR_SQFT}
             unit=" sq.ft"
           />
         </div>
