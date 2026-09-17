@@ -1,6 +1,6 @@
 import React, { useRef } from 'react';
 import { ProjectInfo, ProjectType } from '../types';
-import { Upload, Download, FileSpreadsheet, FileText, Layers, RefreshCw, Settings2, Trash2 } from 'lucide-react';
+import { Upload, Download, FileSpreadsheet, FileText, Layers, RefreshCw, Settings2, Trash2, Printer } from 'lucide-react';
 import { parseExcelFile, exportToExcel } from '../utils/excelParser';
 import { ModularItem } from '../types';
 import { INITIAL_ITEMS } from '../data/initialData';
@@ -13,6 +13,7 @@ interface HeaderProps {
   onUpdateProjectInfo: (info: ProjectInfo) => void;
   onUploadItems: (items: ModularItem[]) => void;
   onExportPdf: () => void;
+  onPrintCadLayout: () => void;
   onResetSampleData: () => void;
   onClearProject: () => void;
   onOpenSettings: () => void;
@@ -26,6 +27,7 @@ export const Header: React.FC<HeaderProps> = ({
   onUpdateProjectInfo,
   onUploadItems,
   onExportPdf,
+  onPrintCadLayout,
   onResetSampleData,
   onClearProject,
   onOpenSettings,
@@ -165,6 +167,16 @@ export const Header: React.FC<HeaderProps> = ({
           >
             <FileText className="w-3.5 h-3.5" />
             <span>Export Proposal</span>
+          </button>
+
+          {/* Print CAD Layout (all rooms, forced light theme, app chrome hidden) */}
+          <button
+            onClick={onPrintCadLayout}
+            className="px-3 py-1.5 bg-slate-100 hover:bg-white text-slate-800 rounded-lg text-xs font-semibold border border-slate-300 flex items-center gap-1.5 shadow-sm transition"
+            title="Print the 2D AutoCAD layout for every room, on a clean light background - no dark theme, no app menus"
+          >
+            <Printer className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Print CAD (All Rooms)</span>
           </button>
 
           {/* Project Settings Modal Trigger */}

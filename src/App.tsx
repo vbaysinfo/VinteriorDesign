@@ -11,6 +11,7 @@ import { PricingReport } from './components/PricingReport';
 import { RoomBoxSchedule } from './components/RoomBoxSchedule';
 import { ItemInspectorDrawer } from './components/ItemInspectorDrawer';
 import { ProjectSettingsModal } from './components/ProjectSettingsModal';
+import { PrintableCadLayout } from './components/PrintableCadLayout';
 import { Layers, FileSpreadsheet, Scissors, Calculator, Info, UploadCloud, Maximize2, Minimize2, Boxes } from 'lucide-react';
 
 export default function App() {
@@ -116,8 +117,17 @@ export default function App() {
     showToast('BOM Proposal PDF generated and downloaded!');
   };
 
+  // Print only the 2D CAD layout, all rooms, forced to a light theme -
+  // independent of whatever theme/room/zoom the interactive canvas is
+  // currently showing. See PrintableCadLayout: it's the only thing visible
+  // in the print stylesheet, everything else is print:hidden.
+  const handlePrintCadLayout = () => {
+    window.print();
+  };
+
   return (
-    <div className="min-h-screen bg-slate-100 flex flex-col font-sans antialiased text-slate-800">
+    <>
+    <div className="min-h-screen bg-slate-100 flex flex-col font-sans antialiased text-slate-800 print:hidden">
       {/* Toast Notification */}
       {toastMessage && (
         <div className="fixed bottom-5 right-5 z-50 bg-slate-900 text-white text-xs font-semibold px-4 py-2.5 rounded-xl shadow-xl border border-slate-700 flex items-center gap-2 animate-in slide-in-from-bottom-5">
@@ -135,6 +145,7 @@ export default function App() {
         onUpdateProjectInfo={setProjectInfo}
         onUploadItems={handleUploadItems}
         onExportPdf={handleExportPdf}
+        onPrintCadLayout={handlePrintCadLayout}
         onResetSampleData={handleResetSampleData}
         onClearProject={handleClearProject}
         onOpenSettings={() => setIsSettingsOpen(true)}
@@ -356,5 +367,11 @@ export default function App() {
         }}
       />
     </div>
+
+    {/* Print-only output: the interactive app above is hidden via
+        print:hidden, and this light-theme, room-by-room CAD layout is the
+        only thing that appears in the printed/PDF output. */}
+    <PrintableCadLayout items={items} projectName={projectInfo.projectName} />
+    </>
   );
 }
