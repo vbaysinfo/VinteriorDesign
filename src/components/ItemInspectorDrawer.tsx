@@ -1,7 +1,15 @@
 import React from 'react';
 import { ModularItem, ProjectType, FactoryRates } from '../types';
-import { generateCutListForItem, mmToFt, recalculateItemMetrics } from '../utils/calculator';
-import { X, Box, Layers, Scissors, Check, Sliders } from 'lucide-react';
+import {
+  generateCutListForItem,
+  mmToFt,
+  recalculateItemMetrics,
+  getShutterLayout,
+  hasShutterDoors,
+  redistributeShutterWidths,
+  getEffectiveDepthMm,
+} from '../utils/calculator';
+import { X, Box, Layers, Scissors, Check, Sliders, DoorOpen } from 'lucide-react';
 
 interface ItemInspectorDrawerProps {
   item: ModularItem | null;
@@ -120,6 +128,69 @@ export const ItemInspectorDrawer: React.FC<ItemInspectorDrawerProps> = ({
             <span>Total: <strong>{item.calcBasis === 'Area (Sq.ft)' ? `${item.areaSqFt} Sq.ft` : `${item.volumeCuFt} Cu.ft`}</strong></span>
           </div>
         </div>
+
+        {/* Per-Shutter Width Editor - the individual dividers in the 2D CAD
+            drawing are clickable too, but hitting the exact pixel for one
+            door in a zoomed/panned SVG is fiddly, so every door is also
+            listed here with a plain number input as a reliable fallback. */}
+        {hasShutterDoors(item) &&
+          (() => {
+            const { count, widths } = getShutterLayout(item);
+            const pType = item.projectType || projectType;
+            const isBoxUnit = getEffectiveDepthMm(item, pType) > 0;
+            const shutterHeight = isBoxUnit ? item.heightMm - 20 : item.heightMm;
+            const hasOverride = !!item.shutterWidthOverrides;
+            return (
+              <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
+                <div className="flex items-center justify-between font-semibold text-slate-900 pb-2 border-b border-slate-200">
+                  <span className="flex items-center gap-1.5">
+                    <DoorOpen className="w-4 h-4 text-cyan-600" />
+                    Shutter Widths ({count})
+                  </span>
+                  {hasOverride && (
+                    <button
+                      onClick={() => {
+                        const { shutterWidthOverrides, ...rest } = item;
+                        onUpdateItem(rest);
+                      }}
+                      className="text-[11px] text-cyan-700 underline hover:text-cyan-900"
+                    >
+                      Reset to auto split
+                    </button>
+                  )}
+                </div>
+
+                {count > 1 ? (
+                  <div className="grid grid-cols-2 gap-2">
+                    {widths.map((w, i) => (
+                      <div key={i} className="p-2 bg-white rounded-lg border border-slate-200 flex items-center justify-between gap-2">
+                        <span className="text-slate-500 font-semibold shrink-0">Door {i + 1}</span>
+                        <input
+                          type="number"
+                          min={50}
+                          value={w}
+                          onChange={(e) =>
+                            onUpdateItem({
+                              ...item,
+                              shutterWidthOverrides: redistributeShutterWidths(item, i, parseInt(e.target.value, 10) || 0),
+                            })
+                          }
+                          className="w-20 text-center bg-slate-50 border border-slate-200 rounded font-mono font-bold py-1 focus:bg-white focus:ring-1 focus:ring-cyan-500"
+                        />
+                        <span className="text-slate-400 shrink-0">mm</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-slate-500">Single door - its width always matches the item's own Width above.</p>
+                )}
+                <p className="text-[10px] text-slate-400">
+                  Height per door: {shutterHeight}mm. Widening one door narrows the others so they always add up to
+                  the item's total width.
+                </p>
+              </div>
+            );
+          })()}
 
         {/* Specifications & Hardware Config */}
         <div className="space-y-3">

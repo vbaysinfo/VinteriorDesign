@@ -2,7 +2,7 @@ import React, { useState, useMemo, useRef } from 'react';
 import { ModularItem, WallType, ProjectType } from '../types';
 import { Layers, ZoomIn, ZoomOut, Maximize2, Minimize2, Download, Eye, Grid, Box, Sliders, Type, RotateCcw, Move } from 'lucide-react';
 import { Isometric3DViewer } from './Isometric3DViewer';
-import { getEffectiveDepthMm, getShutterLayout } from '../utils/calculator';
+import { getEffectiveDepthMm, getShutterLayout, redistributeShutterWidths } from '../utils/calculator';
 
 interface Cad2DViewerProps {
   items: ModularItem[];
@@ -883,30 +883,9 @@ export const Cad2DViewer: React.FC<Cad2DViewerProps> = ({
                   const selectedShutterX = selectedShutterIndex >= 0 ? pos.x + shutterOffsets[selectedShutterIndex] : 0;
                   const selectedShutterW = selectedShutterIndex >= 0 ? shutterWidths[selectedShutterIndex] : 0;
 
-                  // Widens/narrows one shutter and spreads the difference
-                  // evenly across the rest, so the shutters always add up to
-                  // exactly the cabinet's fixed opening width - editing one
-                  // in isolation would otherwise overflow past the carcass
-                  // (or leave a gap) since the opening itself doesn't move.
                   const handleShutterWidthChange = (sIdx: number, newWidthMm: number) => {
                     if (!onUpdateItem || sCount < 2) return;
-                    const MIN_SHUTTER_MM = 50;
-                    const availableWidthMm = pos.item.widthMm - (sCount - 1) * shutterGapMm;
-                    const others = sCount - 1;
-                    const edited = Math.min(
-                      Math.max(newWidthMm, MIN_SHUTTER_MM),
-                      availableWidthMm - others * MIN_SHUTTER_MM
-                    );
-                    const remaining = availableWidthMm - edited;
-                    const evenOther = Math.floor(remaining / others);
-                    const lastOtherExtra = remaining - evenOther * others;
-                    let otherSeen = 0;
-                    const next = Array.from({ length: sCount }, (_, i) => {
-                      if (i === sIdx) return edited;
-                      otherSeen++;
-                      return otherSeen === others ? evenOther + lastOtherExtra : evenOther;
-                    });
-                    onUpdateItem({ ...pos.item, shutterWidthOverrides: next });
+                    onUpdateItem({ ...pos.item, shutterWidthOverrides: redistributeShutterWidths(pos.item, sIdx, newWidthMm) });
                   };
                   const handleShutterWidthReset = () => {
                     if (!onUpdateItem) return;
@@ -999,7 +978,11 @@ export const Cad2DViewer: React.FC<Cad2DViewerProps> = ({
                           const shutterSelected = isShutterSelected(sIdx);
                           return (
                             <g key={`shutter-${sIdx}`}>
-                              {/* Real reveal gap between adjacent shutters (matches cut list exactly) */}
+                              {/* Real reveal gap between adjacent shutters (matches cut list exactly).
+                                  Non-interactive so a click that happens to land in this sliver falls
+                                  through to the shutter/cabinet underneath instead of hitting a dead zone -
+                                  this strip can otherwise line up exactly with the cabinet's own label,
+                                  which is centered on the whole box and so on an even shutter count. */}
                               {sIdx > 0 && (
                                 <rect
                                   x={sx - shutterGapMm}
@@ -1007,6 +990,7 @@ export const Cad2DViewer: React.FC<Cad2DViewerProps> = ({
                                   width={shutterGapMm}
                                   height={pos.h}
                                   fill={themeStyles.bg}
+                                  pointerEvents="none"
                                 />
                               )}
 
@@ -1124,9 +1108,14 @@ export const Cad2DViewer: React.FC<Cad2DViewerProps> = ({
                         );
                       })()}
 
-                      {/* Cabinet Annotation Label (Bounded inside box) */}
+                      {/* Cabinet Annotation Label (Bounded inside box). Non-
+                          interactive: it sits on top of the individual
+                          shutter click zones underneath, and without this it
+                          would silently swallow clicks meant for whichever
+                          shutter/door happens to be behind the label instead
+                          of letting them reach it. */}
                       {pos.w >= 140 && pos.h >= 100 && (
-                        <g>
+                        <g pointerEvents="none">
                           <rect
                             x={badgeX}
                             y={badgeY}

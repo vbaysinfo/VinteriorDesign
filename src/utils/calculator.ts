@@ -69,6 +69,30 @@ export function getShutterLayout(item: ModularItem): { count: number; widths: nu
   return { count, widths, shutterWidthMm: widths[0], gapMm };
 }
 
+// Resizes one shutter and spreads the difference evenly across the rest, so
+// they always sum to exactly the cabinet's fixed opening width - editing one
+// in isolation would otherwise overflow past the carcass (or leave a gap)
+// since the opening itself doesn't move. Shared by the 2D CAD layout's
+// per-shutter editor and the Item Inspector Drawer's shutter list, so
+// editing from either place produces identical results.
+export function redistributeShutterWidths(item: ModularItem, editIndex: number, newWidthMm: number): number[] {
+  const { count, widths, gapMm } = getShutterLayout(item);
+  if (count < 2) return widths;
+  const MIN_SHUTTER_MM = 50;
+  const availableWidthMm = item.widthMm - (count - 1) * gapMm;
+  const others = count - 1;
+  const edited = Math.min(Math.max(newWidthMm, MIN_SHUTTER_MM), availableWidthMm - others * MIN_SHUTTER_MM);
+  const remaining = availableWidthMm - edited;
+  const evenOther = Math.floor(remaining / others);
+  const lastOtherExtra = remaining - evenOther * others;
+  let otherSeen = 0;
+  return Array.from({ length: count }, (_, i) => {
+    if (i === editIndex) return edited;
+    otherSeen++;
+    return otherSeen === others ? evenOther + lastOtherExtra : evenOther;
+  });
+}
+
 // Whether an item has doors drawn/cut at all - excludes drawer-only units
 // and flat panel/partition categories that never get hinged shutters.
 export function hasShutterDoors(item: ModularItem): boolean {
