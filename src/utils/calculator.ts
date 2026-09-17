@@ -43,6 +43,26 @@ export function getCoreMaterialLabel(item: ModularItem): string {
   return item.materialCode?.trim() ? item.materialCode.trim() : item.coreMaterial;
 }
 
+// Single source of truth for how many shutters an item gets and how wide
+// each one is - used by the real cut list below, the interactive 2D CAD
+// elevation, and the printable layout, so all three always agree with each
+// other instead of drifting into separate near-duplicate formulas.
+export function getShutterLayout(item: ModularItem): { count: number; shutterWidthMm: number; gapMm: number } {
+  const w = item.widthMm;
+  const count = Math.max(1, item.shutterCount || (w > 1800 ? 4 : w > 1000 ? 3 : w > 500 ? 2 : 1));
+  const gapMm = count > 1 ? 3 : 0;
+  // Floored, not rounded: see the note in generateCutListForItem - rounding
+  // up even by 0.5mm compounds across every shutter sharing this one width.
+  const shutterWidthMm = Math.floor((w - (count - 1) * gapMm) / count);
+  return { count, shutterWidthMm, gapMm };
+}
+
+// Whether an item has doors drawn/cut at all - excludes drawer-only units
+// and flat panel/partition categories that never get hinged shutters.
+export function hasShutterDoors(item: ModularItem): boolean {
+  return item.category !== 'tv_panel' && item.category !== 'partition' && item.category !== 'tandem_box';
+}
+
 // Color palette for nesting diagram
 const PART_COLORS: Record<string, string> = {
   'Shutter': '#3b82f6', // blue
@@ -104,16 +124,8 @@ export function generateCutListForItem(item: ModularItem, globalProjectType: Pro
   const isFullModular = pType === 'full';
 
   // 1. Shutter / Doors / Front Paneling
-  if (item.category !== 'tv_panel' && item.category !== 'partition' && item.category !== 'tandem_box') {
-    const sCount = Math.max(1, item.shutterCount || (w > 1800 ? 4 : w > 1000 ? 3 : w > 500 ? 2 : 1));
-    // Floor (never round up): all sCount shutters share this one width, so
-    // rounding up even by 0.5mm compounds across every shutter - e.g. at
-    // w=2440mm with 4 shutters, Math.round gives 608mm each, and
-    // 4x608 + 3x3mm gaps = 2441mm, 1mm WIDER than the 2440mm opening
-    // (worse cases reach +2mm). Flooring instead guarantees the shutters
-    // plus their 3mm reveals never exceed the opening, at the cost of at
-    // most ~1mm extra reveal spread across the gaps.
-    const shutterWidth = Math.floor((w - (sCount - 1) * 3) / sCount);
+  if (hasShutterDoors(item)) {
+    const { count: sCount, shutterWidthMm: shutterWidth } = getShutterLayout(item);
     const shutterHeight = isBoxUnit ? h - 20 : h; // 20mm clearance or full height
     
     parts.push({

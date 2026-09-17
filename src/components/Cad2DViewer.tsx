@@ -2,7 +2,7 @@ import React, { useState, useMemo, useRef } from 'react';
 import { ModularItem, WallType, ProjectType } from '../types';
 import { Layers, ZoomIn, ZoomOut, Maximize2, Minimize2, Download, Eye, Grid, Box, Sliders, Type, RotateCcw, Move } from 'lucide-react';
 import { Isometric3DViewer } from './Isometric3DViewer';
-import { getEffectiveDepthMm } from '../utils/calculator';
+import { getEffectiveDepthMm, getShutterLayout } from '../utils/calculator';
 
 interface Cad2DViewerProps {
   items: ModularItem[];
@@ -831,14 +831,12 @@ export const Cad2DViewer: React.FC<Cad2DViewerProps> = ({
                 {positionedElevationItems.map((pos) => {
                   const isSelected = selectedItemId === pos.item.id;
                   const itemY = wallHeight - pos.y - pos.h; // convert from bottom datum to top-left SVG coords
-                  const sCount = pos.item.shutterCount || (pos.w > 1800 ? 4 : pos.w > 1000 ? 3 : pos.w > 500 ? 2 : 1);
                   // Match the real cut list exactly (calculator.ts): a 3mm
                   // reveal between adjacent shutters, floored so sCount
                   // identical shutter widths can never combine to exceed
                   // pos.w - i.e. what's drawn here is what actually gets cut,
                   // and the doors are shown with real clearance, not touching.
-                  const shutterGapMm = sCount > 1 ? 3 : 0;
-                  const shutterW = Math.floor((pos.w - (sCount - 1) * shutterGapMm) / sCount);
+                  const { count: sCount, shutterWidthMm: shutterW, gapMm: shutterGapMm } = getShutterLayout(pos.item);
                   const shutterPitch = shutterW + shutterGapMm;
                   // Same box-clearance rule as the real cut list (calculator.ts):
                   // a box unit's shutter is 20mm shorter than the carcass to clear
