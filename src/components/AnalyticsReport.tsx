@@ -1,7 +1,20 @@
 import React, { useMemo } from 'react';
 import { ModularItem, CutListPart, ProjectType } from '../types';
 import { calculateMaterialUsage } from '../utils/calculator';
-import { BarChart3, Square, Layers, Palette, Shirt, Ruler, Info, Percent, Package } from 'lucide-react';
+import { BarChart3, Square, Layers, Palette, Shirt, Ruler, Info, Percent, Package, PieChart } from 'lucide-react';
+import { HorizontalBarChart, MaterialCompositionBar } from './AnalyticsCharts';
+
+// Colors picked from a CVD-validated categorical set (worst adjacent pair
+// ΔE 9.9 deutan / 9.6 tritan, normal-vision ΔE 24.0 - see dataviz skill) so
+// the three composition segments stay distinguishable even for colorblind
+// viewers; the legend still carries the text label so nothing rides on hue
+// alone (aqua's 2.74:1 surface contrast needs that relief anyway).
+const CHART_COLOR_USED = '#2a78d6';
+const CHART_COLOR_OFFCUT = '#1baf7a';
+const CHART_COLOR_WASTE = '#d03b3b';
+const CHART_COLOR_SQFT = '#2a78d6';
+const CHART_COLOR_SHEETS = '#4a3aa7';
+const CHART_COLOR_LAMINATE = '#eb6834';
 
 interface AnalyticsReportProps {
   items: ModularItem[];
@@ -172,12 +185,56 @@ export const AnalyticsReport: React.FC<AnalyticsReportProps> = ({ items, cutList
           />
         </div>
 
+        {/* Material Usage & Waste chart - part-to-whole composition of the
+            total board area bought, so it's visible at a glance how much of
+            what you pay for actually becomes cabinet vs. usable offcut vs.
+            true scrap. */}
+        <div className="border border-slate-200 rounded-xl p-4 mt-4">
+          <h4 className="text-xs font-bold text-slate-900 mb-1 flex items-center gap-1.5">
+            <PieChart className="w-3.5 h-3.5 text-cyan-600" /> Material Usage & Waste (All Rooms)
+          </h4>
+          <p className="text-[10px] text-slate-400 mb-3">
+            Of the {allStats.materials.grossBoardAreaSqFt.toLocaleString()} sq.ft of board bought (
+            {allStats.materials.totalSheets} sheets)
+          </p>
+          <MaterialCompositionBar
+            segments={[
+              { label: 'Net Panels Used', value: allStats.materials.netPartsAreaSqFt, color: CHART_COLOR_USED },
+              { label: 'Usable Offcut', value: allStats.materials.usableOffcutAreaSqFt, color: CHART_COLOR_OFFCUT },
+              { label: 'Scrap Waste', value: allStats.materials.totalScrapWasteSqFt, color: CHART_COLOR_WASTE },
+            ]}
+          />
+        </div>
+
+        {/* Total Sq.ft by Room - which rooms actually carry the most work */}
+        <div className="border border-slate-200 rounded-xl p-4 mt-4">
+          <h4 className="text-xs font-bold text-slate-900 mb-3 flex items-center gap-1.5">
+            <Square className="w-3.5 h-3.5 text-cyan-600" /> Total Sq.ft by Room
+          </h4>
+          <HorizontalBarChart
+            data={[...roomStats].sort((a, b) => b.totalAreaSqFt - a.totalAreaSqFt).map((rs) => ({ label: rs.room, value: rs.totalAreaSqFt }))}
+            color={CHART_COLOR_SQFT}
+            unit=" sq.ft"
+          />
+        </div>
+
         {/* Sheet composition + hardware detail for more understanding */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
           <div className="border border-slate-200 rounded-xl p-4">
             <h4 className="text-xs font-bold text-slate-900 mb-2 flex items-center gap-1.5">
               <Layers className="w-3.5 h-3.5 text-cyan-600" /> Sheet Requirement by Thickness
             </h4>
+            <div className="mb-3">
+              <HorizontalBarChart
+                data={[
+                  { label: '18mm', value: allStats.materials.ply18mmSheets },
+                  { label: '9mm', value: allStats.materials.ply9mmSheets },
+                  { label: '6mm', value: allStats.materials.ply6mmSheets },
+                ]}
+                color={CHART_COLOR_SHEETS}
+                unit=" sheets"
+              />
+            </div>
             <div className="space-y-1.5 text-[11px]">
               <div className="flex justify-between">
                 <span className="text-slate-500">18mm (carcass/shutter)</span>
@@ -236,6 +293,16 @@ export const AnalyticsReport: React.FC<AnalyticsReportProps> = ({ items, cutList
           <h4 className="text-xs font-bold text-slate-900 mb-3 flex items-center gap-1.5">
             <Palette className="w-3.5 h-3.5 text-amber-600" /> Color Laminates & Finish Breakdown (All Rooms)
           </h4>
+          <div className="mb-4">
+            <HorizontalBarChart
+              data={allStats.laminateGroups.map((g) => ({
+                label: g.colorCode ? `${g.finishType} - ${g.colorCode}` : `${g.finishType} (Unspecified)`,
+                value: g.areaSqFt,
+              }))}
+              color={CHART_COLOR_LAMINATE}
+              unit=" sq.ft"
+            />
+          </div>
           <div className="overflow-x-auto">
             <table className="w-full text-[11px]">
               <thead>
