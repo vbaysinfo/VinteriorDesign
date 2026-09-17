@@ -163,3 +163,129 @@ export const MaterialCompositionBar: React.FC<{ segments: CompositionSegment[]; 
     </div>
   );
 };
+
+export interface StackedBarRow {
+  label: string;
+  // One value per series, same order/length as `seriesLabels`/`seriesColors`.
+  values: number[];
+}
+
+interface StackedHorizontalBarChartProps {
+  data: StackedBarRow[];
+  seriesLabels: string[];
+  seriesColors: string[];
+  unit?: string;
+}
+
+// A grouped set of horizontal stacked bars - one bar per category (room),
+// each split into the same N series (e.g. Used vs Waste) - so both how much
+// material a room needs AND how much of that is wasted read off one shared
+// scale, sorted by whichever order the caller passes in. All bars share one
+// x-scale (the largest row's total) so magnitudes stay comparable across
+// rows, the same way HorizontalBarChart's single-series bars do.
+export const StackedHorizontalBarChart: React.FC<StackedHorizontalBarChartProps> = ({
+  data,
+  seriesLabels,
+  seriesColors,
+  unit = '',
+}) => {
+  const [hover, setHover] = useState<{ row: number; seg: number } | null>(null);
+  const barH = 18;
+  const rowH = 30;
+  const labelW = 118;
+  const chartW = 480;
+  const tipReserve = 70;
+  const plotW = chartW - labelW - tipReserve;
+  const gap = 0.6;
+  const totals = data.map((d) => d.values.reduce((s, v) => s + v, 0));
+  const max = Math.max(...totals, 1);
+  const svgH = data.length * rowH;
+
+  if (data.length === 0) return null;
+
+  return (
+    <div>
+      <svg width="100%" viewBox={`0 0 ${chartW} ${svgH}`} className="overflow-visible" role="img">
+        {data.map((row, ri) => {
+          const y = ri * rowH + (rowH - barH) / 2;
+          const total = totals[ri];
+          let acc = 0;
+          return (
+            <g key={row.label}>
+              <text
+                x={labelW - 8}
+                y={y + barH / 2}
+                textAnchor="end"
+                dominantBaseline="central"
+                fontSize="11"
+                fontWeight="600"
+                fill="#475569"
+              >
+                {row.label}
+              </text>
+              <rect
+                x={labelW}
+                y={ri * rowH}
+                width={plotW + tipReserve}
+                height={rowH}
+                fill="transparent"
+                onMouseEnter={() => setHover({ row: ri, seg: -1 })}
+                onMouseLeave={() => setHover(null)}
+              >
+                <title>
+                  {row.label}: {total.toLocaleString()}
+                  {unit} total
+                </title>
+              </rect>
+              {row.values.map((v, si) => {
+                const segStart = acc;
+                acc += v;
+                const x = labelW + (segStart / max) * plotW;
+                const w = Math.max(0, (v / max) * plotW - (si < row.values.length - 1 ? gap : 0));
+                const isDimmed = hover !== null && hover.row === ri && hover.seg !== -1 && hover.seg !== si;
+                return (
+                  <rect
+                    key={si}
+                    x={x}
+                    y={y}
+                    width={w}
+                    height={barH}
+                    fill={seriesColors[si]}
+                    opacity={isDimmed ? 0.4 : 1}
+                    onMouseEnter={() => setHover({ row: ri, seg: si })}
+                    onMouseLeave={() => setHover(null)}
+                  >
+                    <title>
+                      {row.label} — {seriesLabels[si]}: {v.toLocaleString()}
+                      {unit}
+                    </title>
+                  </rect>
+                );
+              })}
+              <text
+                x={labelW + (total / max) * plotW + 6}
+                y={y + barH / 2}
+                dominantBaseline="central"
+                fontSize="11"
+                fontWeight="700"
+                fill="#0f172a"
+                fontFamily="ui-monospace, monospace"
+              >
+                {total.toLocaleString()}
+                {unit}
+              </text>
+            </g>
+          );
+        })}
+      </svg>
+      <div className="flex flex-wrap gap-x-5 gap-y-1.5 mt-3">
+        {seriesLabels.map((label, i) => (
+          <div key={label} className="flex items-center gap-1.5 text-[11px]">
+            <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ backgroundColor: seriesColors[i] }} />
+            <span className="text-slate-600">{label}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};

@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { ModularItem, CutListPart, ProjectType } from '../types';
 import { calculateMaterialUsage } from '../utils/calculator';
 import { BarChart3, Square, Layers, Palette, Shirt, Ruler, Info, Percent, Package, PieChart } from 'lucide-react';
-import { HorizontalBarChart, MaterialCompositionBar } from './AnalyticsCharts';
+import { HorizontalBarChart, MaterialCompositionBar, StackedHorizontalBarChart } from './AnalyticsCharts';
 
 // Colors picked from a CVD-validated categorical set (worst adjacent pair
 // ΔE 9.9 deutan / 9.6 tritan, normal-vision ΔE 24.0 - see dataviz skill) so
@@ -206,26 +206,28 @@ export const AnalyticsReport: React.FC<AnalyticsReportProps> = ({ items, cutList
           />
         </div>
 
-        {/* Sheet Waste by Room - which room's cut list is throwing away the
-            most material, in both absolute sq.ft and % of what that room's
-            own sheets cost. Nested independently per room (like the sheet
+        {/* Material Used vs Waste by Room - both halves of the story on one
+            shared scale: how much sheet material a room actually needs
+            (blue) stacked against how much of that room's own sheets end up
+            as scrap (red). Nested independently per room (like the sheet
             counts elsewhere in this report), so a room's waste here runs a
             bit higher than its true share of the combined project total
             above - nesting every room together shares offcuts across rooms
             that nesting room-by-room can't. */}
         <div className="border border-slate-200 rounded-xl p-4 mt-4">
           <h4 className="text-xs font-bold text-slate-900 mb-1 flex items-center gap-1.5">
-            <Ruler className="w-3.5 h-3.5 text-rose-600" /> Sheet Waste by Room
+            <Ruler className="w-3.5 h-3.5 text-rose-600" /> Material Used vs Waste by Room
           </h4>
-          <p className="text-[10px] text-slate-400 mb-3">Scrap area if each room's sheets were nested on their own</p>
-          <HorizontalBarChart
+          <p className="text-[10px] text-slate-400 mb-3">Net panel area used vs. scrap, if each room's sheets were nested on their own</p>
+          <StackedHorizontalBarChart
             data={[...roomStats]
-              .sort((a, b) => b.materials.totalScrapWasteSqFt - a.materials.totalScrapWasteSqFt)
+              .sort((a, b) => b.materials.grossBoardAreaSqFt - a.materials.grossBoardAreaSqFt)
               .map((rs) => ({
-                label: `${rs.room} (${rs.materials.wastePercent}%)`,
-                value: rs.materials.totalScrapWasteSqFt,
+                label: rs.room,
+                values: [rs.materials.netPartsAreaSqFt, rs.materials.totalScrapWasteSqFt],
               }))}
-            color={CHART_COLOR_WASTE}
+            seriesLabels={['Used', 'Waste']}
+            seriesColors={[CHART_COLOR_USED, CHART_COLOR_WASTE]}
             unit=" sq.ft"
           />
         </div>
