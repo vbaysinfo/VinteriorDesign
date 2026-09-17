@@ -18,16 +18,19 @@ import {
   FileSpreadsheet,
   AlertCircle,
   ArrowRight,
-  Info
+  Info,
+  Pencil,
+  X
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import { PartEditModal } from './PartEditModal';
 
 interface CuttingListViewerProps {
   cutList: CutListPart[];
   materials: MaterialBreakdown;
   projectType: ProjectType;
   selectedRoom: string;
-  onUpdatePartMaterial?: (partId: string, material: string) => void;
+  onUpdatePart?: (partId: string, updates: Partial<CutListPart>) => void;
 }
 
 export const CuttingListViewer: React.FC<CuttingListViewerProps> = ({
@@ -35,7 +38,7 @@ export const CuttingListViewer: React.FC<CuttingListViewerProps> = ({
   materials,
   projectType,
   selectedRoom,
-  onUpdatePartMaterial,
+  onUpdatePart,
 }) => {
   // Generate 2D sheet nesting layouts and assign sheetNumber to each piece
   const { layouts: sheetLayouts, updatedCutList } = useMemo(() => {
@@ -51,6 +54,7 @@ export const CuttingListViewer: React.FC<CuttingListViewerProps> = ({
   const [partTypeFilter, setPartTypeFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPartDetail, setSelectedPartDetail] = useState<any | null>(null);
+  const [editingPart, setEditingPart] = useState<CutListPart | null>(null);
 
   // Active sheet for 2D visualizer
   const [activeVisualSheetId, setActiveVisualSheetId] = useState<string>(
@@ -1006,7 +1010,8 @@ export const CuttingListViewer: React.FC<CuttingListViewerProps> = ({
                   <th className="py-3 px-3 border-r border-slate-700">Grain / Notes</th>
                   <th className="py-3 px-3 border-r border-slate-700">Material Spec</th>
                   <th className="py-3 px-2 border-r border-slate-700 text-center min-w-[100px] bg-indigo-950 text-indigo-200">Edge Binding</th>
-                  <th className="py-3 px-3 text-right w-24">Area (m²)</th>
+                  <th className="py-3 px-3 text-right border-r border-slate-700 w-24">Area (m²)</th>
+                  <th className="py-3 px-2 text-center w-14">Edit</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 bg-white font-mono text-[11px]">
@@ -1064,8 +1069,8 @@ export const CuttingListViewer: React.FC<CuttingListViewerProps> = ({
                         <input
                           type="text"
                           value={part.material}
-                          onChange={(e) => onUpdatePartMaterial && onUpdatePartMaterial(part.id, e.target.value)}
-                          disabled={!onUpdatePartMaterial}
+                          onChange={(e) => onUpdatePart && onUpdatePart(part.id, { material: e.target.value })}
+                          disabled={!onUpdatePart}
                           title="Edit this panel's material - flows into this table's exports and the Factory Cut List export"
                           className="w-full min-w-[160px] bg-transparent text-slate-600 focus:bg-white focus:ring-1 focus:ring-cyan-500 rounded px-1 disabled:cursor-default"
                         />
@@ -1085,8 +1090,18 @@ export const CuttingListViewer: React.FC<CuttingListViewerProps> = ({
                           <span className="text-slate-400 font-mono">-</span>
                         )}
                       </td>
-                      <td className="py-1.5 px-3 text-right font-bold text-slate-800">
+                      <td className="py-1.5 px-3 text-right border-r border-slate-200 font-bold text-slate-800">
                         {part.areaSqMt} m²
+                      </td>
+                      <td className="py-1.5 px-2 text-center">
+                        <button
+                          onClick={() => setEditingPart(part)}
+                          disabled={!onUpdatePart}
+                          title="Edit this panel's full details (dimensions, qty, material, edge banding, notes)"
+                          className="p-1.5 text-slate-400 hover:text-cyan-700 hover:bg-cyan-50 rounded-lg transition disabled:opacity-30 disabled:cursor-default"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
                       </td>
                     </tr>
                   );
@@ -1095,6 +1110,14 @@ export const CuttingListViewer: React.FC<CuttingListViewerProps> = ({
             </table>
           </div>
         </div>
+      )}
+
+      {editingPart && onUpdatePart && (
+        <PartEditModal
+          part={editingPart}
+          onClose={() => setEditingPart(null)}
+          onSave={(updates) => onUpdatePart(editingPart.id, updates)}
+        />
       )}
 
       {/* VIEW 3: ZERO-WASTE & MATERIAL OPTIMIZER (USER DIRECTIVE: "material usage, dont waste material, skirtings") */}

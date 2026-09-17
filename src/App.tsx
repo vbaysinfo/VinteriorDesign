@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { ModularItem, ProjectInfo, ProjectType, FactoryRates } from './types';
+import { ModularItem, ProjectInfo, ProjectType, FactoryRates, CutListPart } from './types';
 import { INITIAL_ITEMS, DEFAULT_PROJECT_INFO, DEFAULT_FACTORY_RATES } from './data/initialData';
 import { generateAllCutLists, calculateMaterialUsage, calculateProjectCost } from './utils/calculator';
 import { generateBOMProposalPDF } from './utils/pdfGenerator';
@@ -24,11 +24,14 @@ export default function App() {
   const [rates, setRates] = useState<FactoryRates>(DEFAULT_FACTORY_RATES);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isCadFullWidth, setIsCadFullWidth] = useState<boolean>(true);
-  // Per-panel material overrides, keyed by CutListPart.id (stable across
-  // regeneration since it's derived from the item id + part type). Lets a
-  // user hand-edit an individual panel's material in the Cutting List tab
-  // without it being overwritten the next time items/projectType change.
-  const [partMaterialOverrides, setPartMaterialOverrides] = useState<Record<string, string>>({});
+  // Per-panel overrides, keyed by CutListPart.id (stable across regeneration
+  // since it's derived from the item id + part type). Lets a user hand-edit
+  // any field of an individual panel in the Cutting List tab - dimensions,
+  // quantity, material, edge banding, notes - without it being overwritten
+  // the next time items/projectType change. Every downstream calculation
+  // (materials, cost, sheet nesting, exports) reads from `cutList` below, so
+  // an edit here automatically recalculates the whole project.
+  const [partOverrides, setPartOverrides] = useState<Record<string, Partial<CutListPart>>>({});
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -38,14 +41,14 @@ export default function App() {
   // Generate Cut List
   const cutList = useMemo(() => {
     const generated = generateAllCutLists(items, projectType);
-    if (Object.keys(partMaterialOverrides).length === 0) return generated;
+    if (Object.keys(partOverrides).length === 0) return generated;
     return generated.map((part) =>
-      partMaterialOverrides[part.id] !== undefined ? { ...part, material: partMaterialOverrides[part.id] } : part
+      partOverrides[part.id] ? { ...part, ...partOverrides[part.id] } : part
     );
-  }, [items, projectType, partMaterialOverrides]);
+  }, [items, projectType, partOverrides]);
 
-  const handleUpdatePartMaterial = (partId: string, material: string) => {
-    setPartMaterialOverrides((prev) => ({ ...prev, [partId]: material }));
+  const handleUpdatePart = (partId: string, updates: Partial<CutListPart>) => {
+    setPartOverrides((prev) => ({ ...prev, [partId]: { ...prev[partId], ...updates } }));
   };
 
   // Calculate Materials
@@ -74,7 +77,7 @@ export default function App() {
   const handleUploadItems = (newItems: ModularItem[]) => {
     setItems(newItems);
     setSelectedItemId(null);
-    setPartMaterialOverrides({});
+    setPartOverrides({});
     // Auto select first room from uploaded items
     if (newItems.length > 0 && newItems[0].room) {
       setSelectedRoom(newItems[0].room);
@@ -92,7 +95,7 @@ export default function App() {
     setProjectType('semi');
     setSelectedRoom('MBR');
     setSelectedItemId(null);
-    setPartMaterialOverrides({});
+    setPartOverrides({});
     showToast('Reset to factory master dataset');
   };
 
@@ -103,7 +106,7 @@ export default function App() {
     setItems([]);
     setSelectedItemId(null);
     setSelectedRoom('ALL');
-    setPartMaterialOverrides({});
+    setPartOverrides({});
     showToast('Project cleared. Upload an Excel sheet to start fresh.');
   };
 
@@ -296,7 +299,7 @@ export default function App() {
               materials={materials}
               projectType={projectType}
               selectedRoom={selectedRoom}
-              onUpdatePartMaterial={handleUpdatePartMaterial}
+              onUpdatePart={handleUpdatePart}
             />
           </div>
         )}
