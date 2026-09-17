@@ -9,10 +9,11 @@ import { SpreadsheetEditor } from './components/SpreadsheetEditor';
 import { CuttingListViewer } from './components/CuttingListViewer';
 import { PricingReport } from './components/PricingReport';
 import { RoomBoxSchedule } from './components/RoomBoxSchedule';
+import { AnalyticsReport } from './components/AnalyticsReport';
 import { ItemInspectorDrawer } from './components/ItemInspectorDrawer';
 import { ProjectSettingsModal } from './components/ProjectSettingsModal';
 import { PrintableCadLayout } from './components/PrintableCadLayout';
-import { Layers, FileSpreadsheet, Scissors, Calculator, Info, UploadCloud, Maximize2, Minimize2, Boxes } from 'lucide-react';
+import { Layers, FileSpreadsheet, Scissors, Calculator, Info, UploadCloud, Maximize2, Minimize2, Boxes, BarChart3 } from 'lucide-react';
 
 export default function App() {
   const [projectInfo, setProjectInfo] = useState<ProjectInfo>(DEFAULT_PROJECT_INFO);
@@ -22,7 +23,7 @@ export default function App() {
   // header (onResetSampleData) to bring in INITIAL_ITEMS on demand.
   const [items, setItems] = useState<ModularItem[]>([]);
   const [selectedRoom, setSelectedRoom] = useState<string>('ALL');
-  const [activeTab, setActiveTab] = useState<'cad_layout' | 'spreadsheet' | 'cut_list' | 'box_schedule' | 'pricing_bom'>('cad_layout');
+  const [activeTab, setActiveTab] = useState<'cad_layout' | 'spreadsheet' | 'cut_list' | 'box_schedule' | 'analytics' | 'pricing_bom'>('cad_layout');
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [rates, setRates] = useState<FactoryRates>(DEFAULT_FACTORY_RATES);
@@ -235,6 +236,18 @@ export default function App() {
             </button>
 
             <button
+              onClick={() => setActiveTab('analytics')}
+              className={`px-3.5 py-2 rounded-lg text-xs font-bold flex items-center gap-2 transition ${
+                activeTab === 'analytics'
+                  ? 'bg-slate-900 text-white shadow-xs'
+                  : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+              }`}
+            >
+              <BarChart3 className="w-4 h-4 text-cyan-500" />
+              <span>Analytics Report</span>
+            </button>
+
+            <button
               onClick={() => setActiveTab('pricing_bom')}
               className={`px-3.5 py-2 rounded-lg text-xs font-bold flex items-center gap-2 transition ${
                 activeTab === 'pricing_bom'
@@ -334,7 +347,14 @@ export default function App() {
           </div>
         )}
 
-        {/* Tab 5: Pricing Report & BOM */}
+        {/* Tab 5: Analytics Report (Sq.ft, sheets, laminate colors, wardrobes, edge binding - all rooms + per-room) */}
+        {activeTab === 'analytics' && (
+          <div className="space-y-4">
+            <AnalyticsReport items={items} cutList={cutList} projectType={projectType} />
+          </div>
+        )}
+
+        {/* Tab 6: Pricing Report & BOM */}
         {activeTab === 'pricing_bom' && (
           <div className="space-y-4">
             <PricingReport
