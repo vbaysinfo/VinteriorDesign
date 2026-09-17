@@ -47,14 +47,26 @@ export function getCoreMaterialLabel(item: ModularItem): string {
 // each one is - used by the real cut list below, the interactive 2D CAD
 // elevation, and the printable layout, so all three always agree with each
 // other instead of drifting into separate near-duplicate formulas.
-export function getShutterLayout(item: ModularItem): { count: number; shutterWidthMm: number; gapMm: number } {
+//
+// `widths` is per-shutter, left to right. By default every shutter gets an
+// even auto-split of the item's total width, but `item.shutterWidthOverrides`
+// (set from the 2D CAD layout's shutter editor) lets each shutter be sized
+// independently - e.g. two unequal wardrobe doors instead of a plain 50/50
+// split. `shutterWidthMm` is kept as the first shutter's width for older
+// call sites that only care about the even-split case.
+export function getShutterLayout(item: ModularItem): { count: number; widths: number[]; shutterWidthMm: number; gapMm: number } {
   const w = item.widthMm;
   const count = Math.max(1, item.shutterCount || (w > 1800 ? 4 : w > 1000 ? 3 : w > 500 ? 2 : 1));
   const gapMm = count > 1 ? 3 : 0;
   // Floored, not rounded: see the note in generateCutListForItem - rounding
   // up even by 0.5mm compounds across every shutter sharing this one width.
-  const shutterWidthMm = Math.floor((w - (count - 1) * gapMm) / count);
-  return { count, shutterWidthMm, gapMm };
+  const evenWidthMm = Math.floor((w - (count - 1) * gapMm) / count);
+  const overrides = item.shutterWidthOverrides;
+  const widths =
+    overrides && overrides.length === count && overrides.every((x) => x > 0)
+      ? overrides
+      : Array.from({ length: count }, () => evenWidthMm);
+  return { count, widths, shutterWidthMm: widths[0], gapMm };
 }
 
 // Whether an item has doors drawn/cut at all - excludes drawer-only units
@@ -125,28 +137,40 @@ export function generateCutListForItem(item: ModularItem, globalProjectType: Pro
 
   // 1. Shutter / Doors / Front Paneling
   if (hasShutterDoors(item)) {
-    const { count: sCount, shutterWidthMm: shutterWidth } = getShutterLayout(item);
+    const { widths: shutterWidths } = getShutterLayout(item);
     const shutterHeight = isBoxUnit ? h - 20 : h; // 20mm clearance or full height
-    
-    parts.push({
-      id: `${item.id}-shutter`,
-      itemId: item.id,
-      room: item.room,
-      itemName: item.description,
-      wall: item.wall,
-      partName: 'Shutter',
-      lengthMm: shutterHeight,
-      widthMm: shutterWidth,
-      thicknessMm: 18,
-      qty: sCount,
-      material: `${getCoreMaterialLabel(item)} (${item.finishType})`,
-      edgeL1: true,
-      edgeL2: true,
-      edgeW1: true,
-      edgeW2: true,
-      edgeThicknessMm: 2.0,
-      areaSqMt: Number(((shutterHeight * shutterWidth * sCount) / 1_000_000).toFixed(3)),
-    });
+
+    // Shutters usually share one even width, but a per-shutter override
+    // (see getShutterLayout) can make them unequal - group by width so each
+    // distinct size becomes its own cut part instead of one part claiming a
+    // single width for every panel.
+    const widthGroups = new Map<number, number>();
+    shutterWidths.forEach((wid) => widthGroups.set(wid, (widthGroups.get(wid) || 0) + 1));
+    const isSplit = widthGroups.size > 1;
+
+    let groupIdx = 0;
+    for (const [shutterWidth, qty] of widthGroups) {
+      groupIdx++;
+      parts.push({
+        id: isSplit ? `${item.id}-shutter-${groupIdx}` : `${item.id}-shutter`,
+        itemId: item.id,
+        room: item.room,
+        itemName: item.description,
+        wall: item.wall,
+        partName: 'Shutter',
+        lengthMm: shutterHeight,
+        widthMm: shutterWidth,
+        thicknessMm: 18,
+        qty,
+        material: `${getCoreMaterialLabel(item)} (${item.finishType})`,
+        edgeL1: true,
+        edgeL2: true,
+        edgeW1: true,
+        edgeW2: true,
+        edgeThicknessMm: 2.0,
+        areaSqMt: Number(((shutterHeight * shutterWidth * qty) / 1_000_000).toFixed(3)),
+      });
+    }
   }
 
   // 2. Drawers (if tandem box or drawer count > 0)

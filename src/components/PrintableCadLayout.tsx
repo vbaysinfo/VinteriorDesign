@@ -122,14 +122,18 @@ export const PrintableCadLayout: React.FC<PrintableCadLayoutProps> = ({ items, p
                               <g key={item.id}>
                                 <rect x={boxX} y={boxY} width={w} height={h} fill="#ffffff" stroke="#0f172a" strokeWidth={1.2} />
 
-                                {/* Shutters / doors, drawn exactly as the real cut list divides them */}
+                                {/* Shutters / doors, drawn exactly as the real cut list divides
+                                    them - widths can be unequal when the 2D CAD layout's shutter
+                                    editor set a per-shutter override, so offsets are walked
+                                    cumulatively rather than assuming one fixed pitch. */}
                                 {hasShutterDoors(item) && item.drawerCount === 0 && (() => {
-                                  const { count, shutterWidthMm, gapMm } = getShutterLayout(item);
-                                  const pitchMm = shutterWidthMm + gapMm;
-                                  const shutterWpx = shutterWidthMm * scaleX;
-                                  const pitchPx = pitchMm * scaleX;
+                                  const { count, widths, gapMm } = getShutterLayout(item);
+                                  let acc = 0;
                                   return Array.from({ length: count }).map((_, sIdx) => {
-                                    const sx = boxX + sIdx * pitchPx;
+                                    const shutterWidthMm = widths[sIdx];
+                                    const sx = boxX + acc * scaleX;
+                                    const shutterWpx = shutterWidthMm * scaleX;
+                                    acc += shutterWidthMm + gapMm;
                                     return (
                                       <g key={sIdx}>
                                         {sIdx > 0 && (
@@ -205,7 +209,8 @@ export const PrintableCadLayout: React.FC<PrintableCadLayoutProps> = ({ items, p
                   const isBoxUnit = getEffectiveDepthMm(item, pType) > 0;
                   const doorHeight = isBoxUnit ? item.heightMm - 20 : item.heightMm;
                   const showsShutters = hasShutterDoors(item) && item.drawerCount === 0;
-                  const { count, shutterWidthMm } = getShutterLayout(item);
+                  const { count, widths } = getShutterLayout(item);
+                  const isUniform = widths.every((wid) => wid === widths[0]);
                   return (
                     <tr key={item.id} className="border-b border-slate-300">
                       <td className="py-1 pr-2">{item.sNo}</td>
@@ -218,7 +223,7 @@ export const PrintableCadLayout: React.FC<PrintableCadLayoutProps> = ({ items, p
                         {showsShutters ? `${count} shutter${count > 1 ? 's' : ''}` : item.drawerCount > 0 ? `${item.drawerCount} drawer(s)` : '-'}
                       </td>
                       <td className="py-1 text-right font-mono">
-                        {showsShutters ? `${shutterWidthMm} × ${doorHeight}` : '-'}
+                        {showsShutters ? (isUniform ? `${widths[0]} × ${doorHeight}` : `${widths.join('/')} × ${doorHeight}`) : '-'}
                       </td>
                     </tr>
                   );

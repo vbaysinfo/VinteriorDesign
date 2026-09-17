@@ -12,6 +12,7 @@ interface Cad2DViewerProps {
   selectedItemId?: string;
   isFullWidth?: boolean;
   onToggleFullWidth?: () => void;
+  onUpdateItem?: (updated: ModularItem) => void;
 }
 
 type CadTheme = 'dark_cad' | 'blueprint' | 'light_draft';
@@ -24,6 +25,7 @@ export const Cad2DViewer: React.FC<Cad2DViewerProps> = ({
   selectedItemId,
   isFullWidth = false,
   onToggleFullWidth,
+  onUpdateItem,
 }) => {
   const [activeWall, setActiveWall] = useState<WallType | 'all'>('front');
   const [viewMode, setViewMode] = useState<'elevation' | 'floor_plan' | 'isometric_3d'>('elevation');
@@ -855,8 +857,19 @@ export const Cad2DViewer: React.FC<Cad2DViewerProps> = ({
                   // identical shutter widths can never combine to exceed
                   // pos.w - i.e. what's drawn here is what actually gets cut,
                   // and the doors are shown with real clearance, not touching.
-                  const { count: sCount, shutterWidthMm: shutterW, gapMm: shutterGapMm } = getShutterLayout(pos.item);
-                  const shutterPitch = shutterW + shutterGapMm;
+                  const { count: sCount, widths: shutterWidths, gapMm: shutterGapMm } = getShutterLayout(pos.item);
+                  // Cumulative left edge (in mm, relative to pos.x) of each
+                  // shutter - a plain array walk instead of a fixed pitch so
+                  // shutters can have independent, unequal widths once a
+                  // per-shutter override is set from the editor below.
+                  const shutterOffsets: number[] = [];
+                  {
+                    let acc = 0;
+                    for (let i = 0; i < sCount; i++) {
+                      shutterOffsets.push(acc);
+                      acc += shutterWidths[i] + shutterGapMm;
+                    }
+                  }
                   // Same box-clearance rule as the real cut list (calculator.ts):
                   // a box unit's shutter is 20mm shorter than the carcass to clear
                   // the top/bottom decks; a civil-built frame's shutter is full height.
@@ -867,7 +880,39 @@ export const Cad2DViewer: React.FC<Cad2DViewerProps> = ({
                     selectedShutter?.itemId === pos.item.id && selectedShutter.index === sIdx;
                   const selectedShutterIndex =
                     selectedShutter?.itemId === pos.item.id && selectedShutter.index < sCount ? selectedShutter.index : -1;
-                  const selectedShutterX = selectedShutterIndex >= 0 ? pos.x + selectedShutterIndex * shutterPitch : 0;
+                  const selectedShutterX = selectedShutterIndex >= 0 ? pos.x + shutterOffsets[selectedShutterIndex] : 0;
+                  const selectedShutterW = selectedShutterIndex >= 0 ? shutterWidths[selectedShutterIndex] : 0;
+
+                  // Widens/narrows one shutter and spreads the difference
+                  // evenly across the rest, so the shutters always add up to
+                  // exactly the cabinet's fixed opening width - editing one
+                  // in isolation would otherwise overflow past the carcass
+                  // (or leave a gap) since the opening itself doesn't move.
+                  const handleShutterWidthChange = (sIdx: number, newWidthMm: number) => {
+                    if (!onUpdateItem || sCount < 2) return;
+                    const MIN_SHUTTER_MM = 50;
+                    const availableWidthMm = pos.item.widthMm - (sCount - 1) * shutterGapMm;
+                    const others = sCount - 1;
+                    const edited = Math.min(
+                      Math.max(newWidthMm, MIN_SHUTTER_MM),
+                      availableWidthMm - others * MIN_SHUTTER_MM
+                    );
+                    const remaining = availableWidthMm - edited;
+                    const evenOther = Math.floor(remaining / others);
+                    const lastOtherExtra = remaining - evenOther * others;
+                    let otherSeen = 0;
+                    const next = Array.from({ length: sCount }, (_, i) => {
+                      if (i === sIdx) return edited;
+                      otherSeen++;
+                      return otherSeen === others ? evenOther + lastOtherExtra : evenOther;
+                    });
+                    onUpdateItem({ ...pos.item, shutterWidthOverrides: next });
+                  };
+                  const handleShutterWidthReset = () => {
+                    if (!onUpdateItem) return;
+                    const { shutterWidthOverrides, ...rest } = pos.item;
+                    onUpdateItem(rest);
+                  };
 
                   // Dynamic compact badge inside cabinet
                   const badgeW = Math.min(pos.w - 20, Math.max(160, 240 * fontScale));
@@ -948,7 +993,8 @@ export const Cad2DViewer: React.FC<Cad2DViewerProps> = ({
                       ) : (
                         // Shutters and Swing Dashed Arcs
                         Array.from({ length: sCount }).map((_, sIdx) => {
-                          const sx = pos.x + sIdx * shutterPitch;
+                          const sx = pos.x + shutterOffsets[sIdx];
+                          const sw = shutterWidths[sIdx];
                           const isHingeLeft = sIdx % 2 === 0;
                           const shutterSelected = isShutterSelected(sIdx);
                           return (
@@ -968,7 +1014,7 @@ export const Cad2DViewer: React.FC<Cad2DViewerProps> = ({
                               <rect
                                 x={sx}
                                 y={itemY}
-                                width={shutterW}
+                                width={sw}
                                 height={pos.h}
                                 fill={shutterSelected ? themeStyles.selectedFill : 'transparent'}
                                 stroke={shutterSelected ? themeStyles.selectedStroke : 'transparent'}
@@ -991,7 +1037,7 @@ export const Cad2DViewer: React.FC<Cad2DViewerProps> = ({
                                 <g opacity="0.35">
                                   {isHingeLeft ? (
                                     <polyline
-                                      points={`${sx},${itemY} ${sx + shutterW},${itemY + pos.h / 2} ${sx},${itemY + pos.h}`}
+                                      points={`${sx},${itemY} ${sx + sw},${itemY + pos.h / 2} ${sx},${itemY + pos.h}`}
                                       fill="none"
                                       stroke={themeStyles.text}
                                       strokeWidth="1"
@@ -999,7 +1045,7 @@ export const Cad2DViewer: React.FC<Cad2DViewerProps> = ({
                                     />
                                   ) : (
                                     <polyline
-                                      points={`${sx + shutterW},${itemY} ${sx},${itemY + pos.h / 2} ${sx + shutterW},${itemY + pos.h}`}
+                                      points={`${sx + sw},${itemY} ${sx},${itemY + pos.h / 2} ${sx + sw},${itemY + pos.h}`}
                                       fill="none"
                                       stroke={themeStyles.text}
                                       strokeWidth="1"
@@ -1012,7 +1058,7 @@ export const Cad2DViewer: React.FC<Cad2DViewerProps> = ({
                               {/* Shutter Vertical Handle */}
                               {pos.item.category !== 'expo' && (
                                 <rect
-                                  x={isHingeLeft ? sx + shutterW - 14 : sx + 10}
+                                  x={isHingeLeft ? sx + sw - 14 : sx + 10}
                                   y={itemY + pos.h / 2 - 35}
                                   width="5"
                                   height="70"
@@ -1026,41 +1072,57 @@ export const Cad2DViewer: React.FC<Cad2DViewerProps> = ({
                         })
                       )}
 
-                      {/* Selected Shutter Measurement Callout */}
-                      {selectedShutterIndex >= 0 && (
-                        <g className="pointer-events-none">
-                          <rect
-                            x={selectedShutterX}
-                            y={Math.max(0, itemY - Math.round(56 * fontScale))}
-                            width={Math.max(shutterW, Math.round(190 * fontScale))}
-                            height={Math.round(48 * fontScale)}
-                            rx="5"
-                            fill={themeStyles.selectedFill}
-                            stroke={themeStyles.selectedStroke}
-                            strokeWidth="2"
-                          />
-                          <text
-                            x={selectedShutterX + Math.max(shutterW, Math.round(190 * fontScale)) / 2}
-                            y={Math.max(0, itemY - Math.round(56 * fontScale)) + Math.round(20 * fontScale)}
-                            textAnchor="middle"
-                            fill={themeStyles.text}
-                            fontSize={Math.round(18 * fontScale)}
-                            fontWeight="bold"
-                          >
-                            Shutter {selectedShutterIndex + 1} of {sCount}
-                          </text>
-                          <text
-                            x={selectedShutterX + Math.max(shutterW, Math.round(190 * fontScale)) / 2}
-                            y={Math.max(0, itemY - Math.round(56 * fontScale)) + Math.round(40 * fontScale)}
-                            textAnchor="middle"
-                            fill={themeStyles.text}
-                            fontSize={Math.round(20 * fontScale)}
-                            fontWeight="bold"
-                          >
-                            {shutterW} × {shutterHeight} mm
-                          </text>
-                        </g>
-                      )}
+                      {/* Selected Shutter Measurement + Edit Callout. A real
+                          HTML form embedded via <foreignObject> so it scales
+                          and pans together with the SVG (the zoom/pan is a
+                          CSS transform on the SVG's wrapper, so this content
+                          inherits it exactly like any other shape here). */}
+                      {selectedShutterIndex >= 0 && (() => {
+                        const calloutW = Math.max(selectedShutterW, Math.round(190 * fontScale));
+                        const calloutH = Math.round(86 * fontScale);
+                        const calloutY = Math.max(0, itemY - calloutH - 6);
+                        const hasOverride = !!pos.item.shutterWidthOverrides;
+                        return (
+                          <foreignObject x={selectedShutterX} y={calloutY} width={calloutW} height={calloutH} style={{ overflow: 'visible' }}>
+                            <div
+                              onClick={(e) => e.stopPropagation()}
+                              onMouseDown={(e) => e.stopPropagation()}
+                              style={{
+                                fontSize: `${11 * fontScale}px`,
+                                backgroundColor: themeStyles.selectedFill,
+                                borderColor: themeStyles.selectedStroke,
+                                color: themeStyles.text,
+                              }}
+                              className="h-full rounded-md border-2 flex flex-col items-center justify-center gap-1 px-2 py-1"
+                            >
+                              <span className="font-bold whitespace-nowrap">
+                                Shutter {selectedShutterIndex + 1} of {sCount}
+                              </span>
+                              <div className="flex items-center gap-1">
+                                <input
+                                  type="number"
+                                  min={20}
+                                  value={selectedShutterW}
+                                  onChange={(e) => handleShutterWidthChange(selectedShutterIndex, parseInt(e.target.value, 10) || 0)}
+                                  disabled={!onUpdateItem || sCount < 2}
+                                  title={sCount < 2 ? 'Single-shutter items are edited via the item\'s own Width field' : undefined}
+                                  className="w-16 text-center font-mono font-bold rounded border border-current/40 bg-white/10 disabled:opacity-60"
+                                  style={{ fontSize: `${11 * fontScale}px`, color: 'inherit' }}
+                                />
+                                <span className="font-mono font-bold whitespace-nowrap">× {shutterHeight} mm</span>
+                              </div>
+                              {onUpdateItem && sCount > 1 && hasOverride && (
+                                <button
+                                  onClick={handleShutterWidthReset}
+                                  className="text-[0.85em] underline opacity-80 hover:opacity-100"
+                                >
+                                  Reset to auto split
+                                </button>
+                              )}
+                            </div>
+                          </foreignObject>
+                        );
+                      })()}
 
                       {/* Cabinet Annotation Label (Bounded inside box) */}
                       {pos.w >= 140 && pos.h >= 100 && (

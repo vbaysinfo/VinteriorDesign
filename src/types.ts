@@ -46,6 +46,7 @@ export interface ModularItem {
   laminateColorCode?: string; // free-text laminate color/code, e.g. "Ivory - IV102"
   materialCode?: string; // free-text override for the exported "Material" label; falls back to `${coreMaterial} (${finishType})` when blank
   edgeBindingNote?: string; // free-text summary of edge banding treatment for this item (display/export only - the real per-panel edge banding used for hardware/cost is computed automatically per part)
+  shutterWidthOverrides?: number[]; // per-shutter widths in mm, left-to-right; length must equal the item's shutter count or it's ignored and widths fall back to an even auto-split of widthMm
 }
 
 export interface CutListPart {

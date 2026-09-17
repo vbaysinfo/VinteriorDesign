@@ -77,6 +77,14 @@ export default function App() {
     showToast(`Switched project mode to ${type === 'semi' ? 'Semi Modular (Civil based)' : 'Full Modular (Factory prefab)'}`);
   };
 
+  // Replace one item in place - shared by the Item Inspector Drawer and the
+  // 2D CAD layout's own inline editors (dimensions, per-shutter widths), so
+  // an edit from either place flows through the same items state and
+  // recalculates cutList/materials/costs the same way.
+  const handleUpdateItem = (updated: ModularItem) => {
+    setItems((prev) => prev.map((i) => (i.id === updated.id ? updated : i)));
+  };
+
   // Upload Excel items
   const handleUploadItems = (newItems: ModularItem[]) => {
     setItems(newItems);
@@ -285,6 +293,7 @@ export default function App() {
               onSelectItem={(item) => setSelectedItemId(item.id)}
               isFullWidth={isCadFullWidth}
               onToggleFullWidth={() => setIsCadFullWidth(!isCadFullWidth)}
+              onUpdateItem={handleUpdateItem}
             />
           </div>
         )}
@@ -353,9 +362,7 @@ export default function App() {
           rates={rates}
           currency={projectInfo.currency}
           onClose={() => setSelectedItemId(null)}
-          onUpdateItem={(updated) => {
-            setItems(items.map((i) => (i.id === updated.id ? updated : i)));
-          }}
+          onUpdateItem={handleUpdateItem}
         />
       )}
 
