@@ -902,10 +902,34 @@ export const CuttingListViewer: React.FC<CuttingListViewerProps> = ({
                           className="opacity-0 group-hover:opacity-100 transition"
                         />
 
+                        {/* Source Item Name - which cabinet/unit (from the
+                            uploaded Excel sheet's description column, e.g.
+                            "Wardrobe Shutter", "Loft") this piece was cut
+                            for, labeled directly on the piece the way a
+                            nesting/optimizer tool like MaxCut tags each
+                            offcut with its job. Truncated with an ellipsis
+                            when it won't fit; the full name is still always
+                            available by clicking the piece (below). */}
+                        {!isSmall && (
+                          <text
+                            x={p.x + p.w / 2}
+                            y={p.y + p.h / 2 - 38}
+                            textAnchor="middle"
+                            dominantBaseline="central"
+                            fill="#fde68a"
+                            fontSize="24"
+                            fontWeight="700"
+                            fontFamily="sans-serif"
+                            className="pointer-events-none drop-shadow-md"
+                          >
+                            {p.itemName.length > 22 ? `${p.itemName.slice(0, 21)}…` : p.itemName}
+                          </text>
+                        )}
+
                         {/* Part Name */}
                         <text
                           x={p.x + p.w / 2}
-                          y={p.y + p.h / 2 - (isSmall ? 0 : 16)}
+                          y={p.y + p.h / 2 - (isSmall ? 0 : 4)}
                           textAnchor="middle"
                           dominantBaseline="central"
                           fill="#ffffff"
@@ -921,7 +945,7 @@ export const CuttingListViewer: React.FC<CuttingListViewerProps> = ({
                         {!isSmall && (
                           <text
                             x={p.x + p.w / 2}
-                            y={p.y + p.h / 2 + 20}
+                            y={p.y + p.h / 2 + 34}
                             textAnchor="middle"
                             dominantBaseline="central"
                             fill="#e2e8f0"
