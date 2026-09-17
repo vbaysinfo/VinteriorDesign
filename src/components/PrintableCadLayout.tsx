@@ -21,18 +21,27 @@ const WALL_LABEL: Record<WallType, string> = {
 // the user last left the interactive canvas at).
 const SCALE = 0.12;
 const CANVAS_MAX_WIDTH = 1000;
-const TOP_MARGIN = 46; // room for the overall width dimension line
-const LEFT_MARGIN = 60; // room for the overall height dimension line
-const FLOOR_GAP = 30; // px between the lowest box edge and the floor line
+const ROW_GAP_PX = 24; // vertical gap between the loft/overhead/floor rows
+const LABEL_SPACE_PX = 26; // room for the item name above + dims below each box
+const ITEM_GAP_MM = 40;
+
+const isLoftCategory = (i: ModularItem) => i.category === 'loft' || i.category === 'kitchen_loft';
+const isOverheadCategory = (i: ModularItem) => i.category === 'kitchen_overhead';
 
 // A light-theme, room-by-room AutoCAD-style elevation drawing meant only for
-// printing: every room's units, grouped by wall, drawn to scale with real
-// dimension lines (not just text), shutter/door divisions with per-shutter
-// widths, and a data table - on a white background regardless of the
-// interactive canvas's current theme. Rendered off-screen (hidden via CSS)
-// and shown only inside the print stylesheet, so a print never carries the
-// app chrome (header, tabs, toolbars) or whatever dark/blueprint theme is
-// on screen.
+// printing: every room's units, grouped by wall, drawn to scale with
+// shutter/door divisions and per-shutter widths - on a white background
+// regardless of the interactive canvas's current theme. Rendered off-screen
+// (hidden via CSS) and shown only inside the print stylesheet, so a print
+// never carries the app chrome (header, tabs, toolbars) or whatever dark/
+// blueprint theme is on screen.
+//
+// Floor, overhead, and loft units are laid out in three independent rows
+// (loft sits at the top of the wall, overhead in the middle, floor units at
+// the bottom) instead of one continuous row - a loft physically sits above
+// the units below it, not beside them, so summing every item's width into
+// one row would double-count the same wall footprint and wildly overstate
+// the wall's real width.
 export const PrintableCadLayout: React.FC<PrintableCadLayoutProps> = ({ items, projectName, projectType }) => {
   const rooms = useMemo(() => {
     const seen: string[] = [];
@@ -57,28 +66,26 @@ export const PrintableCadLayout: React.FC<PrintableCadLayoutProps> = ({ items, p
 
             {walls.map((wall) => {
               const wallItems = roomItems.filter((i) => i.wall === wall);
-              const wallWidthMm = wallItems.reduce((sum, i) => sum + i.widthMm, 0) + (wallItems.length - 1) * 40 + 280;
-              const maxHeightMm = Math.max(...wallItems.map((i) => i.heightMm), 2400);
-              const naturalWidth = wallWidthMm * SCALE;
-              const drawWidth = Math.min(CANVAS_MAX_WIDTH, naturalWidth);
-              const scaleX = drawWidth / wallWidthMm;
-              const drawHeight = maxHeightMm * scaleX;
-              const svgWidth = drawWidth + LEFT_MARGIN + 20;
-              const svgHeight = drawHeight + TOP_MARGIN + FLOOR_GAP + 10;
-              const floorY = svgHeight - FLOOR_GAP;
+              const floorRow = wallItems.filter((i) => !isLoftCategory(i) && !isOverheadCategory(i));
+              const overheadRow = wallItems.filter(isOverheadCategory);
+              const loftRow = wallItems.filter(isLoftCategory);
+              const rows = [
+                { items: loftRow, label: 'Loft' },
+                { items: overheadRow, label: 'Overhead' },
+                { items: floorRow, label: 'Floor' },
+              ].filter((r) => r.items.length > 0);
 
-              let x = LEFT_MARGIN + 60 * scaleX;
-              const wallStartX = x;
+              const rowWidthMm = (rowItems: ModularItem[]) =>
+                rowItems.reduce((sum, i) => sum + i.widthMm, 0) + Math.max(0, rowItems.length - 1) * ITEM_GAP_MM;
+              const maxRowWidthMm = Math.max(...rows.map((r) => rowWidthMm(r.items)), 1000) + 200;
+              const drawWidth = Math.min(CANVAS_MAX_WIDTH, maxRowWidthMm * SCALE);
+              const scaleX = drawWidth / maxRowWidthMm;
 
-              const boxes = wallItems.map((item) => {
-                const w = item.widthMm * scaleX;
-                const h = item.heightMm * scaleX;
-                const boxX = x;
-                const boxY = floorY - h;
-                x += w + 40 * scaleX;
-                return { item, boxX, boxY, w, h };
-              });
-              const wallEndX = boxes.length > 0 ? boxes[boxes.length - 1].boxX + boxes[boxes.length - 1].w : wallStartX;
+              const rowHeightsPx = rows.map((r) => Math.max(...r.items.map((i) => i.heightMm)) * scaleX + LABEL_SPACE_PX);
+              const svgWidth = drawWidth + 40;
+              const svgHeight = rowHeightsPx.reduce((s, h) => s + h, 0) + ROW_GAP_PX * (rows.length - 1) + 20;
+
+              let rowTopY = 10;
 
               return (
                 <div key={wall} className="mb-6 break-inside-avoid">
@@ -86,118 +93,94 @@ export const PrintableCadLayout: React.FC<PrintableCadLayoutProps> = ({ items, p
                     {WALL_LABEL[wall]} — {wallItems.length} unit(s)
                   </h3>
                   <svg width={svgWidth} height={svgHeight} viewBox={`0 0 ${svgWidth} ${svgHeight}`} className="border border-slate-400">
-                    <defs>
-                      <marker id={`arrow-${room}-${wall}`} markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto">
-                        <path d="M0,0 L6,3 L0,6 Z" fill="#0f172a" />
-                      </marker>
-                    </defs>
+                    {rows.map((row, rowIdx) => {
+                      const rowHeightPx = rowHeightsPx[rowIdx];
+                      const floorLineY = rowTopY + rowHeightPx - 14;
+                      let x = 20;
 
-                    {/* Overall width dimension line */}
-                    <line
-                      x1={wallStartX}
-                      y1={16}
-                      x2={wallEndX}
-                      y2={16}
-                      stroke="#0f172a"
-                      strokeWidth={0.75}
-                      markerStart={`url(#arrow-${room}-${wall})`}
-                      markerEnd={`url(#arrow-${room}-${wall})`}
-                    />
-                    <text x={(wallStartX + wallEndX) / 2} y={12} textAnchor="middle" fontSize="9" fontWeight="bold" fill="#0f172a">
-                      W: {Math.round((wallEndX - wallStartX) / scaleX)}mm
-                    </text>
+                      const rowGroup = (
+                        <g key={row.label}>
+                          {row.items.length > 1 && (
+                            <text x={4} y={rowTopY + rowHeightPx / 2} fontSize="7" fill="#94a3b8" transform={`rotate(-90, 4, ${rowTopY + rowHeightPx / 2})`}>
+                              {row.label.toUpperCase()}
+                            </text>
+                          )}
+                          {row.items.map((item) => {
+                            const w = item.widthMm * scaleX;
+                            const h = item.heightMm * scaleX;
+                            const boxX = x;
+                            const boxY = floorLineY - h;
+                            x += w + ITEM_GAP_MM * scaleX;
 
-                    {/* Overall height dimension line */}
-                    <line
-                      x1={24}
-                      y1={floorY}
-                      x2={24}
-                      y2={floorY - drawHeight}
-                      stroke="#0f172a"
-                      strokeWidth={0.75}
-                      markerStart={`url(#arrow-${room}-${wall})`}
-                      markerEnd={`url(#arrow-${room}-${wall})`}
-                    />
-                    <text
-                      x={14}
-                      y={floorY - drawHeight / 2}
-                      textAnchor="middle"
-                      fontSize="9"
-                      fontWeight="bold"
-                      fill="#0f172a"
-                      transform={`rotate(-90, 14, ${floorY - drawHeight / 2})`}
-                    >
-                      H: {Math.round(maxHeightMm)}mm
-                    </text>
+                            const pType = item.projectType || projectType;
+                            const isBoxUnit = getEffectiveDepthMm(item, pType) > 0;
+                            const doorHeight = isBoxUnit ? item.heightMm - 20 : item.heightMm;
+                            const doorHeightPx = isBoxUnit ? h - 20 * scaleX : h;
+                            const doorTopY = boxY + (h - doorHeightPx);
 
-                    {boxes.map(({ item, boxX, boxY, w, h }) => {
-                      const pType = item.projectType || projectType;
-                      const isBoxUnit = getEffectiveDepthMm(item, pType) > 0;
-                      const doorHeight = isBoxUnit ? item.heightMm - 20 : item.heightMm;
-                      const doorHeightPx = isBoxUnit ? h - 20 * scaleX : h;
-                      const doorTopY = boxY + (h - doorHeightPx);
+                            return (
+                              <g key={item.id}>
+                                <rect x={boxX} y={boxY} width={w} height={h} fill="#ffffff" stroke="#0f172a" strokeWidth={1.2} />
 
-                      return (
-                        <g key={item.id}>
-                          <rect x={boxX} y={boxY} width={w} height={h} fill="#ffffff" stroke="#0f172a" strokeWidth={1.2} />
+                                {/* Shutters / doors, drawn exactly as the real cut list divides them */}
+                                {hasShutterDoors(item) && item.drawerCount === 0 && (() => {
+                                  const { count, shutterWidthMm, gapMm } = getShutterLayout(item);
+                                  const pitchMm = shutterWidthMm + gapMm;
+                                  const shutterWpx = shutterWidthMm * scaleX;
+                                  const pitchPx = pitchMm * scaleX;
+                                  return Array.from({ length: count }).map((_, sIdx) => {
+                                    const sx = boxX + sIdx * pitchPx;
+                                    return (
+                                      <g key={sIdx}>
+                                        {sIdx > 0 && (
+                                          <line x1={sx} y1={doorTopY} x2={sx} y2={boxY + h} stroke="#0f172a" strokeWidth={0.6} />
+                                        )}
+                                        {w > 40 && (
+                                          <text x={sx + shutterWpx / 2} y={doorTopY + doorHeightPx - 5} textAnchor="middle" fontSize="6.5" fill="#334155">
+                                            {shutterWidthMm}×{doorHeight}
+                                          </text>
+                                        )}
+                                      </g>
+                                    );
+                                  });
+                                })()}
 
-                          {/* Shutters / doors, drawn exactly as the real cut list divides them */}
-                          {hasShutterDoors(item) && item.drawerCount === 0 && (() => {
-                            const { count, shutterWidthMm, gapMm } = getShutterLayout(item);
-                            const pitchMm = shutterWidthMm + gapMm;
-                            const shutterWpx = shutterWidthMm * scaleX;
-                            const pitchPx = pitchMm * scaleX;
-                            return Array.from({ length: count }).map((_, sIdx) => {
-                              const sx = boxX + sIdx * pitchPx;
-                              return (
-                                <g key={sIdx}>
-                                  {sIdx > 0 && (
-                                    <line x1={sx} y1={doorTopY} x2={sx} y2={boxY + h} stroke="#0f172a" strokeWidth={0.6} />
-                                  )}
-                                  <text
-                                    x={sx + shutterWpx / 2}
-                                    y={doorTopY + doorHeightPx - 6}
-                                    textAnchor="middle"
-                                    fontSize="6.5"
-                                    fill="#334155"
-                                  >
-                                    {shutterWidthMm}×{doorHeight}
-                                  </text>
-                                </g>
-                              );
-                            });
-                          })()}
+                                {/* Drawer tiers, if this unit has drawers instead of/alongside shutters */}
+                                {item.drawerCount > 0 &&
+                                  Array.from({ length: item.drawerCount }).map((_, dIdx) => {
+                                    const drawerHpx = h / item.drawerCount;
+                                    const drawerHmm = Math.round(item.heightMm / item.drawerCount);
+                                    const dy = boxY + dIdx * drawerHpx;
+                                    return (
+                                      <g key={dIdx}>
+                                        {dIdx > 0 && <line x1={boxX} y1={dy} x2={boxX + w} y2={dy} stroke="#0f172a" strokeWidth={0.6} />}
+                                        {h > 20 && (
+                                          <text x={boxX + w / 2} y={dy + drawerHpx / 2 + 2} textAnchor="middle" fontSize="6.5" fill="#334155">
+                                            {item.widthMm}×{drawerHmm}
+                                          </text>
+                                        )}
+                                      </g>
+                                    );
+                                  })}
 
-                          {/* Drawer tiers, if this unit has drawers instead of/alongside shutters */}
-                          {item.drawerCount > 0 &&
-                            Array.from({ length: item.drawerCount }).map((_, dIdx) => {
-                              const drawerHpx = h / item.drawerCount;
-                              const drawerHmm = Math.round(item.heightMm / item.drawerCount);
-                              const dy = boxY + dIdx * drawerHpx;
-                              return (
-                                <g key={dIdx}>
-                                  {dIdx > 0 && <line x1={boxX} y1={dy} x2={boxX + w} y2={dy} stroke="#0f172a" strokeWidth={0.6} />}
-                                  <text x={boxX + w / 2} y={dy + drawerHpx / 2 + 2} textAnchor="middle" fontSize="6.5" fill="#334155">
-                                    {item.widthMm}×{drawerHmm}
-                                  </text>
-                                </g>
-                              );
-                            })}
-
-                          {/* Item label above the box */}
-                          <text x={boxX + w / 2} y={boxY - 4} textAnchor="middle" fontSize="8" fontWeight="bold" fill="#0f172a">
-                            #{item.sNo} {item.description.slice(0, 18)}
-                          </text>
-                          <text x={boxX + w / 2} y={floorY + 10} textAnchor="middle" fontSize="7.5" fill="#475569">
-                            {item.widthMm} × {item.heightMm}
-                            {item.depthMm > 0 ? ` × ${item.depthMm}` : ''} mm
-                          </text>
+                                {/* Item label above the box */}
+                                <text x={boxX + w / 2} y={boxY - 4} textAnchor="middle" fontSize="8" fontWeight="bold" fill="#0f172a">
+                                  #{item.sNo} {item.description.slice(0, 18)}
+                                </text>
+                                <text x={boxX + w / 2} y={floorLineY + 10} textAnchor="middle" fontSize="7.5" fill="#475569">
+                                  {item.widthMm} × {item.heightMm}
+                                  {item.depthMm > 0 ? ` × ${item.depthMm}` : ''} mm
+                                </text>
+                              </g>
+                            );
+                          })}
+                          <line x1={0} y1={floorLineY} x2={svgWidth} y2={floorLineY} stroke="#cbd5e1" strokeWidth={0.75} />
                         </g>
                       );
-                    })}
 
-                    {/* Floor baseline across the whole wall */}
-                    <line x1={0} y1={floorY} x2={svgWidth} y2={floorY} stroke="#94a3b8" strokeWidth={0.75} />
+                      rowTopY += rowHeightPx + ROW_GAP_PX;
+                      return rowGroup;
+                    })}
                   </svg>
                 </div>
               );
