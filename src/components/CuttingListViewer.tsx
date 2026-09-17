@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { CutListPart, MaterialBreakdown, ProjectType, SheetLayout } from '../types';
-import { generateSheetNestingLayouts, SHEET_LENGTH_MM, SHEET_WIDTH_MM } from '../utils/calculator';
+import { generateSheetNestingLayouts, calculateMaterialUsage, SHEET_LENGTH_MM, SHEET_WIDTH_MM } from '../utils/calculator';
 import {
   Layers,
   Box,
@@ -36,7 +36,7 @@ interface CuttingListViewerProps {
 
 export const CuttingListViewer: React.FC<CuttingListViewerProps> = ({
   cutList,
-  materials,
+  materials: globalMaterials,
   projectType,
   selectedRoom,
   onUpdatePart,
@@ -45,6 +45,20 @@ export const CuttingListViewer: React.FC<CuttingListViewerProps> = ({
   const { layouts: sheetLayouts, updatedCutList } = useMemo(() => {
     return generateSheetNestingLayouts(cutList);
   }, [cutList]);
+
+  // Cut list scoped to the Active Room selector (mirrors filteredParts' room match)
+  const roomCutList = useMemo(() => {
+    if (selectedRoom === 'ALL') return updatedCutList;
+    return updatedCutList.filter((part) => part.room === selectedRoom);
+  }, [updatedCutList, selectedRoom]);
+
+  // Shadows the `materials` prop so every existing `materials.X` reference
+  // below (metric cards, waste/hardware tabs, footer, exports) automatically
+  // re-scopes to the selected room instead of staying frozen at project totals.
+  const materials = useMemo(
+    () => (selectedRoom === 'ALL' ? globalMaterials : calculateMaterialUsage(roomCutList)),
+    [selectedRoom, globalMaterials, roomCutList]
+  );
 
   // Sub-tabs: 'sheets_visual' | 'parts_table' | 'waste_analytics' | 'hardware_schedule'
   const [activeSubTab, setActiveSubTab] = useState<
@@ -89,11 +103,11 @@ export const CuttingListViewer: React.FC<CuttingListViewerProps> = ({
   // Part Type breakdown counts
   const partTypeCounts = useMemo(() => {
     const counts: Record<string, number> = {};
-    cutList.forEach((p) => {
+    roomCutList.forEach((p) => {
       counts[p.partName] = (counts[p.partName] || 0) + p.qty;
     });
     return counts;
-  }, [cutList]);
+  }, [roomCutList]);
 
   // Currently inspected 2D visual sheet
   const activeVisualSheet = useMemo(() => {

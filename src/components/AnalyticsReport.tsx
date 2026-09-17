@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { ModularItem, CutListPart, ProjectType } from '../types';
 import { calculateMaterialUsage } from '../utils/calculator';
 import {
@@ -59,6 +59,7 @@ interface AnalyticsReportProps {
   items: ModularItem[];
   cutList: CutListPart[];
   projectType: ProjectType;
+  selectedRoom: string;
 }
 
 const isWardrobe = (item: ModularItem) => item.category === 'wardrobe_shutter' || item.category === 'single_wardrobe';
@@ -132,7 +133,7 @@ const StatCard: React.FC<{ icon: React.ReactNode; label: string; value: string; 
   </div>
 );
 
-export const AnalyticsReport: React.FC<AnalyticsReportProps> = ({ items, cutList, projectType }) => {
+export const AnalyticsReport: React.FC<AnalyticsReportProps> = ({ items, cutList, projectType, selectedRoom }) => {
   const rooms = useMemo(() => Array.from(new Set(items.map((i) => i.room))), [items]);
 
   const allStats = useMemo(() => buildRoomStats('ALL', items, cutList), [items, cutList]);
@@ -149,7 +150,21 @@ export const AnalyticsReport: React.FC<AnalyticsReportProps> = ({ items, cutList
     [rooms, items, cutList]
   );
 
-  const edgeTotalMeters = Number((allStats.materials.edgeBand2mmMeters + allStats.materials.edgeBand08mmMeters).toFixed(1));
+  // The header cards and the "All Rooms" charts previously showed the whole
+  // project's numbers no matter what the app's Active Room dropdown was set
+  // to - every other tab (Excel Editor, Cutting List, Box Schedule) filters
+  // by it, so this looked broken/frozen by comparison. Switching the header
+  // dropdown to a specific room now re-scopes the summary cards and the
+  // composition/sheet/laminate breakdowns to just that room; the
+  // room-comparison bar charts stay showing every room (a comparison against
+  // only itself isn't useful) but highlight the selected one.
+  const isFiltered = selectedRoom !== 'ALL';
+  const displayStats = isFiltered ? roomStats.find((rs) => rs.room === selectedRoom) ?? allStats : allStats;
+  const scopeLabel = isFiltered ? selectedRoom : 'All Rooms';
+
+  const edgeTotalMeters = Number(
+    (displayStats.materials.edgeBand2mmMeters + displayStats.materials.edgeBand08mmMeters).toFixed(1)
+  );
 
   // Room detail cards default collapsed - with more charts above them now,
   // a project with several rooms would otherwise mean a lot of scrolling
@@ -172,6 +187,13 @@ export const AnalyticsReport: React.FC<AnalyticsReportProps> = ({ items, cutList
     });
   };
 
+  // Picking a specific room in the header's Active Room dropdown should
+  // open that room's own card automatically, matching the rest of the
+  // report now scoping itself to that room.
+  useEffect(() => {
+    if (isFiltered) setExpandedRooms((prev) => new Set(prev).add(selectedRoom));
+  }, [isFiltered, selectedRoom]);
+
   if (items.length === 0) {
     return (
       <div className="bg-white rounded-xl border border-dashed border-slate-300 p-10 text-center text-sm text-slate-400">
@@ -191,41 +213,49 @@ export const AnalyticsReport: React.FC<AnalyticsReportProps> = ({ items, cutList
               Project Analytics Report
             </h2>
             <p className="text-xs text-slate-500 mt-0.5">
-              All Rooms summary followed by a per-room breakdown — {projectType === 'semi' ? 'Semi Modular (Civil-built)' : 'Full Modular (Factory prefab)'} mode.
+              {isFiltered ? (
+                <>
+                  Showing <strong className="text-slate-700">{selectedRoom}</strong> only - switch Active Room to "All Rooms" above
+                  for the full project.
+                </>
+              ) : (
+                <>All Rooms summary followed by a per-room breakdown</>
+              )}{' '}
+              — {projectType === 'semi' ? 'Semi Modular (Civil-built)' : 'Full Modular (Factory prefab)'} mode.
             </p>
           </div>
           <span className="text-[11px] font-mono font-bold text-slate-500 bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200">
-            {items.length} units across {rooms.length} room(s)
+            {displayStats.itemCount} units{isFiltered ? ` in ${selectedRoom}` : ` across ${rooms.length} room(s)`}
           </span>
         </div>
 
-        {/* All Rooms Overview Cards */}
+        {/* Overview Cards - scoped to the Active Room filter when one is set */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mt-5">
           <StatCard
             icon={<Square className="w-3.5 h-3.5" />}
             label="Total Sq.ft"
-            value={`${allStats.totalAreaSqFt.toLocaleString()}`}
+            value={`${displayStats.totalAreaSqFt.toLocaleString()}`}
             sub="Cabinet face area, not panel material"
             tone="bg-slate-900 text-white"
           />
           <StatCard
             icon={<Layers className="w-3.5 h-3.5" />}
             label="Total Sheets"
-            value={`${allStats.materials.totalSheets}`}
-            sub={`${allStats.materials.totalPieces} cut pieces`}
+            value={`${displayStats.materials.totalSheets}`}
+            sub={`${displayStats.materials.totalPieces} cut pieces`}
             tone="bg-cyan-50 border border-cyan-200 text-cyan-900"
           />
           <StatCard
             icon={<Shirt className="w-3.5 h-3.5" />}
             label="Wardrobes"
-            value={`${allStats.wardrobeCount}`}
-            sub={`${allStats.wardrobeAreaSqFt.toLocaleString()} sq.ft`}
+            value={`${displayStats.wardrobeCount}`}
+            sub={`${displayStats.wardrobeAreaSqFt.toLocaleString()} sq.ft`}
             tone="bg-fuchsia-50 border border-fuchsia-200 text-fuchsia-900"
           />
           <StatCard
             icon={<Palette className="w-3.5 h-3.5" />}
             label="Laminate Colors"
-            value={`${allStats.laminateGroups.length}`}
+            value={`${displayStats.laminateGroups.length}`}
             sub="Distinct finish/color combos"
             tone="bg-amber-50 border border-amber-200 text-amber-900"
           />
@@ -233,14 +263,14 @@ export const AnalyticsReport: React.FC<AnalyticsReportProps> = ({ items, cutList
             icon={<Ruler className="w-3.5 h-3.5" />}
             label="Edge Binding"
             value={`${edgeTotalMeters.toLocaleString()} m`}
-            sub={`${allStats.materials.edgeBand2mmMeters.toFixed(1)}m @2mm • ${allStats.materials.edgeBand08mmMeters.toFixed(1)}m @0.8mm`}
+            sub={`${displayStats.materials.edgeBand2mmMeters.toFixed(1)}m @2mm • ${displayStats.materials.edgeBand08mmMeters.toFixed(1)}m @0.8mm`}
             tone="bg-emerald-50 border border-emerald-200 text-emerald-900"
           />
           <StatCard
             icon={<Percent className="w-3.5 h-3.5" />}
             label="Material Yield"
-            value={`${allStats.materials.overallUtilizationPercent}%`}
-            sub={`${allStats.materials.wastePercent}% scrap waste`}
+            value={`${displayStats.materials.overallUtilizationPercent}%`}
+            sub={`${displayStats.materials.wastePercent}% scrap waste`}
             tone="bg-indigo-50 border border-indigo-200 text-indigo-900"
           />
         </div>
@@ -248,7 +278,11 @@ export const AnalyticsReport: React.FC<AnalyticsReportProps> = ({ items, cutList
 
       {/* Section: Material & Waste */}
       <section>
-        <SectionHeading icon={<PieChart className="w-4 h-4" />} title="Material & Waste" subtitle="All rooms + per-room breakdown" />
+        <SectionHeading
+          icon={<PieChart className="w-4 h-4" />}
+          title="Material & Waste"
+          subtitle={isFiltered ? `${selectedRoom} + all-room comparison` : 'All rooms + per-room breakdown'}
+        />
         <div className="space-y-4">
         {/* Material Usage & Waste chart - part-to-whole composition of the
             total board area bought, so it's visible at a glance how much of
@@ -256,17 +290,17 @@ export const AnalyticsReport: React.FC<AnalyticsReportProps> = ({ items, cutList
             true scrap. */}
         <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-4">
           <h4 className="text-xs font-bold text-slate-900 mb-1 flex items-center gap-1.5">
-            <PieChart className="w-3.5 h-3.5 text-cyan-600" /> Material Usage & Waste (All Rooms)
+            <PieChart className="w-3.5 h-3.5 text-cyan-600" /> Material Usage & Waste ({scopeLabel})
           </h4>
           <p className="text-[10px] text-slate-400 mb-3">
-            Of the {allStats.materials.grossBoardAreaSqFt.toLocaleString()} sq.ft of board bought (
-            {allStats.materials.totalSheets} sheets)
+            Of the {displayStats.materials.grossBoardAreaSqFt.toLocaleString()} sq.ft of board bought (
+            {displayStats.materials.totalSheets} sheets)
           </p>
           <MaterialCompositionBar
             segments={[
-              { label: 'Net Panels Used', value: allStats.materials.netPartsAreaSqFt, color: CHART_COLOR_USED },
-              { label: 'Usable Offcut', value: allStats.materials.usableOffcutAreaSqFt, color: CHART_COLOR_OFFCUT },
-              { label: 'Scrap Waste', value: allStats.materials.totalScrapWasteSqFt, color: CHART_COLOR_WASTE },
+              { label: 'Net Panels Used', value: displayStats.materials.netPartsAreaSqFt, color: CHART_COLOR_USED },
+              { label: 'Usable Offcut', value: displayStats.materials.usableOffcutAreaSqFt, color: CHART_COLOR_OFFCUT },
+              { label: 'Scrap Waste', value: displayStats.materials.totalScrapWasteSqFt, color: CHART_COLOR_WASTE },
             ]}
           />
         </div>
@@ -298,6 +332,7 @@ export const AnalyticsReport: React.FC<AnalyticsReportProps> = ({ items, cutList
             seriesLabels={['Used', 'Waste']}
             seriesColors={[CHART_COLOR_USED, CHART_COLOR_WASTE]}
             unit=" sq.ft"
+            highlightLabel={isFiltered ? selectedRoom : undefined}
           />
         </div>
         </div>
@@ -327,6 +362,7 @@ export const AnalyticsReport: React.FC<AnalyticsReportProps> = ({ items, cutList
             seriesLabels={['18mm', '9mm', '6mm']}
             seriesColors={[CHART_COLOR_18MM, CHART_COLOR_9MM, CHART_COLOR_6MM]}
             unit=" sheets"
+            highlightLabel={isFiltered ? selectedRoom : undefined}
           />
         </div>
 
@@ -334,14 +370,14 @@ export const AnalyticsReport: React.FC<AnalyticsReportProps> = ({ items, cutList
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-4">
             <h4 className="text-xs font-bold text-slate-900 mb-2 flex items-center gap-1.5">
-              <Layers className="w-3.5 h-3.5 text-cyan-600" /> Sheet Requirement by Thickness (All Rooms)
+              <Layers className="w-3.5 h-3.5 text-cyan-600" /> Sheet Requirement by Thickness ({scopeLabel})
             </h4>
             <div className="mb-3">
               <HorizontalBarChart
                 data={[
-                  { label: '18mm', value: allStats.materials.ply18mmSheets },
-                  { label: '9mm', value: allStats.materials.ply9mmSheets },
-                  { label: '6mm', value: allStats.materials.ply6mmSheets },
+                  { label: '18mm', value: displayStats.materials.ply18mmSheets },
+                  { label: '9mm', value: displayStats.materials.ply9mmSheets },
+                  { label: '6mm', value: displayStats.materials.ply6mmSheets },
                 ]}
                 color={CHART_COLOR_18MM}
                 unit=" sheets"
@@ -351,25 +387,25 @@ export const AnalyticsReport: React.FC<AnalyticsReportProps> = ({ items, cutList
               <div className="flex justify-between">
                 <span className="text-slate-500">18mm (carcass/shutter)</span>
                 <span className="font-mono font-bold text-slate-800">
-                  {allStats.materials.ply18mmSheets} sheets • {allStats.materials.ply18mmAreaSqFt.toLocaleString()} sq.ft
+                  {displayStats.materials.ply18mmSheets} sheets • {displayStats.materials.ply18mmAreaSqFt.toLocaleString()} sq.ft
                 </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-500">9mm</span>
                 <span className="font-mono font-bold text-slate-800">
-                  {allStats.materials.ply9mmSheets} sheets • {allStats.materials.ply9mmAreaSqFt.toLocaleString()} sq.ft
+                  {displayStats.materials.ply9mmSheets} sheets • {displayStats.materials.ply9mmAreaSqFt.toLocaleString()} sq.ft
                 </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-500">6mm (back panel)</span>
                 <span className="font-mono font-bold text-slate-800">
-                  {allStats.materials.ply6mmSheets} sheets • {allStats.materials.ply6mmAreaSqFt.toLocaleString()} sq.ft
+                  {displayStats.materials.ply6mmSheets} sheets • {displayStats.materials.ply6mmAreaSqFt.toLocaleString()} sq.ft
                 </span>
               </div>
               <div className="flex justify-between pt-1.5 border-t border-slate-100">
                 <span className="text-slate-500">Inner / Outer Laminate Sheets</span>
                 <span className="font-mono font-bold text-slate-800">
-                  {allStats.materials.innerLaminateSheets} / {allStats.materials.outerLaminateSheets}
+                  {displayStats.materials.innerLaminateSheets} / {displayStats.materials.outerLaminateSheets}
                 </span>
               </div>
             </div>
@@ -377,24 +413,24 @@ export const AnalyticsReport: React.FC<AnalyticsReportProps> = ({ items, cutList
 
           <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-4">
             <h4 className="text-xs font-bold text-slate-900 mb-2 flex items-center gap-1.5">
-              <Package className="w-3.5 h-3.5 text-amber-600" /> Hardware Requirement (All Rooms)
+              <Package className="w-3.5 h-3.5 text-amber-600" /> Hardware Requirement ({scopeLabel})
             </h4>
             <div className="space-y-1.5 text-[11px]">
               <div className="flex justify-between">
                 <span className="text-slate-500">Soft-Close Hinge Pairs</span>
-                <span className="font-mono font-bold text-slate-800">{Math.ceil(allStats.materials.softCloseHingesPairs)}</span>
+                <span className="font-mono font-bold text-slate-800">{Math.ceil(displayStats.materials.softCloseHingesPairs)}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-500">Handles</span>
-                <span className="font-mono font-bold text-slate-800">{allStats.materials.handles}</span>
+                <span className="font-mono font-bold text-slate-800">{displayStats.materials.handles}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-500">Drawer Channels</span>
-                <span className="font-mono font-bold text-slate-800">{allStats.materials.drawerChannels}</span>
+                <span className="font-mono font-bold text-slate-800">{displayStats.materials.drawerChannels}</span>
               </div>
               <div className="flex justify-between pt-1.5 border-t border-slate-100">
                 <span className="text-slate-500">Tandem Box Channels</span>
-                <span className="font-mono font-bold text-slate-800">{allStats.materials.tandemBoxChannels}</span>
+                <span className="font-mono font-bold text-slate-800">{displayStats.materials.tandemBoxChannels}</span>
               </div>
             </div>
           </div>
@@ -408,11 +444,11 @@ export const AnalyticsReport: React.FC<AnalyticsReportProps> = ({ items, cutList
         {/* Laminate / Color breakdown */}
         <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-4">
           <h4 className="text-xs font-bold text-slate-900 mb-3 flex items-center gap-1.5">
-            <Palette className="w-3.5 h-3.5 text-amber-600" /> Color Laminates & Finish Breakdown (All Rooms)
+            <Palette className="w-3.5 h-3.5 text-amber-600" /> Color Laminates & Finish Breakdown ({scopeLabel})
           </h4>
           <div className="mb-4">
             <HorizontalBarChart
-              data={allStats.laminateGroups.map((g) => ({
+              data={displayStats.laminateGroups.map((g) => ({
                 label: g.colorCode ? `${g.finishType} - ${g.colorCode}` : `${g.finishType} (Unspecified)`,
                 value: g.areaSqFt,
               }))}
@@ -431,7 +467,7 @@ export const AnalyticsReport: React.FC<AnalyticsReportProps> = ({ items, cutList
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {allStats.laminateGroups.map((g) => (
+                {displayStats.laminateGroups.map((g) => (
                   <tr key={g.key}>
                     <td className="py-1.5 pr-3 font-semibold text-slate-800">{g.finishType}</td>
                     <td className="py-1.5 pr-3">

@@ -175,6 +175,10 @@ interface StackedHorizontalBarChartProps {
   seriesLabels: string[];
   seriesColors: string[];
   unit?: string;
+  // When set, every row except the one matching this label dims - the
+  // "emphasis" form: one row is the point (e.g. the app's currently active
+  // room), the rest stay as context rather than competing for attention.
+  highlightLabel?: string;
 }
 
 // A grouped set of horizontal stacked bars - one bar per category (room),
@@ -188,6 +192,7 @@ export const StackedHorizontalBarChart: React.FC<StackedHorizontalBarChartProps>
   seriesLabels,
   seriesColors,
   unit = '',
+  highlightLabel,
 }) => {
   const [hover, setHover] = useState<{ row: number; seg: number } | null>(null);
   const barH = 18;
@@ -234,6 +239,8 @@ export const StackedHorizontalBarChart: React.FC<StackedHorizontalBarChartProps>
             return segX;
           });
           const renderedTotalW = runningX - labelW;
+          const isRowHighlighted = highlightLabel === row.label;
+          const isRowDimmed = highlightLabel !== undefined && !isRowHighlighted;
 
           return (
             <g key={row.label}>
@@ -243,8 +250,8 @@ export const StackedHorizontalBarChart: React.FC<StackedHorizontalBarChartProps>
                 textAnchor="end"
                 dominantBaseline="central"
                 fontSize="11"
-                fontWeight="600"
-                fill="#475569"
+                fontWeight={isRowHighlighted ? 800 : 600}
+                fill={isRowDimmed ? '#b6bcc7' : '#475569'}
               >
                 {row.label}
               </text>
@@ -266,7 +273,7 @@ export const StackedHorizontalBarChart: React.FC<StackedHorizontalBarChartProps>
                 const fullW = renderedWidths[si];
                 if (fullW <= 0) return null;
                 const w = Math.max(0, fullW - (si < row.values.length - 1 ? gap : 0));
-                const isDimmed = hover !== null && hover.row === ri && hover.seg !== -1 && hover.seg !== si;
+                const isHoverDimmed = hover !== null && hover.row === ri && hover.seg !== -1 && hover.seg !== si;
                 // Both series' actual numbers belong ON the bar, not just in
                 // the hover tooltip - a stacked bar is exactly for reading
                 // "how much of each" off the accumulated whole. White reads
@@ -286,7 +293,7 @@ export const StackedHorizontalBarChart: React.FC<StackedHorizontalBarChartProps>
                       width={w}
                       height={barH}
                       fill={seriesColors[si]}
-                      opacity={isDimmed ? 0.4 : 1}
+                      opacity={isRowDimmed ? 0.3 : isHoverDimmed ? 0.4 : 1}
                       onMouseEnter={() => setHover({ row: ri, seg: si })}
                       onMouseLeave={() => setHover(null)}
                     >
@@ -305,6 +312,7 @@ export const StackedHorizontalBarChart: React.FC<StackedHorizontalBarChartProps>
                         fontWeight="700"
                         fill="#ffffff"
                         fontFamily="ui-monospace, monospace"
+                        opacity={isRowDimmed ? 0.7 : 1}
                         className="pointer-events-none"
                       >
                         {label}
@@ -319,7 +327,7 @@ export const StackedHorizontalBarChart: React.FC<StackedHorizontalBarChartProps>
                 dominantBaseline="central"
                 fontSize="11"
                 fontWeight="700"
-                fill="#0f172a"
+                fill={isRowDimmed ? '#b6bcc7' : '#0f172a'}
                 fontFamily="ui-monospace, monospace"
               >
                 {total.toLocaleString()}

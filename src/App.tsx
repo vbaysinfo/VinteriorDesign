@@ -349,7 +349,7 @@ export default function App() {
         {/* Tab 5: Analytics Report (Sq.ft, sheets, laminate colors, wardrobes, edge binding - all rooms + per-room) */}
         {activeTab === 'analytics' && (
           <div className="space-y-4">
-            <AnalyticsReport items={items} cutList={cutList} projectType={projectType} />
+            <AnalyticsReport items={items} cutList={cutList} projectType={projectType} selectedRoom={selectedRoom} />
           </div>
         )}
 
