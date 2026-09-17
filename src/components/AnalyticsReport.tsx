@@ -144,7 +144,7 @@ export const AnalyticsReport: React.FC<AnalyticsReportProps> = ({ items, cutList
             icon={<Square className="w-3.5 h-3.5" />}
             label="Total Sq.ft"
             value={`${allStats.totalAreaSqFt.toLocaleString()}`}
-            sub="Sum of all elevation areas"
+            sub="Cabinet face area, not panel material"
             tone="bg-slate-900 text-white"
           />
           <StatCard
@@ -217,7 +217,11 @@ export const AnalyticsReport: React.FC<AnalyticsReportProps> = ({ items, cutList
           <h4 className="text-xs font-bold text-slate-900 mb-1 flex items-center gap-1.5">
             <Ruler className="w-3.5 h-3.5 text-rose-600" /> Material Used vs Waste by Room
           </h4>
-          <p className="text-[10px] text-slate-400 mb-3">Net panel area used vs. scrap, if each room's sheets were nested on their own</p>
+          <p className="text-[10px] text-slate-400 mb-3">
+            Panel material (18/9/6mm sheet area) used vs. scrap, if each room's sheets were nested on their own - naturally
+            several times larger than that room's elevation area above, since one cabinet's box is built from many separate
+            panels
+          </p>
           <StackedHorizontalBarChart
             data={[...roomStats]
               .sort((a, b) => b.materials.grossBoardAreaSqFt - a.materials.grossBoardAreaSqFt)
@@ -349,10 +353,14 @@ export const AnalyticsReport: React.FC<AnalyticsReportProps> = ({ items, cutList
         <div className="mt-4 flex items-start gap-2 text-[11px] text-slate-500 bg-slate-50 border border-slate-200 rounded-lg p-3">
           <Info className="w-3.5 h-3.5 mt-0.5 shrink-0 text-slate-400" />
           <span>
-            <strong>Total Sq.ft</strong> sums every item's Width × Height in feet (its elevation/opening area), independent of Semi/Full
-            mode. <strong>Total Sheets</strong> and <strong>Edge Binding</strong> come from the same real cut list the Cutting List tab
-            nests, so they match exactly. Per-room sheet counts below are computed by nesting each room's parts on their own, so they'll
-            usually sum to slightly more than the All Rooms total above — nesting the whole project together shares offcuts across rooms
+            <strong>Total Sq.ft</strong> at the top sums every item's Width × Height in feet (its elevation/opening area, e.g. a
+            wardrobe's 8×7ft face) - it does not, and isn't meant to, match the <strong>panel material</strong> figures in the
+            Used/Waste charts below. Building that wardrobe's actual carcass needs a Left Gable, Right Gable, Top Deck, Bottom
+            Deck, Back Panel, Shelves, and Shutters - each its own separate 18mm/6mm sheet panel with its own area - so the real
+            material area is naturally several times the cabinet's simple face area. <strong>Total Sheets</strong> and{' '}
+            <strong>Edge Binding</strong> come from that same real cut list the Cutting List tab nests, so they match it exactly.
+            Per-room sheet/waste figures below are computed by nesting each room's parts on their own, so they'll usually sum to
+            slightly more than the All Rooms totals above them — nesting the whole project together shares offcuts across rooms
             that nesting room-by-room can't.
           </span>
         </div>
