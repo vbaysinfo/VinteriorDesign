@@ -20,7 +20,8 @@ import {
   ArrowRight,
   Info,
   Pencil,
-  X
+  X,
+  Square
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { PartEditModal } from './PartEditModal';
@@ -286,9 +287,38 @@ export const CuttingListViewer: React.FC<CuttingListViewerProps> = ({
         </div>
       </div>
 
-      {/* 6 Core Factory Metric Cards (Sheets, Pieces, Skirting, Hinges, Hardware, Edge Banding) */}
+      {/* 7 Core Factory Metric Cards (Sq.ft, Sheets, Pieces, Skirting, Hinges, Hardware, Edge Banding) */}
       <div className="p-4 bg-slate-50 border-b border-slate-200">
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3">
+          {/* 0. TOTAL SQ.FT (material actually cut, from this same cut list) */}
+          <div className="p-3 bg-white rounded-xl border border-slate-200 shadow-xs">
+            <div className="flex items-center justify-between text-slate-500 text-[11px] font-semibold uppercase">
+              <span className="flex items-center gap-1 text-slate-700">
+                <Square className="w-3.5 h-3.5" />
+                Total Sq.ft
+              </span>
+              <span className="text-[10px] text-slate-400">Net Panels</span>
+            </div>
+            <div className="text-2xl font-black text-slate-900 mt-1 font-mono">
+              {materials.netPartsAreaSqFt.toLocaleString()}{' '}
+              <span className="text-xs font-semibold text-slate-500">Sq.ft</span>
+            </div>
+            <div className="text-[11px] text-slate-600 mt-2 space-y-0.5 font-mono">
+              <div className="flex justify-between">
+                <span>Board Bought:</span>
+                <strong className="text-slate-700">{materials.grossBoardAreaSqFt.toLocaleString()} sq.ft</strong>
+              </div>
+              <div className="flex justify-between">
+                <span>Usable Offcut:</span>
+                <strong className="text-emerald-700">{materials.usableOffcutAreaSqFt.toLocaleString()} sq.ft</strong>
+              </div>
+              <div className="flex justify-between pt-1 border-t border-slate-100 text-[10px] text-slate-500">
+                <span>Scrap Waste:</span>
+                <span className="font-bold text-rose-600">{materials.wastePercent}%</span>
+              </div>
+            </div>
+          </div>
+
           {/* 1. RAW WOOD SHEETS */}
           <div className="p-3 bg-white rounded-xl border border-slate-200 shadow-xs">
             <div className="flex items-center justify-between text-slate-500 text-[11px] font-semibold uppercase">

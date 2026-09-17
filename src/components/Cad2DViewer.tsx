@@ -2,7 +2,7 @@ import React, { useState, useMemo, useRef } from 'react';
 import { ModularItem, WallType, ProjectType } from '../types';
 import { Layers, ZoomIn, ZoomOut, Maximize2, Minimize2, Download, Eye, Grid, Box, Sliders, Type, RotateCcw, Move } from 'lucide-react';
 import { Isometric3DViewer } from './Isometric3DViewer';
-import { getEffectiveDepthMm, getShutterLayout, redistributeShutterWidths } from '../utils/calculator';
+import { getEffectiveDepthMm, getShutterLayout, redistributeShutterWidths, mmToFt, recalculateItemMetrics } from '../utils/calculator';
 import { NumberField } from './NumberField';
 
 interface Cad2DViewerProps {
@@ -876,7 +876,6 @@ export const Cad2DViewer: React.FC<Cad2DViewerProps> = ({
                   // the top/bottom decks; a civil-built frame's shutter is full height.
                   const shutterPType = pos.item.projectType || projectType;
                   const shutterIsBoxUnit = getEffectiveDepthMm(pos.item, shutterPType) > 0;
-                  const shutterHeight = shutterIsBoxUnit ? pos.h - 20 : pos.h;
                   const isShutterSelected = (sIdx: number) =>
                     selectedShutter?.itemId === pos.item.id && selectedShutter.index === sIdx;
                   const selectedShutterIndex =
@@ -892,6 +891,24 @@ export const Cad2DViewer: React.FC<Cad2DViewerProps> = ({
                     if (!onUpdateItem) return;
                     const { shutterWidthOverrides, ...rest } = pos.item;
                     onUpdateItem(rest);
+                  };
+                  // Height and Depth aren't per-shutter properties - all doors
+                  // in one row share the carcass's own height/depth - so these
+                  // just edit the item itself, same as the Structural
+                  // Dimensions fields in the Item Inspector Drawer.
+                  const handleShutterHeightChange = (newHeightMm: number) => {
+                    if (!onUpdateItem) return;
+                    onUpdateItem(recalculateItemMetrics({ ...pos.item, heightMm: newHeightMm, heightFt: mmToFt(newHeightMm) }));
+                  };
+                  const handleShutterDepthChange = (newDepthMm: number) => {
+                    if (!onUpdateItem) return;
+                    onUpdateItem(
+                      recalculateItemMetrics({
+                        ...pos.item,
+                        depthMm: newDepthMm,
+                        depthFt: newDepthMm > 0 ? mmToFt(newDepthMm) : 0,
+                      })
+                    );
                   };
 
                   // Dynamic compact badge inside cabinet
@@ -1063,10 +1080,13 @@ export const Cad2DViewer: React.FC<Cad2DViewerProps> = ({
                           CSS transform on the SVG's wrapper, so this content
                           inherits it exactly like any other shape here). */}
                       {selectedShutterIndex >= 0 && (() => {
-                        const calloutW = Math.max(selectedShutterW, Math.round(190 * fontScale));
-                        const calloutH = Math.round(86 * fontScale);
+                        const calloutW = Math.max(selectedShutterW, Math.round(230 * fontScale));
+                        const calloutH = Math.round((shutterIsBoxUnit ? 150 : 118) * fontScale);
                         const calloutY = Math.max(0, itemY - calloutH - 6);
                         const hasOverride = !!pos.item.shutterWidthOverrides;
+                        const fieldStyle: React.CSSProperties = { fontSize: `${11 * fontScale}px`, color: 'inherit' };
+                        const fieldClass =
+                          'w-16 text-center font-mono font-bold rounded border border-current/40 bg-white/10 disabled:opacity-60';
                         return (
                           <foreignObject x={selectedShutterX} y={calloutY} width={calloutW} height={calloutH} style={{ overflow: 'visible' }}>
                             <div
@@ -1078,29 +1098,59 @@ export const Cad2DViewer: React.FC<Cad2DViewerProps> = ({
                                 borderColor: themeStyles.selectedStroke,
                                 color: themeStyles.text,
                               }}
-                              className="h-full rounded-md border-2 flex flex-col items-center justify-center gap-1 px-2 py-1"
+                              className="h-full rounded-md border-2 flex flex-col items-center justify-center gap-1 px-2 py-1.5"
                             >
                               <span className="font-bold whitespace-nowrap">
                                 Shutter {selectedShutterIndex + 1} of {sCount}
                               </span>
-                              <div className="flex items-center gap-1">
-                                <NumberField
-                                  min={20}
-                                  value={selectedShutterW}
-                                  onCommit={(num) => handleShutterWidthChange(selectedShutterIndex, num)}
-                                  disabled={!onUpdateItem || sCount < 2}
-                                  title={sCount < 2 ? "Single-shutter items are edited via the item's own Width field" : undefined}
-                                  className="w-16 text-center font-mono font-bold rounded border border-current/40 bg-white/10 disabled:opacity-60"
-                                  style={{ fontSize: `${11 * fontScale}px`, color: 'inherit' }}
-                                />
-                                <span className="font-mono font-bold whitespace-nowrap">× {shutterHeight} mm</span>
+                              <div className="flex items-center gap-1.5">
+                                <div className="flex flex-col items-center gap-0.5">
+                                  <span className="text-[0.8em] opacity-70">Width</span>
+                                  <NumberField
+                                    min={20}
+                                    value={selectedShutterW}
+                                    onCommit={(num) => handleShutterWidthChange(selectedShutterIndex, num)}
+                                    disabled={!onUpdateItem || sCount < 2}
+                                    title={sCount < 2 ? "Single-shutter items are edited via the item's own Width field" : undefined}
+                                    className={fieldClass}
+                                    style={fieldStyle}
+                                  />
+                                </div>
+                                <div className="flex flex-col items-center gap-0.5">
+                                  <span className="text-[0.8em] opacity-70">Height</span>
+                                  <NumberField
+                                    min={0}
+                                    value={pos.item.heightMm}
+                                    onCommit={handleShutterHeightChange}
+                                    disabled={!onUpdateItem}
+                                    title="Shared by every door in this row, same as the item's own Height field"
+                                    className={fieldClass}
+                                    style={fieldStyle}
+                                  />
+                                </div>
                               </div>
+                              {shutterIsBoxUnit && (
+                                <div className="flex flex-col items-center gap-0.5">
+                                  <span className="text-[0.8em] opacity-70">Depth</span>
+                                  <NumberField
+                                    min={0}
+                                    zeroAsEmpty
+                                    placeholder="0"
+                                    value={pos.item.depthMm}
+                                    onCommit={handleShutterDepthChange}
+                                    disabled={!onUpdateItem}
+                                    title="Shared by every door in this row, same as the item's own Depth field"
+                                    className={fieldClass}
+                                    style={fieldStyle}
+                                  />
+                                </div>
+                              )}
                               {onUpdateItem && sCount > 1 && hasOverride && (
                                 <button
                                   onClick={handleShutterWidthReset}
                                   className="text-[0.85em] underline opacity-80 hover:opacity-100"
                                 >
-                                  Reset to auto split
+                                  Reset widths to auto split
                                 </button>
                               )}
                             </div>
