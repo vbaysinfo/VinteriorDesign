@@ -1,19 +1,59 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { ModularItem, CutListPart, ProjectType } from '../types';
 import { calculateMaterialUsage } from '../utils/calculator';
-import { BarChart3, Square, Layers, Palette, Shirt, Ruler, Info, Percent, Package, PieChart } from 'lucide-react';
+import {
+  BarChart3,
+  Square,
+  Layers,
+  Palette,
+  Shirt,
+  Ruler,
+  Info,
+  Percent,
+  Package,
+  PieChart,
+  ChevronDown,
+  ChevronRight,
+  ChevronsDownUp,
+  ChevronsUpDown,
+} from 'lucide-react';
 import { HorizontalBarChart, MaterialCompositionBar, StackedHorizontalBarChart } from './AnalyticsCharts';
 
-// Colors picked from a CVD-validated categorical set (worst adjacent pair
-// ΔE 9.9 deutan / 9.6 tritan, normal-vision ΔE 24.0 - see dataviz skill) so
-// the three composition segments stay distinguishable even for colorblind
-// viewers; the legend still carries the text label so nothing rides on hue
-// alone (aqua's 2.74:1 surface contrast needs that relief anyway).
+// Colors picked from CVD-validated categorical sets (see dataviz skill) so
+// series stay distinguishable for colorblind viewers; every chart also
+// carries a visible legend/label so nothing rides on hue alone (aqua's
+// 2.74:1 surface contrast needs that relief anyway).
+// Set A (worst adjacent ΔE 9.9 deutan / 9.6 tritan, normal-vision 24.0):
 const CHART_COLOR_USED = '#2a78d6';
 const CHART_COLOR_OFFCUT = '#1baf7a';
 const CHART_COLOR_WASTE = '#d03b3b';
-const CHART_COLOR_SHEETS = '#4a3aa7';
 const CHART_COLOR_LAMINATE = '#eb6834';
+// Set B, for the sheet-thickness breakdowns (worst adjacent ΔE 9.2 deutan,
+// normal-vision 27.6) - kept visually distinct from Set A so a reader never
+// confuses "which chart is this legend for" when scanning the page:
+const CHART_COLOR_18MM = '#4a3aa7';
+const CHART_COLOR_9MM = '#eb6834';
+const CHART_COLOR_6MM = '#1baf7a';
+
+// A small uppercase eyebrow label that opens each major section of the
+// report, so the page reads as distinct groups (Overview / Material &
+// Waste / Sheets & Hardware / Finishes / Room-by-Room) instead of one long
+// undifferentiated stack of cards.
+const SectionHeading: React.FC<{ icon: React.ReactNode; title: string; subtitle?: string; action?: React.ReactNode }> = ({
+  icon,
+  title,
+  subtitle,
+  action,
+}) => (
+  <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+    <div className="flex items-center gap-2">
+      <span className="text-cyan-600">{icon}</span>
+      <h3 className="text-sm font-black text-slate-900 uppercase tracking-wide">{title}</h3>
+      {subtitle && <span className="text-[11px] text-slate-400">{subtitle}</span>}
+    </div>
+    {action}
+  </div>
+);
 
 interface AnalyticsReportProps {
   items: ModularItem[];
@@ -111,6 +151,27 @@ export const AnalyticsReport: React.FC<AnalyticsReportProps> = ({ items, cutList
 
   const edgeTotalMeters = Number((allStats.materials.edgeBand2mmMeters + allStats.materials.edgeBand08mmMeters).toFixed(1));
 
+  // Room detail cards default collapsed - with more charts above them now,
+  // a project with several rooms would otherwise mean a lot of scrolling
+  // just to see the overview. The quick-jump chips below expand a room and
+  // scroll it into view in one click.
+  const [expandedRooms, setExpandedRooms] = useState<Set<string>>(new Set());
+  const toggleRoom = (room: string) => {
+    setExpandedRooms((prev) => {
+      const next = new Set(prev);
+      if (next.has(room)) next.delete(room);
+      else next.add(room);
+      return next;
+    });
+  };
+  const roomAnchor = (room: string) => `analytics-room-${room.replace(/\s+/g, '-')}`;
+  const jumpToRoom = (room: string) => {
+    setExpandedRooms((prev) => new Set(prev).add(room));
+    requestAnimationFrame(() => {
+      document.getElementById(roomAnchor(room))?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  };
+
   if (items.length === 0) {
     return (
       <div className="bg-white rounded-xl border border-dashed border-slate-300 p-10 text-center text-sm text-slate-400">
@@ -183,12 +244,17 @@ export const AnalyticsReport: React.FC<AnalyticsReportProps> = ({ items, cutList
             tone="bg-indigo-50 border border-indigo-200 text-indigo-900"
           />
         </div>
+      </div>
 
+      {/* Section: Material & Waste */}
+      <section>
+        <SectionHeading icon={<PieChart className="w-4 h-4" />} title="Material & Waste" subtitle="All rooms + per-room breakdown" />
+        <div className="space-y-4">
         {/* Material Usage & Waste chart - part-to-whole composition of the
             total board area bought, so it's visible at a glance how much of
             what you pay for actually becomes cabinet vs. usable offcut vs.
             true scrap. */}
-        <div className="border border-slate-200 rounded-xl p-4 mt-4">
+        <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-4">
           <h4 className="text-xs font-bold text-slate-900 mb-1 flex items-center gap-1.5">
             <PieChart className="w-3.5 h-3.5 text-cyan-600" /> Material Usage & Waste (All Rooms)
           </h4>
@@ -213,7 +279,7 @@ export const AnalyticsReport: React.FC<AnalyticsReportProps> = ({ items, cutList
             bit higher than its true share of the combined project total
             above - nesting every room together shares offcuts across rooms
             that nesting room-by-room can't. */}
-        <div className="border border-slate-200 rounded-xl p-4 mt-4">
+        <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-4">
           <h4 className="text-xs font-bold text-slate-900 mb-1 flex items-center gap-1.5">
             <Ruler className="w-3.5 h-3.5 text-rose-600" /> Material Used vs Waste by Room
           </h4>
@@ -234,12 +300,41 @@ export const AnalyticsReport: React.FC<AnalyticsReportProps> = ({ items, cutList
             unit=" sq.ft"
           />
         </div>
+        </div>
+      </section>
+
+      {/* Section: Sheets & Hardware */}
+      <section>
+        <SectionHeading icon={<Layers className="w-4 h-4" />} title="Sheets & Hardware" />
+        <div className="space-y-4">
+        {/* Sheets Needed by Room - how many raw boards each room's own cut
+            list requires, split by thickness so it's clear which rooms are
+            driving the 18mm (carcass/shutter) count vs the thinner backs. */}
+        <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-4">
+          <h4 className="text-xs font-bold text-slate-900 mb-1 flex items-center gap-1.5">
+            <Layers className="w-3.5 h-3.5 text-violet-600" /> Sheets Needed by Room
+          </h4>
+          <p className="text-[10px] text-slate-400 mb-3">
+            Raw 8×4ft boards required per room, by thickness - nested independently per room like the figures above
+          </p>
+          <StackedHorizontalBarChart
+            data={[...roomStats]
+              .sort((a, b) => b.materials.totalSheets - a.materials.totalSheets)
+              .map((rs) => ({
+                label: rs.room,
+                values: [rs.materials.ply18mmSheets, rs.materials.ply9mmSheets, rs.materials.ply6mmSheets],
+              }))}
+            seriesLabels={['18mm', '9mm', '6mm']}
+            seriesColors={[CHART_COLOR_18MM, CHART_COLOR_9MM, CHART_COLOR_6MM]}
+            unit=" sheets"
+          />
+        </div>
 
         {/* Sheet composition + hardware detail for more understanding */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-          <div className="border border-slate-200 rounded-xl p-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-4">
             <h4 className="text-xs font-bold text-slate-900 mb-2 flex items-center gap-1.5">
-              <Layers className="w-3.5 h-3.5 text-cyan-600" /> Sheet Requirement by Thickness
+              <Layers className="w-3.5 h-3.5 text-cyan-600" /> Sheet Requirement by Thickness (All Rooms)
             </h4>
             <div className="mb-3">
               <HorizontalBarChart
@@ -248,7 +343,7 @@ export const AnalyticsReport: React.FC<AnalyticsReportProps> = ({ items, cutList
                   { label: '9mm', value: allStats.materials.ply9mmSheets },
                   { label: '6mm', value: allStats.materials.ply6mmSheets },
                 ]}
-                color={CHART_COLOR_SHEETS}
+                color={CHART_COLOR_18MM}
                 unit=" sheets"
               />
             </div>
@@ -280,9 +375,9 @@ export const AnalyticsReport: React.FC<AnalyticsReportProps> = ({ items, cutList
             </div>
           </div>
 
-          <div className="border border-slate-200 rounded-xl p-4">
+          <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-4">
             <h4 className="text-xs font-bold text-slate-900 mb-2 flex items-center gap-1.5">
-              <Package className="w-3.5 h-3.5 text-amber-600" /> Hardware Requirement
+              <Package className="w-3.5 h-3.5 text-amber-600" /> Hardware Requirement (All Rooms)
             </h4>
             <div className="space-y-1.5 text-[11px]">
               <div className="flex justify-between">
@@ -304,9 +399,14 @@ export const AnalyticsReport: React.FC<AnalyticsReportProps> = ({ items, cutList
             </div>
           </div>
         </div>
+        </div>
+      </section>
 
+      {/* Section: Finishes */}
+      <section>
+        <SectionHeading icon={<Palette className="w-4 h-4" />} title="Finishes" />
         {/* Laminate / Color breakdown */}
-        <div className="border border-slate-200 rounded-xl p-4 mt-4">
+        <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-4">
           <h4 className="text-xs font-bold text-slate-900 mb-3 flex items-center gap-1.5">
             <Palette className="w-3.5 h-3.5 text-amber-600" /> Color Laminates & Finish Breakdown (All Rooms)
           </h4>
@@ -349,29 +449,79 @@ export const AnalyticsReport: React.FC<AnalyticsReportProps> = ({ items, cutList
             </table>
           </div>
         </div>
+      </section>
 
-        <div className="mt-4 flex items-start gap-2 text-[11px] text-slate-500 bg-slate-50 border border-slate-200 rounded-lg p-3">
-          <Info className="w-3.5 h-3.5 mt-0.5 shrink-0 text-slate-400" />
-          <span>
-            <strong>Total Sq.ft</strong> at the top sums every item's Width × Height in feet (its elevation/opening area, e.g. a
-            wardrobe's 8×7ft face) - it does not, and isn't meant to, match the <strong>panel material</strong> figures in the
-            Used/Waste charts below. Building that wardrobe's actual carcass needs a Left Gable, Right Gable, Top Deck, Bottom
-            Deck, Back Panel, Shelves, and Shutters - each its own separate 18mm/6mm sheet panel with its own area - so the real
-            material area is naturally several times the cabinet's simple face area. <strong>Total Sheets</strong> and{' '}
-            <strong>Edge Binding</strong> come from that same real cut list the Cutting List tab nests, so they match it exactly.
-            Per-room sheet/waste figures below are computed by nesting each room's parts on their own, so they'll usually sum to
-            slightly more than the All Rooms totals above them — nesting the whole project together shares offcuts across rooms
-            that nesting room-by-room can't.
-          </span>
-        </div>
+      <div className="flex items-start gap-2 text-[11px] text-slate-500 bg-slate-50 border border-slate-200 rounded-lg p-3">
+        <Info className="w-3.5 h-3.5 mt-0.5 shrink-0 text-slate-400" />
+        <span>
+          <strong>Total Sq.ft</strong> at the top sums every item's Width × Height in feet (its elevation/opening area, e.g. a
+          wardrobe's 8×7ft face) - it does not, and isn't meant to, match the <strong>panel material</strong> figures in the
+          Used/Waste charts above. Building that wardrobe's actual carcass needs a Left Gable, Right Gable, Top Deck, Bottom
+          Deck, Back Panel, Shelves, and Shutters - each its own separate 18mm/6mm sheet panel with its own area - so the real
+          material area is naturally several times the cabinet's simple face area. <strong>Total Sheets</strong> and{' '}
+          <strong>Edge Binding</strong> come from that same real cut list the Cutting List tab nests, so they match it exactly.
+          Per-room sheet/waste figures are computed by nesting each room's parts on their own, so they'll usually sum to
+          slightly more than the All Rooms totals above them — nesting the whole project together shares offcuts across rooms
+          that nesting room-by-room can't.
+        </span>
       </div>
 
-      {/* Per-Room Detail Cards */}
-      {roomStats.map((rs) => (
-        <div key={rs.room} className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-          <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-3.5 bg-slate-50 border-b border-slate-200">
+      {/* Section: Room-by-Room Detail - collapsed by default so a project
+          with several rooms doesn't force scrolling past everything just to
+          reach the overview above; the quick-jump chips expand and scroll
+          straight to one room. */}
+      <section>
+        <SectionHeading
+          icon={<Square className="w-4 h-4" />}
+          title="Room-by-Room Detail"
+          action={
+            <button
+              onClick={() =>
+                setExpandedRooms((prev) => (prev.size === rooms.length ? new Set() : new Set(rooms)))
+              }
+              className="text-[11px] font-bold text-cyan-700 hover:text-cyan-900 flex items-center gap-1"
+            >
+              {expandedRooms.size === rooms.length ? (
+                <>
+                  <ChevronsDownUp className="w-3.5 h-3.5" /> Collapse All
+                </>
+              ) : (
+                <>
+                  <ChevronsUpDown className="w-3.5 h-3.5" /> Expand All
+                </>
+              )}
+            </button>
+          }
+        />
+
+        {/* Quick-jump chips */}
+        <div className="flex flex-wrap gap-1.5 mb-3">
+          {roomStats.map((rs) => (
+            <button
+              key={rs.room}
+              onClick={() => jumpToRoom(rs.room)}
+              className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-white border border-slate-200 text-slate-600 hover:border-cyan-300 hover:text-cyan-700 transition"
+            >
+              {rs.room}
+            </button>
+          ))}
+        </div>
+
+        <div className="space-y-3">
+      {roomStats.map((rs) => {
+        const isExpanded = expandedRooms.has(rs.room);
+        return (
+        <div key={rs.room} id={roomAnchor(rs.room)} className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden scroll-mt-4">
+          <button
+            onClick={() => toggleRoom(rs.room)}
+            className="w-full flex flex-wrap items-center justify-between gap-3 px-5 py-3.5 bg-slate-50 hover:bg-slate-100/70 transition text-left"
+          >
             <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-              <Square className="w-4 h-4 text-cyan-600" />
+              {isExpanded ? (
+                <ChevronDown className="w-4 h-4 text-slate-400 shrink-0" />
+              ) : (
+                <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
+              )}
               {rs.room}
               <span className="text-[11px] font-mono font-semibold text-slate-500">({rs.itemCount} units)</span>
             </h3>
@@ -383,8 +533,9 @@ export const AnalyticsReport: React.FC<AnalyticsReportProps> = ({ items, cutList
                 {(rs.materials.edgeBand2mmMeters + rs.materials.edgeBand08mmMeters).toFixed(1)}m edge band
               </span>
             </div>
-          </div>
+          </button>
 
+          {isExpanded && (
           <div className="p-4 overflow-x-auto">
             <table className="w-full text-[11px]">
               <thead>
@@ -413,8 +564,12 @@ export const AnalyticsReport: React.FC<AnalyticsReportProps> = ({ items, cutList
               </tbody>
             </table>
           </div>
+          )}
         </div>
-      ))}
+        );
+      })}
+        </div>
+      </section>
     </div>
   );
 };
