@@ -267,23 +267,50 @@ export const StackedHorizontalBarChart: React.FC<StackedHorizontalBarChartProps>
                 if (fullW <= 0) return null;
                 const w = Math.max(0, fullW - (si < row.values.length - 1 ? gap : 0));
                 const isDimmed = hover !== null && hover.row === ri && hover.seg !== -1 && hover.seg !== si;
+                // Both series' actual numbers belong ON the bar, not just in
+                // the hover tooltip - a stacked bar is exactly for reading
+                // "how much of each" off the accumulated whole. White reads
+                // on both series colors (already contrast-checked against
+                // the chart surface); the value is skipped only when a
+                // segment is too narrow to hold it without clipping, per the
+                // "never overflow a label" rule - the tooltip still carries
+                // it in that rare case.
+                const label = v.toLocaleString();
+                const estTextW = label.length * 6.2 + 10;
+                const canFitLabel = w >= estTextW;
                 return (
-                  <rect
-                    key={si}
-                    x={segmentPositions[si]}
-                    y={y}
-                    width={w}
-                    height={barH}
-                    fill={seriesColors[si]}
-                    opacity={isDimmed ? 0.4 : 1}
-                    onMouseEnter={() => setHover({ row: ri, seg: si })}
-                    onMouseLeave={() => setHover(null)}
-                  >
-                    <title>
-                      {row.label} — {seriesLabels[si]}: {v.toLocaleString()}
-                      {unit}
-                    </title>
-                  </rect>
+                  <g key={si}>
+                    <rect
+                      x={segmentPositions[si]}
+                      y={y}
+                      width={w}
+                      height={barH}
+                      fill={seriesColors[si]}
+                      opacity={isDimmed ? 0.4 : 1}
+                      onMouseEnter={() => setHover({ row: ri, seg: si })}
+                      onMouseLeave={() => setHover(null)}
+                    >
+                      <title>
+                        {row.label} — {seriesLabels[si]}: {v.toLocaleString()}
+                        {unit}
+                      </title>
+                    </rect>
+                    {canFitLabel && (
+                      <text
+                        x={segmentPositions[si] + w / 2}
+                        y={y + barH / 2}
+                        textAnchor="middle"
+                        dominantBaseline="central"
+                        fontSize="10"
+                        fontWeight="700"
+                        fill="#ffffff"
+                        fontFamily="ui-monospace, monospace"
+                        className="pointer-events-none"
+                      >
+                        {label}
+                      </text>
+                    )}
+                  </g>
                 );
               })}
               <text
