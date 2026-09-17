@@ -28,7 +28,10 @@ export default function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [rates, setRates] = useState<FactoryRates>(DEFAULT_FACTORY_RATES);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
-  const [isCadFullWidth, setIsCadFullWidth] = useState<boolean>(true);
+  // Full width is the default layout for every tab, not just the CAD
+  // canvas - "Standard" just narrows the content column for whoever
+  // prefers reading a table/report at a fixed, centered width.
+  const [isFullWidth, setIsFullWidth] = useState<boolean>(true);
   // Per-panel overrides, keyed by CutListPart.id (stable across regeneration
   // since it's derived from the item id + part type). Lets a user hand-edit
   // any field of an individual panel in the Cutting List tab - dimensions,
@@ -166,9 +169,7 @@ export default function App() {
       {/* Main Content Area */}
       <main
         className={`flex-1 w-full mx-auto py-5 space-y-5 transition-all duration-200 ${
-          isCadFullWidth && activeTab === 'cad_layout'
-            ? 'max-w-[99%] px-2 sm:px-3 lg:px-4'
-            : 'max-w-7xl px-4 sm:px-6'
+          isFullWidth ? 'max-w-[99%] px-2 sm:px-3 lg:px-4' : 'max-w-7xl px-4 sm:px-6'
         }`}
       >
         {/* Navigation Tabs Bar & Room Filter Strip */}
@@ -262,20 +263,18 @@ export default function App() {
 
           {/* Right Controls: Full Width Toggle & Room Selector Dropdown */}
           <div className="flex items-center gap-2.5">
-            {activeTab === 'cad_layout' && (
-              <button
-                onClick={() => setIsCadFullWidth(!isCadFullWidth)}
-                className={`text-xs font-bold px-2.5 py-1.5 rounded-lg border flex items-center gap-1.5 transition ${
-                  isCadFullWidth
-                    ? 'bg-cyan-600 text-white border-cyan-700 shadow-2xs'
-                    : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-50'
-                }`}
-                title={isCadFullWidth ? 'Switch to Standard Boxed Width' : 'Expand to 100% Full Width'}
-              >
-                {isCadFullWidth ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
-                <span className="hidden sm:inline">{isCadFullWidth ? 'Full Width (100%)' : 'Full Width'}</span>
-              </button>
-            )}
+            <button
+              onClick={() => setIsFullWidth(!isFullWidth)}
+              className={`text-xs font-bold px-2.5 py-1.5 rounded-lg border flex items-center gap-1.5 transition ${
+                isFullWidth
+                  ? 'bg-cyan-600 text-white border-cyan-700 shadow-2xs'
+                  : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-50'
+              }`}
+              title={isFullWidth ? 'Switch to Standard Boxed Width' : 'Expand to 100% Full Width'}
+            >
+              {isFullWidth ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+              <span className="hidden sm:inline">{isFullWidth ? 'Full Width (100%)' : 'Full Width'}</span>
+            </button>
 
             <div className="flex items-center gap-1.5">
               <span className="text-xs text-slate-500 font-semibold hidden md:inline">Active Room:</span>
@@ -304,8 +303,8 @@ export default function App() {
               projectType={projectType}
               selectedItemId={selectedItemId || undefined}
               onSelectItem={(item) => setSelectedItemId(item.id)}
-              isFullWidth={isCadFullWidth}
-              onToggleFullWidth={() => setIsCadFullWidth(!isCadFullWidth)}
+              isFullWidth={isFullWidth}
+              onToggleFullWidth={() => setIsFullWidth(!isFullWidth)}
               onUpdateItem={handleUpdateItem}
             />
           </div>

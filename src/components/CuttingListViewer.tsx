@@ -100,6 +100,39 @@ export const CuttingListViewer: React.FC<CuttingListViewerProps> = ({
     return sheetLayouts.find((s) => s.sheetId === activeVisualSheetId) || sheetLayouts[0];
   }, [sheetLayouts, activeVisualSheetId]);
 
+  // Nesting mixes parts from different rooms onto the same physical sheet
+  // to minimize waste - a sheet is not "owned" by one room. These indexes
+  // let the sidebar answer "which sheets does this room's cut list touch"
+  // and "what else is riding along on this sheet" without re-scanning
+  // sheetLayouts on every render.
+  const rooms = useMemo(() => Array.from(new Set(cutList.map((p) => p.room))), [cutList]);
+
+  const sheetsByRoom = useMemo(() => {
+    const map: Record<string, SheetLayout[]> = {};
+    rooms.forEach((room) => {
+      map[room] = sheetLayouts.filter((s) => s.parts.some((p) => p.room === room));
+    });
+    return map;
+  }, [rooms, sheetLayouts]);
+
+  const sheetRoomsIndex = useMemo(() => {
+    const map: Record<string, string[]> = {};
+    sheetLayouts.forEach((s) => {
+      map[s.sheetId] = Array.from(new Set(s.parts.map((p) => p.room)));
+    });
+    return map;
+  }, [sheetLayouts]);
+
+  // What the sidebar actually renders: one room-labeled group per room when
+  // viewing "All Rooms" (a shared sheet then simply appears under each room
+  // it serves), or a single group scoped to the active room filter.
+  const visibleSheetGroups = useMemo(() => {
+    if (selectedRoom === 'ALL') {
+      return rooms.map((room) => ({ room, sheets: sheetsByRoom[room] || [] })).filter((g) => g.sheets.length > 0);
+    }
+    return [{ room: selectedRoom, sheets: sheetsByRoom[selectedRoom] || [] }];
+  }, [selectedRoom, rooms, sheetsByRoom]);
+
   // Export Cut List with Sheet Assignment & Skirting to Excel
   const handleExportCutList = () => {
     const data = filteredParts.map((p, idx) => ({
@@ -582,45 +615,90 @@ export const CuttingListViewer: React.FC<CuttingListViewerProps> = ({
 
       {/* VIEW 1: 2D SHEET NESTING VISUALIZER */}
       {activeSubTab === 'sheets_visual' && (
-        <div className="p-4 bg-slate-100 space-y-4">
-          {/* Sheet Selector Carousel / Tabs */}
-          <div className="flex items-center gap-2 overflow-x-auto pb-2">
-            <span className="text-xs font-bold text-slate-600 shrink-0">Select Sheet:</span>
-            {sheetLayouts.map((sheet) => {
-              const isSelected = activeVisualSheetId === sheet.sheetId;
-              return (
-                <button
-                  key={sheet.sheetId}
-                  onClick={() => {
-                    setActiveVisualSheetId(sheet.sheetId);
-                    setSelectedPartDetail(null);
-                  }}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold shrink-0 transition border flex items-center gap-2 ${
-                    isSelected
-                      ? 'bg-slate-900 text-white border-slate-900 shadow-xs'
-                      : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
-                  }`}
-                >
-                  <span>{sheet.sheetId}</span>
-                  <span
-                    className={`text-[10px] px-1.5 py-0.2 rounded font-mono ${
-                      sheet.thicknessMm === 18
-                        ? 'bg-cyan-100 text-cyan-800'
-                        : sheet.thicknessMm === 9
-                        ? 'bg-indigo-100 text-indigo-800'
-                        : 'bg-purple-100 text-purple-800'
-                    }`}
-                  >
-                    {sheet.thicknessMm}mm
-                  </span>
-                  <span className="text-[10px] text-emerald-600 font-mono font-bold">
-                    {sheet.utilizationPercent}%
-                  </span>
-                </button>
-              );
-            })}
-          </div>
+        <div className="p-4 bg-slate-100">
+          <div className="flex items-start gap-4">
+            {/* Sheet Selector Sidebar - grouped by room, since one physical
+                sheet is routinely reused/nested for parts from several
+                rooms at once (that sharing is what keeps waste down), so a
+                room's cut list can point at more sheets than it "owns". */}
+            <div className="w-64 shrink-0 bg-white rounded-xl border border-slate-200 shadow-xs flex flex-col max-h-[80vh] sticky top-4">
+              <div className="p-3 border-b border-slate-200">
+                <h4 className="text-xs font-bold text-slate-900">
+                  Sheets{selectedRoom !== 'ALL' && <> — {selectedRoom}</>}
+                </h4>
+                <p className="text-[10px] text-slate-400 mt-0.5">
+                  {selectedRoom === 'ALL'
+                    ? `${sheetLayouts.length} sheets across ${rooms.length} room(s)`
+                    : `${sheetsByRoom[selectedRoom]?.length || 0} of ${sheetLayouts.length} sheets used by ${selectedRoom}`}
+                </p>
+              </div>
+              <div className="overflow-y-auto flex-1 p-2 space-y-3">
+                {visibleSheetGroups.map((group) => (
+                  <div key={group.room}>
+                    {selectedRoom === 'ALL' && (
+                      <div className="text-[10px] font-bold uppercase tracking-wide text-slate-400 px-1.5 py-1">
+                        {group.room} ({group.sheets.length})
+                      </div>
+                    )}
+                    <div className="space-y-1">
+                      {group.sheets.map((sheet) => {
+                        const isSelected = activeVisualSheetId === sheet.sheetId;
+                        const otherRooms = (sheetRoomsIndex[sheet.sheetId] || []).filter((r) => r !== group.room);
+                        return (
+                          <button
+                            key={`${group.room}-${sheet.sheetId}`}
+                            onClick={() => {
+                              setActiveVisualSheetId(sheet.sheetId);
+                              setSelectedPartDetail(null);
+                            }}
+                            className={`w-full text-left px-2.5 py-2 rounded-lg text-xs transition border ${
+                              isSelected
+                                ? 'bg-slate-900 text-white border-slate-900 shadow-xs'
+                                : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="font-bold">{sheet.sheetId}</span>
+                              <span
+                                className={`text-[9px] px-1.5 py-0.2 rounded font-mono ${
+                                  isSelected
+                                    ? 'bg-white/20'
+                                    : sheet.thicknessMm === 18
+                                    ? 'bg-cyan-100 text-cyan-800'
+                                    : sheet.thicknessMm === 9
+                                    ? 'bg-indigo-100 text-indigo-800'
+                                    : 'bg-purple-100 text-purple-800'
+                                }`}
+                              >
+                                {sheet.thicknessMm}mm
+                              </span>
+                            </div>
+                            <div
+                              className={`flex items-center justify-between mt-0.5 text-[10px] ${
+                                isSelected ? 'text-slate-300' : 'text-slate-400'
+                              }`}
+                            >
+                              <span>{sheet.utilizationPercent}% yield</span>
+                              {otherRooms.length > 0 && (
+                                <span className="italic truncate max-w-[110px]" title={`Also shared with ${otherRooms.join(', ')}`}>
+                                  +{otherRooms.length} room{otherRooms.length > 1 ? 's' : ''}
+                                </span>
+                              )}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+                {visibleSheetGroups.every((g) => g.sheets.length === 0) && (
+                  <p className="text-[11px] text-slate-400 p-2">No sheets for this room.</p>
+                )}
+              </div>
+            </div>
 
+            {/* Active Sheet Detail Panel */}
+            <div className="flex-1 min-w-0 space-y-4">
           {/* Active Sheet Detail Card */}
           {activeVisualSheet && (
             <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-xs space-y-3">
@@ -954,6 +1032,8 @@ export const CuttingListViewer: React.FC<CuttingListViewerProps> = ({
               </div>
             </div>
           )}
+            </div>
+          </div>
         </div>
       )}
 
