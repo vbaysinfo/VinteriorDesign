@@ -1096,6 +1096,31 @@ export const Cad2DViewer: React.FC<Cad2DViewerProps> = ({
                           >
                             {pos.w} × {pos.h} {pos.item.depthMm > 0 ? `× ${pos.item.depthMm}mm` : ''}
                           </text>
+
+                          {/* Edit affordance: reveals on hover, but the whole cabinet
+                              is already clickable (see the <g onClick> above) - this is
+                              just a visible hint that clicking opens the editable
+                              width/height/depth panel, not a separate handler. */}
+                          <g className="opacity-0 group-hover:opacity-100 transition-opacity" pointerEvents="none">
+                            <circle
+                              cx={badgeX + badgeW - 14 * fontScale}
+                              cy={badgeY - 2 * fontScale}
+                              r={13 * fontScale}
+                              fill={themeStyles.selectedStroke}
+                              stroke={themeStyles.bg}
+                              strokeWidth="1.5"
+                            />
+                            <text
+                              x={badgeX + badgeW - 14 * fontScale}
+                              y={badgeY - 2 * fontScale}
+                              fill={themeStyles.bg}
+                              fontSize={Math.round(16 * fontScale)}
+                              textAnchor="middle"
+                              dominantBaseline="central"
+                            >
+                              ✎
+                            </text>
+                          </g>
                         </g>
                       )}
 

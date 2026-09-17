@@ -1,6 +1,6 @@
 import React from 'react';
 import { ModularItem, ProjectType, FactoryRates } from '../types';
-import { generateCutListForItem } from '../utils/calculator';
+import { generateCutListForItem, mmToFt, recalculateItemMetrics } from '../utils/calculator';
 import { X, Box, Layers, Scissors, Check, Sliders } from 'lucide-react';
 
 interface ItemInspectorDrawerProps {
@@ -23,6 +23,26 @@ export const ItemInspectorDrawer: React.FC<ItemInspectorDrawerProps> = ({
   if (!item) return null;
 
   const cutListParts = generateCutListForItem(item, projectType);
+
+  // Editing width/height/depth here always goes through the ft fields
+  // (recalculateItemMetrics derives mm from ft), matching the same
+  // bidirectional sync rule the Excel Format Editor grid uses, so a value
+  // typed here and a value typed there never disagree on how it's stored.
+  const handleDimensionChange = (field: 'widthMm' | 'heightMm' | 'depthMm', value: string) => {
+    const num = Math.max(0, parseInt(value, 10) || 0);
+    const updated: ModularItem = { ...item };
+    if (field === 'widthMm') {
+      updated.widthMm = num;
+      updated.widthFt = mmToFt(num);
+    } else if (field === 'heightMm') {
+      updated.heightMm = num;
+      updated.heightFt = mmToFt(num);
+    } else {
+      updated.depthMm = num;
+      updated.depthFt = num > 0 ? mmToFt(num) : 0;
+    }
+    onUpdateItem(recalculateItemMetrics(updated));
+  };
 
   return (
     <div className="fixed inset-y-0 right-0 w-full sm:w-[480px] bg-white shadow-2xl z-50 border-l border-slate-200 flex flex-col animate-in slide-in-from-right duration-200">
@@ -58,21 +78,38 @@ export const ItemInspectorDrawer: React.FC<ItemInspectorDrawerProps> = ({
 
           <div className="grid grid-cols-3 gap-2 text-center">
             <div className="p-2 bg-white rounded-lg border border-slate-200">
-              <span className="text-slate-400 text-[10px] block">WIDTH</span>
-              <strong className="text-slate-900 text-sm font-mono">{item.widthMm} mm</strong>
-              <span className="text-slate-500 text-[10px] block">({item.widthFt} ft)</span>
+              <span className="text-slate-400 text-[10px] block mb-0.5">WIDTH (mm)</span>
+              <input
+                type="number"
+                min="0"
+                value={item.widthMm}
+                onChange={(e) => handleDimensionChange('widthMm', e.target.value)}
+                className="w-full text-center bg-slate-50 border border-slate-200 rounded font-mono font-bold text-sm text-slate-900 py-1 focus:bg-white focus:ring-1 focus:ring-cyan-500"
+              />
+              <span className="text-slate-500 text-[10px] block mt-0.5">({item.widthFt} ft)</span>
             </div>
             <div className="p-2 bg-white rounded-lg border border-slate-200">
-              <span className="text-slate-400 text-[10px] block">HEIGHT</span>
-              <strong className="text-slate-900 text-sm font-mono">{item.heightMm} mm</strong>
-              <span className="text-slate-500 text-[10px] block">({item.heightFt} ft)</span>
+              <span className="text-slate-400 text-[10px] block mb-0.5">HEIGHT (mm)</span>
+              <input
+                type="number"
+                min="0"
+                value={item.heightMm}
+                onChange={(e) => handleDimensionChange('heightMm', e.target.value)}
+                className="w-full text-center bg-slate-50 border border-slate-200 rounded font-mono font-bold text-sm text-slate-900 py-1 focus:bg-white focus:ring-1 focus:ring-cyan-500"
+              />
+              <span className="text-slate-500 text-[10px] block mt-0.5">({item.heightFt} ft)</span>
             </div>
             <div className="p-2 bg-white rounded-lg border border-slate-200">
-              <span className="text-slate-400 text-[10px] block">DEPTH</span>
-              <strong className="text-slate-900 text-sm font-mono">
-                {item.depthMm > 0 ? `${item.depthMm} mm` : '0 (Frame)'}
-              </strong>
-              <span className="text-slate-500 text-[10px] block">
+              <span className="text-slate-400 text-[10px] block mb-0.5">DEPTH (mm)</span>
+              <input
+                type="number"
+                min="0"
+                placeholder="0 (Frame)"
+                value={item.depthMm === 0 ? '' : item.depthMm}
+                onChange={(e) => handleDimensionChange('depthMm', e.target.value === '' ? '0' : e.target.value)}
+                className="w-full text-center bg-slate-50 border border-slate-200 rounded font-mono font-bold text-sm text-slate-900 py-1 placeholder:font-normal placeholder:text-slate-400 focus:bg-white focus:ring-1 focus:ring-cyan-500"
+              />
+              <span className="text-slate-500 text-[10px] block mt-0.5">
                 {item.depthFt > 0 ? `(${item.depthFt} ft)` : 'Civil niche'}
               </span>
             </div>
