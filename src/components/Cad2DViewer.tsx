@@ -3,6 +3,7 @@ import { ModularItem, WallType, ProjectType } from '../types';
 import { Layers, ZoomIn, ZoomOut, Maximize2, Minimize2, Download, Eye, Grid, Box, Sliders, Type, RotateCcw, Move } from 'lucide-react';
 import { Isometric3DViewer } from './Isometric3DViewer';
 import { getEffectiveDepthMm, getShutterLayout, redistributeShutterWidths } from '../utils/calculator';
+import { NumberField } from './NumberField';
 
 interface Cad2DViewerProps {
   items: ModularItem[];
@@ -1083,13 +1084,12 @@ export const Cad2DViewer: React.FC<Cad2DViewerProps> = ({
                                 Shutter {selectedShutterIndex + 1} of {sCount}
                               </span>
                               <div className="flex items-center gap-1">
-                                <input
-                                  type="number"
+                                <NumberField
                                   min={20}
                                   value={selectedShutterW}
-                                  onChange={(e) => handleShutterWidthChange(selectedShutterIndex, parseInt(e.target.value, 10) || 0)}
+                                  onCommit={(num) => handleShutterWidthChange(selectedShutterIndex, num)}
                                   disabled={!onUpdateItem || sCount < 2}
-                                  title={sCount < 2 ? 'Single-shutter items are edited via the item\'s own Width field' : undefined}
+                                  title={sCount < 2 ? "Single-shutter items are edited via the item's own Width field" : undefined}
                                   className="w-16 text-center font-mono font-bold rounded border border-current/40 bg-white/10 disabled:opacity-60"
                                   style={{ fontSize: `${11 * fontScale}px`, color: 'inherit' }}
                                 />

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ModularItem, MaterialBreakdown, CostBreakdown, FactoryRates, ProjectType, ProjectInfo } from '../types';
 import { IndianRupee, DollarSign, Calculator, Settings, CheckCircle2, TrendingDown, ArrowRight, ShieldCheck, FileText } from 'lucide-react';
+import { NumberField } from './NumberField';
 
 interface PricingReportProps {
   items: ModularItem[];
@@ -203,109 +204,109 @@ export const PricingReport: React.FC<PricingReportProps> = ({
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
             <div>
               <label className="block text-slate-600 font-medium mb-1">18mm Plywood ({currency}/sq.ft)</label>
-              <input
-                type="number"
+              <NumberField
+                decimal
                 value={rates.plywood18mmPerSqFt}
-                onChange={(e) => onUpdateRates({ ...rates, plywood18mmPerSqFt: Number(e.target.value) })}
+                onCommit={(num) => onUpdateRates({ ...rates, plywood18mmPerSqFt: num })}
                 className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-slate-800 font-bold"
               />
             </div>
             <div>
               <label className="block text-slate-600 font-medium mb-1">6mm Backing Ply ({currency}/sq.ft)</label>
-              <input
-                type="number"
+              <NumberField
+                decimal
                 value={rates.plywood6mmPerSqFt}
-                onChange={(e) => onUpdateRates({ ...rates, plywood6mmPerSqFt: Number(e.target.value) })}
+                onCommit={(num) => onUpdateRates({ ...rates, plywood6mmPerSqFt: num })}
                 className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-slate-800 font-bold"
               />
             </div>
             <div>
               <label className="block text-slate-600 font-medium mb-1">Inner Liner Sheet ({currency}/sheet)</label>
-              <input
-                type="number"
+              <NumberField
+                decimal
                 value={rates.innerLaminatePerSheet}
-                onChange={(e) => onUpdateRates({ ...rates, innerLaminatePerSheet: Number(e.target.value) })}
+                onCommit={(num) => onUpdateRates({ ...rates, innerLaminatePerSheet: num })}
                 className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-slate-800 font-bold"
               />
             </div>
             <div>
               <label className="block text-slate-600 font-medium mb-1">Outer Laminate ({currency}/sheet)</label>
-              <input
-                type="number"
+              <NumberField
+                decimal
                 value={rates.outerLaminatePerSheet}
-                onChange={(e) => onUpdateRates({ ...rates, outerLaminatePerSheet: Number(e.target.value) })}
+                onCommit={(num) => onUpdateRates({ ...rates, outerLaminatePerSheet: num })}
                 className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-slate-800 font-bold"
               />
             </div>
             <div>
               <label className="block text-slate-600 font-medium mb-1">Edge Band Tape ({currency}/meter)</label>
-              <input
-                type="number"
+              <NumberField
+                decimal
                 value={rates.edgeBandPerMeter}
-                onChange={(e) => onUpdateRates({ ...rates, edgeBandPerMeter: Number(e.target.value) })}
+                onCommit={(num) => onUpdateRates({ ...rates, edgeBandPerMeter: num })}
                 className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-slate-800 font-bold"
               />
             </div>
             <div>
               <label className="block text-slate-600 font-medium mb-1">Soft-Close Hinges ({currency}/pair)</label>
-              <input
-                type="number"
+              <NumberField
+                decimal
                 value={rates.hingesPairRate}
-                onChange={(e) => onUpdateRates({ ...rates, hingesPairRate: Number(e.target.value) })}
+                onCommit={(num) => onUpdateRates({ ...rates, hingesPairRate: num })}
                 className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-slate-800 font-bold"
               />
             </div>
             <div>
               <label className="block text-slate-600 font-medium mb-1">Tandem Box Channel ({currency}/set)</label>
-              <input
-                type="number"
+              <NumberField
+                decimal
                 value={rates.tandemChannelRate}
-                onChange={(e) => onUpdateRates({ ...rates, tandemChannelRate: Number(e.target.value) })}
+                onCommit={(num) => onUpdateRates({ ...rates, tandemChannelRate: num })}
                 className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-slate-800 font-bold"
               />
             </div>
             <div>
               <label className="block text-slate-600 font-medium mb-1">Drawer Runner ({currency}/pair)</label>
-              <input
-                type="number"
+              <NumberField
+                decimal
                 value={rates.drawerChannelRate}
-                onChange={(e) => onUpdateRates({ ...rates, drawerChannelRate: Number(e.target.value) })}
+                onCommit={(num) => onUpdateRates({ ...rates, drawerChannelRate: num })}
                 className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-slate-800 font-bold"
               />
             </div>
             <div>
               <label className="block text-slate-600 font-medium mb-1">Factory Labor ({currency}/sq.ft)</label>
-              <input
-                type="number"
+              <NumberField
+                decimal
                 value={rates.factoryLaborPerSqFt}
-                onChange={(e) => onUpdateRates({ ...rates, factoryLaborPerSqFt: Number(e.target.value) })}
+                onCommit={(num) => onUpdateRates({ ...rates, factoryLaborPerSqFt: num })}
                 className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-slate-800 font-bold"
               />
             </div>
             <div>
               <label className="block text-slate-600 font-medium mb-1">Carpenter Fitting ({currency}/sq.ft)</label>
-              <input
-                type="number"
+              <NumberField
+                decimal
                 value={rates.installationPerSqFt}
-                onChange={(e) => onUpdateRates({ ...rates, installationPerSqFt: Number(e.target.value) })}
+                onCommit={(num) => onUpdateRates({ ...rates, installationPerSqFt: num })}
                 className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-slate-800 font-bold"
               />
             </div>
             <div>
               <label className="block text-slate-600 font-medium mb-1">Profit Margin (%)</label>
-              <input
-                type="number"
+              <NumberField
+                decimal
                 value={rates.profitMarginPercent}
-                onChange={(e) => onUpdateRates({ ...rates, profitMarginPercent: Number(e.target.value) })}
+                onCommit={(num) => onUpdateRates({ ...rates, profitMarginPercent: num })}
                 className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-slate-800 font-bold"
               />
             </div>
             <div>
               <label className="block text-slate-600 font-medium mb-1">Tax / GST (%)</label>
-              <input
-                type="number"
+              <NumberField
+                decimal
                 value={rates.taxPercent}
-                onChange={(e) => onUpdateRates({ ...rates, taxPercent: Number(e.target.value) })}
+                onCommit={(num) => onUpdateRates({ ...rates, taxPercent: num })}
                 className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-slate-800 font-bold"
               />
             </div>

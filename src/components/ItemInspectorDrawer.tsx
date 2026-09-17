@@ -10,6 +10,7 @@ import {
   getEffectiveDepthMm,
 } from '../utils/calculator';
 import { X, Box, Layers, Scissors, Check, Sliders, DoorOpen } from 'lucide-react';
+import { NumberField } from './NumberField';
 
 interface ItemInspectorDrawerProps {
   item: ModularItem | null;
@@ -36,8 +37,7 @@ export const ItemInspectorDrawer: React.FC<ItemInspectorDrawerProps> = ({
   // (recalculateItemMetrics derives mm from ft), matching the same
   // bidirectional sync rule the Excel Format Editor grid uses, so a value
   // typed here and a value typed there never disagree on how it's stored.
-  const handleDimensionChange = (field: 'widthMm' | 'heightMm' | 'depthMm', value: string) => {
-    const num = Math.max(0, parseInt(value, 10) || 0);
+  const handleDimensionChange = (field: 'widthMm' | 'heightMm' | 'depthMm', num: number) => {
     const updated: ModularItem = { ...item };
     if (field === 'widthMm') {
       updated.widthMm = num;
@@ -87,34 +87,32 @@ export const ItemInspectorDrawer: React.FC<ItemInspectorDrawerProps> = ({
           <div className="grid grid-cols-3 gap-2 text-center">
             <div className="p-2 bg-white rounded-lg border border-slate-200">
               <span className="text-slate-400 text-[10px] block mb-0.5">WIDTH (mm)</span>
-              <input
-                type="number"
-                min="0"
+              <NumberField
+                min={0}
                 value={item.widthMm}
-                onChange={(e) => handleDimensionChange('widthMm', e.target.value)}
+                onCommit={(num) => handleDimensionChange('widthMm', num)}
                 className="w-full text-center bg-slate-50 border border-slate-200 rounded font-mono font-bold text-sm text-slate-900 py-1 focus:bg-white focus:ring-1 focus:ring-cyan-500"
               />
               <span className="text-slate-500 text-[10px] block mt-0.5">({item.widthFt} ft)</span>
             </div>
             <div className="p-2 bg-white rounded-lg border border-slate-200">
               <span className="text-slate-400 text-[10px] block mb-0.5">HEIGHT (mm)</span>
-              <input
-                type="number"
-                min="0"
+              <NumberField
+                min={0}
                 value={item.heightMm}
-                onChange={(e) => handleDimensionChange('heightMm', e.target.value)}
+                onCommit={(num) => handleDimensionChange('heightMm', num)}
                 className="w-full text-center bg-slate-50 border border-slate-200 rounded font-mono font-bold text-sm text-slate-900 py-1 focus:bg-white focus:ring-1 focus:ring-cyan-500"
               />
               <span className="text-slate-500 text-[10px] block mt-0.5">({item.heightFt} ft)</span>
             </div>
             <div className="p-2 bg-white rounded-lg border border-slate-200">
               <span className="text-slate-400 text-[10px] block mb-0.5">DEPTH (mm)</span>
-              <input
-                type="number"
-                min="0"
+              <NumberField
+                min={0}
+                zeroAsEmpty
                 placeholder="0 (Frame)"
-                value={item.depthMm === 0 ? '' : item.depthMm}
-                onChange={(e) => handleDimensionChange('depthMm', e.target.value === '' ? '0' : e.target.value)}
+                value={item.depthMm}
+                onCommit={(num) => handleDimensionChange('depthMm', num)}
                 className="w-full text-center bg-slate-50 border border-slate-200 rounded font-mono font-bold text-sm text-slate-900 py-1 placeholder:font-normal placeholder:text-slate-400 focus:bg-white focus:ring-1 focus:ring-cyan-500"
               />
               <span className="text-slate-500 text-[10px] block mt-0.5">
@@ -165,15 +163,11 @@ export const ItemInspectorDrawer: React.FC<ItemInspectorDrawerProps> = ({
                     {widths.map((w, i) => (
                       <div key={i} className="p-2 bg-white rounded-lg border border-slate-200 flex items-center justify-between gap-2">
                         <span className="text-slate-500 font-semibold shrink-0">Door {i + 1}</span>
-                        <input
-                          type="number"
+                        <NumberField
                           min={50}
                           value={w}
-                          onChange={(e) =>
-                            onUpdateItem({
-                              ...item,
-                              shutterWidthOverrides: redistributeShutterWidths(item, i, parseInt(e.target.value, 10) || 0),
-                            })
+                          onCommit={(num) =>
+                            onUpdateItem({ ...item, shutterWidthOverrides: redistributeShutterWidths(item, i, num) })
                           }
                           className="w-20 text-center bg-slate-50 border border-slate-200 rounded font-mono font-bold py-1 focus:bg-white focus:ring-1 focus:ring-cyan-500"
                         />
@@ -232,34 +226,28 @@ export const ItemInspectorDrawer: React.FC<ItemInspectorDrawerProps> = ({
           <div className="grid grid-cols-3 gap-2">
             <div>
               <label className="block text-slate-600 font-medium mb-1">Shutters</label>
-              <input
-                type="number"
-                min="0"
-                max="8"
+              <NumberField
+                min={0}
                 value={item.shutterCount}
-                onChange={(e) => onUpdateItem({ ...item, shutterCount: parseInt(e.target.value, 10) || 0 })}
+                onCommit={(num) => onUpdateItem({ ...item, shutterCount: num })}
                 className="w-full px-2 py-1 border border-slate-300 rounded-lg text-center font-bold"
               />
             </div>
             <div>
               <label className="block text-slate-600 font-medium mb-1">Drawers</label>
-              <input
-                type="number"
-                min="0"
-                max="8"
+              <NumberField
+                min={0}
                 value={item.drawerCount}
-                onChange={(e) => onUpdateItem({ ...item, drawerCount: parseInt(e.target.value, 10) || 0 })}
+                onCommit={(num) => onUpdateItem({ ...item, drawerCount: num })}
                 className="w-full px-2 py-1 border border-slate-300 rounded-lg text-center font-bold"
               />
             </div>
             <div>
               <label className="block text-slate-600 font-medium mb-1">Shelves</label>
-              <input
-                type="number"
-                min="0"
-                max="10"
+              <NumberField
+                min={0}
                 value={item.shelfCount}
-                onChange={(e) => onUpdateItem({ ...item, shelfCount: parseInt(e.target.value, 10) || 0 })}
+                onCommit={(num) => onUpdateItem({ ...item, shelfCount: num })}
                 className="w-full px-2 py-1 border border-slate-300 rounded-lg text-center font-bold"
               />
             </div>

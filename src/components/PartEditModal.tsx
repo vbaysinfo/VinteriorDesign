@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { CutListPart } from '../types';
 import { X, Save, Ruler, Layers } from 'lucide-react';
+import { NumberField } from './NumberField';
 
 interface PartEditModalProps {
   part: CutListPart;
@@ -77,28 +78,28 @@ export const PartEditModal: React.FC<PartEditModalProps> = ({ part, onClose, onS
           <div className="grid grid-cols-3 gap-3">
             <div>
               <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Length (mm)</label>
-              <input
-                type="number"
+              <NumberField
+                min={1}
                 value={lengthMm}
-                onChange={(e) => setLengthMm(parseInt(e.target.value, 10) || 0)}
+                onCommit={setLengthMm}
                 className="w-full px-2 py-1.5 border border-slate-300 rounded-lg font-mono font-bold text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-cyan-500"
               />
             </div>
             <div>
               <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Width (mm)</label>
-              <input
-                type="number"
+              <NumberField
+                min={1}
                 value={widthMm}
-                onChange={(e) => setWidthMm(parseInt(e.target.value, 10) || 0)}
+                onCommit={setWidthMm}
                 className="w-full px-2 py-1.5 border border-slate-300 rounded-lg font-mono font-bold text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-cyan-500"
               />
             </div>
             <div>
               <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Thickness (mm)</label>
-              <input
-                type="number"
+              <NumberField
+                min={1}
                 value={thicknessMm}
-                onChange={(e) => setThicknessMm(parseInt(e.target.value, 10) || 0)}
+                onCommit={setThicknessMm}
                 className="w-full px-2 py-1.5 border border-slate-300 rounded-lg font-mono font-bold text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-cyan-500"
               />
             </div>
@@ -108,11 +109,10 @@ export const PartEditModal: React.FC<PartEditModalProps> = ({ part, onClose, onS
           <div className="grid grid-cols-3 gap-3">
             <div>
               <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Qty</label>
-              <input
-                type="number"
+              <NumberField
                 min={1}
                 value={qty}
-                onChange={(e) => setQty(parseInt(e.target.value, 10) || 1)}
+                onCommit={setQty}
                 className="w-full px-2 py-1.5 border border-slate-300 rounded-lg font-mono font-bold text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-cyan-500"
               />
             </div>

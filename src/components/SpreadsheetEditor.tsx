@@ -3,6 +3,7 @@ import { ModularItem, CutListPart, WallType, ProjectType } from '../types';
 import { ftToMm, mmToFt, recalculateItemMetrics } from '../utils/calculator';
 import { exportCutListFactoryFormat } from '../utils/excelParser';
 import { Plus, Trash2, Copy, Search, Filter, ArrowUpDown, FileSpreadsheet, Download } from 'lucide-react';
+import { NumberField } from './NumberField';
 
 interface SpreadsheetEditorProps {
   items: ModularItem[];
@@ -313,34 +314,32 @@ export const SpreadsheetEditor: React.FC<SpreadsheetEditorProps> = ({
 
                   {/* Width ft */}
                   <td className="py-1.5 px-2 border-r border-slate-200 text-center bg-cyan-50/30" onClick={(e) => e.stopPropagation()}>
-                    <input
-                      type="number"
-                      step="0.1"
+                    <NumberField
+                      decimal
                       value={item.widthFt}
-                      onChange={(e) => handleCellChange(item.id, 'widthFt', e.target.value)}
+                      onCommit={(num) => handleCellChange(item.id, 'widthFt', num)}
                       className="w-full text-center bg-transparent text-blue-700 font-bold focus:bg-white focus:ring-1 focus:ring-cyan-500 rounded"
                     />
                   </td>
 
                   {/* Height ft */}
                   <td className="py-1.5 px-2 border-r border-slate-200 text-center bg-cyan-50/30" onClick={(e) => e.stopPropagation()}>
-                    <input
-                      type="number"
-                      step="0.1"
+                    <NumberField
+                      decimal
                       value={item.heightFt}
-                      onChange={(e) => handleCellChange(item.id, 'heightFt', e.target.value)}
+                      onCommit={(num) => handleCellChange(item.id, 'heightFt', num)}
                       className="w-full text-center bg-transparent text-blue-700 font-bold focus:bg-white focus:ring-1 focus:ring-cyan-500 rounded"
                     />
                   </td>
 
                   {/* Depth ft (customizable for boxes, 0 for frames in semi-modular) */}
                   <td className="py-1.5 px-2 border-r border-slate-200 text-center bg-cyan-50/30" onClick={(e) => e.stopPropagation()}>
-                    <input
-                      type="number"
-                      step="0.1"
+                    <NumberField
+                      decimal
+                      zeroAsEmpty
                       placeholder="0 (Frame)"
-                      value={item.depthFt === 0 ? '' : item.depthFt}
-                      onChange={(e) => handleCellChange(item.id, 'depthFt', e.target.value === '' ? 0 : e.target.value)}
+                      value={item.depthFt}
+                      onCommit={(num) => handleCellChange(item.id, 'depthFt', num)}
                       className="w-full text-center bg-transparent text-blue-700 font-bold placeholder:font-normal placeholder:text-slate-400 focus:bg-white focus:ring-1 focus:ring-cyan-500 rounded"
                     />
                   </td>
@@ -380,12 +379,10 @@ export const SpreadsheetEditor: React.FC<SpreadsheetEditorProps> = ({
 
                   {/* Quantity (multiplies cut list & cost) */}
                   <td className="py-1.5 px-2 border-r border-slate-200 text-center" onClick={(e) => e.stopPropagation()}>
-                    <input
-                      type="number"
+                    <NumberField
                       min={1}
-                      step="1"
                       value={item.quantity ?? 1}
-                      onChange={(e) => handleCellChange(item.id, 'quantity', e.target.value)}
+                      onCommit={(num) => handleCellChange(item.id, 'quantity', num)}
                       className="w-full text-center bg-transparent text-slate-800 font-bold focus:bg-white focus:ring-1 focus:ring-cyan-500 rounded"
                     />
                   </td>
