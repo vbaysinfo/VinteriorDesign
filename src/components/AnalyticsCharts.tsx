@@ -134,8 +134,11 @@ export const MaterialCompositionBar: React.FC<{ segments: CompositionSegment[]; 
   const bars = segments.map((seg, i) => ({ ...seg, pct: (seg.value / total) * 100, i }));
 
   return (
-    <div className="max-w-[560px]">
-      <div className="flex w-full rounded-md overflow-hidden gap-0.5" style={{ height: 20 }}>
+    // No max-width here, unlike the SVG bar charts below - this bar is plain
+    // HTML/CSS with percentage widths, so it fills its card cleanly at any
+    // width instead of leaving the rest of a full-width card empty.
+    <div>
+      <div className="flex w-full rounded-md overflow-hidden gap-0.5" style={{ height: 28 }}>
         {bars.map((b) => (
           <div
             key={b.label}
@@ -145,15 +148,15 @@ export const MaterialCompositionBar: React.FC<{ segments: CompositionSegment[]; 
             className="h-full flex items-center justify-center transition-opacity cursor-default"
             style={{ width: `${b.pct}%`, backgroundColor: b.color, opacity: hoverIdx === null || hoverIdx === b.i ? 1 : 0.4 }}
           >
-            {b.pct >= 10 && <span className="text-white text-[9px] font-extrabold select-none">{b.pct.toFixed(0)}%</span>}
+            {b.pct >= 6 && <span className="text-white text-xs font-extrabold select-none">{b.pct.toFixed(0)}%</span>}
           </div>
         ))}
       </div>
-      <div className="flex flex-wrap gap-x-5 gap-y-1.5 mt-2.5">
+      <div className="flex flex-wrap gap-x-6 gap-y-2 mt-3">
         {bars.map((b) => (
           <div
             key={b.label}
-            className="flex items-center gap-1.5 text-[11px] cursor-default"
+            className="flex items-center gap-1.5 text-sm cursor-default"
             onMouseEnter={() => setHoverIdx(b.i)}
             onMouseLeave={() => setHoverIdx(null)}
           >
