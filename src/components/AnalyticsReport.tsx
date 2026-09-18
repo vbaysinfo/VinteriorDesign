@@ -398,11 +398,34 @@ export const AnalyticsReport: React.FC<AnalyticsReportProps> = ({ items, cutList
                   {displayStats.materials.ply6mmSheets} sheets • {displayStats.materials.ply6mmAreaSqFt.toLocaleString()} sq.ft
                 </span>
               </div>
-              <div className="flex justify-between pt-2 border-t border-slate-100">
-                <span className="text-slate-500">Inner / Outer Laminate Sheets</span>
-                <span className="font-mono font-bold text-slate-800">
-                  {displayStats.materials.innerLaminateSheets} / {displayStats.materials.outerLaminateSheets}
-                </span>
+              <div className="pt-2 border-t border-slate-100 space-y-2">
+                <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wide">
+                  Fabric & Color/Laminate Pasting
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Both-Side Fabric (hidden panels)</span>
+                  <span className="font-mono font-bold text-slate-800">
+                    {displayStats.materials.bothSideFabricSheets} sheets • {displayStats.materials.bothSideFabricAreaSqFt.toLocaleString()} sq.ft
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">One-Side Fabric (back of visible panels)</span>
+                  <span className="font-mono font-bold text-slate-800">
+                    {displayStats.materials.oneSideFabricSheets} sheets • {displayStats.materials.oneSideFabricAreaSqFt.toLocaleString()} sq.ft
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Color/Laminate (front of visible panels)</span>
+                  <span className="font-mono font-bold text-fuchsia-700">
+                    {displayStats.materials.oneSideColorLaminateSheets} sheets • {displayStats.materials.oneSideColorLaminateAreaSqFt.toLocaleString()} sq.ft
+                  </span>
+                </div>
+                <div className="flex justify-between pt-1 border-t border-slate-100 text-[11px] text-slate-400">
+                  <span>Total Fabric / Color-Laminate Sheets</span>
+                  <span className="font-mono">
+                    {displayStats.materials.innerLaminateSheets} / {displayStats.materials.outerLaminateSheets}
+                  </span>
+                </div>
               </div>
             </div>
           </div>

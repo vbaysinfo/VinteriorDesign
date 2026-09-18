@@ -62,12 +62,22 @@ export interface CutListPart {
   thicknessMm: number;
   qty: number;
   material: string;
-  // Whether this panel carries the customer's selected decorative color
-  // (a visible face - shutter, drawer front, skirting kickplate, an open
-  // expo/shelves unit's own shelves) or the generic "Fabric" liner used by
-  // every hidden/structural part regardless of room or color. Drives both
-  // the sheet nester's compatibility grouping and the on-piece labeling.
+  // Whether this panel's FRONT (customer-facing) side carries the
+  // customer's selected decorative color (a visible face - shutter,
+  // drawer front, skirting kickplate, an open expo/shelves unit's own
+  // shelves) or the generic "Fabric" liner used by every hidden/
+  // structural part regardless of room or color. Drives both the sheet
+  // nester's compatibility grouping and the on-piece labeling.
   materialCategory: 'Fabric' | 'Color/Laminate';
+  // What the panel's BACK (hidden/rear) side is laminated with. A board's
+  // two faces are pasted independently: a fully-hidden carcass/internal
+  // part (Gable, Deck, Back Panel, Drawer Side/Bottom, a closed
+  // wardrobe's shelf, a structural batten) is Fabric on both faces -
+  // "both-side fabric" pasting. A customer-facing part (Shutter, Drawer
+  // Front, visible Skirting, Expo/Dummy panel, an open shelf unit's own
+  // shelf) is Color/Laminate on the front only, with a plain Fabric
+  // backing on the rear - "one-side fabric, other side Color/Laminate".
+  backMaterialCategory: 'Fabric' | 'Color/Laminate';
   sheetNumber?: string;
   edgeL1: boolean;
   edgeL2: boolean;
@@ -150,8 +160,19 @@ export interface MaterialBreakdown {
   ply9mmAreaSqFt: number;
   ply6mmSheets: number; // back panels
   ply6mmAreaSqFt: number;
+  // innerLaminateSheets/outerLaminateSheets are the totals used for
+  // costing (PricingReport) - computed from the real one-side/both-side
+  // breakdown below, not a guessed ratio of the board sheet count.
   innerLaminateSheets: number;
   outerLaminateSheets: number;
+  // Two-sided fabric/laminate pasting breakdown - see
+  // CutListPart.backMaterialCategory for what each bucket means.
+  bothSideFabricAreaSqFt: number; // hidden panels' area (Gables, Decks, Back Panel, Drawer box, hidden shelves, battens)
+  bothSideFabricSheets: number; // sheets to laminate BOTH faces of those panels
+  oneSideFabricAreaSqFt: number; // the Fabric-backed rear face of customer-facing panels
+  oneSideFabricSheets: number;
+  oneSideColorLaminateAreaSqFt: number; // the same customer-facing panels' front face
+  oneSideColorLaminateSheets: number;
   edgeBandMeters: number;
   edgeBand2mmMeters: number;
   edgeBand08mmMeters: number;
