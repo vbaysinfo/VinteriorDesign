@@ -182,6 +182,7 @@ export const CuttingListViewer: React.FC<CuttingListViewerProps> = ({
   const handleExportWasteAudit = () => {
     const data = sheetLayouts.map((s) => ({
       'Sheet ID': s.sheetId,
+      'Room(s)': (sheetRoomsIndex[s.sheetId] || []).join(', '),
       'Core Material': s.materialName,
       'Thickness (mm)': s.thicknessMm,
       'Board Width (mm)': s.sheetWidthMm,
@@ -1558,6 +1559,7 @@ export const CuttingListViewer: React.FC<CuttingListViewerProps> = ({
                 <thead className="bg-slate-100 text-slate-800 text-[11px] uppercase font-bold border-b border-slate-200">
                   <tr>
                     <th className="py-2.5 px-3">Sheet ID</th>
+                    <th className="py-2.5 px-3">Room(s)</th>
                     <th className="py-2.5 px-3">Thickness & Material</th>
                     <th className="py-2.5 px-2 text-center">Parts</th>
                     <th className="py-2.5 px-2 text-right">Cut Area (m²)</th>
@@ -1572,6 +1574,9 @@ export const CuttingListViewer: React.FC<CuttingListViewerProps> = ({
                   {sheetLayouts.map((sheet) => (
                     <tr key={sheet.sheetId} className="hover:bg-slate-50">
                       <td className="py-2 px-3 font-bold text-cyan-800">{sheet.sheetId}</td>
+                      <td className="py-2 px-3 font-sans text-slate-800">
+                        {(sheetRoomsIndex[sheet.sheetId] || []).join(', ')}
+                      </td>
                       <td className="py-2 px-3 font-sans text-slate-800">
                         {sheet.thicknessMm}mm - {sheet.materialName}
                       </td>
