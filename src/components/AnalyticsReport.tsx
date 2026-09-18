@@ -48,8 +48,8 @@ const SectionHeading: React.FC<{ icon: React.ReactNode; title: string; subtitle?
   <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
     <div className="flex items-center gap-2">
       <span className="text-cyan-600">{icon}</span>
-      <h3 className="text-sm font-black text-slate-900 uppercase tracking-wide">{title}</h3>
-      {subtitle && <span className="text-[11px] text-slate-400">{subtitle}</span>}
+      <h3 className="text-base font-black text-slate-900 uppercase tracking-wide">{title}</h3>
+      {subtitle && <span className="text-sm text-slate-400">{subtitle}</span>}
     </div>
     {action}
   </div>
@@ -123,13 +123,13 @@ const StatCard: React.FC<{ icon: React.ReactNode; label: string; value: string; 
   sub,
   tone,
 }) => (
-  <div className={`rounded-xl p-4 ${tone}`}>
-    <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider opacity-80">
+  <div className={`rounded-xl p-5 ${tone}`}>
+    <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider opacity-80">
       {icon}
       {label}
     </div>
-    <div className="text-2xl font-black mt-1">{value}</div>
-    {sub && <div className="text-[11px] mt-0.5 opacity-80">{sub}</div>}
+    <div className="text-3xl font-black mt-1.5">{value}</div>
+    {sub && <div className="text-xs mt-1 opacity-80">{sub}</div>}
   </div>
 );
 
@@ -212,7 +212,7 @@ export const AnalyticsReport: React.FC<AnalyticsReportProps> = ({ items, cutList
               <BarChart3 className="w-6 h-6 text-cyan-600" />
               Project Analytics Report
             </h2>
-            <p className="text-xs text-slate-500 mt-0.5">
+            <p className="text-sm text-slate-500 mt-1">
               {isFiltered ? (
                 <>
                   Showing <strong className="text-slate-700">{selectedRoom}</strong> only - switch Active Room to "All Rooms" above
@@ -224,13 +224,13 @@ export const AnalyticsReport: React.FC<AnalyticsReportProps> = ({ items, cutList
               — {projectType === 'semi' ? 'Semi Modular (Civil-built)' : 'Full Modular (Factory prefab)'} mode.
             </p>
           </div>
-          <span className="text-[11px] font-mono font-bold text-slate-500 bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200">
+          <span className="text-sm font-mono font-bold text-slate-500 bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200">
             {displayStats.itemCount} units{isFiltered ? ` in ${selectedRoom}` : ` across ${rooms.length} room(s)`}
           </span>
         </div>
 
         {/* Overview Cards - scoped to the Active Room filter when one is set */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mt-5">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 mt-6">
           <StatCard
             icon={<Square className="w-3.5 h-3.5" />}
             label="Total Sq.ft"
@@ -287,12 +287,12 @@ export const AnalyticsReport: React.FC<AnalyticsReportProps> = ({ items, cutList
         {/* Material Usage & Waste chart - part-to-whole composition of the
             total board area bought, so it's visible at a glance how much of
             what you pay for actually becomes cabinet vs. usable offcut vs.
-            true scrap. */}
-        <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-4">
-          <h4 className="text-xs font-bold text-slate-900 mb-1 flex items-center gap-1.5">
-            <PieChart className="w-3.5 h-3.5 text-cyan-600" /> Material Usage & Waste ({scopeLabel})
+            true scrap. Kept full-width as the section's headline figure. */}
+        <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-5">
+          <h4 className="text-sm font-bold text-slate-900 mb-1 flex items-center gap-1.5">
+            <PieChart className="w-4 h-4 text-cyan-600" /> Material Usage & Waste ({scopeLabel})
           </h4>
-          <p className="text-[10px] text-slate-400 mb-3">
+          <p className="text-xs text-slate-400 mb-3">
             Of the {displayStats.materials.grossBoardAreaSqFt.toLocaleString()} sq.ft of board bought (
             {displayStats.materials.totalSheets} sheets)
           </p>
@@ -305,35 +305,56 @@ export const AnalyticsReport: React.FC<AnalyticsReportProps> = ({ items, cutList
           />
         </div>
 
-        {/* Material Used vs Waste by Room - both halves of the story on one
-            shared scale: how much sheet material a room actually needs
-            (blue) stacked against how much of that room's own sheets end up
-            as scrap (red). Nested independently per room (like the sheet
-            counts elsewhere in this report), so a room's waste here runs a
-            bit higher than its true share of the combined project total
-            above - nesting every room together shares offcuts across rooms
-            that nesting room-by-room can't. */}
-        <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-4">
-          <h4 className="text-xs font-bold text-slate-900 mb-1 flex items-center gap-1.5">
-            <Ruler className="w-3.5 h-3.5 text-rose-600" /> Material Used vs Waste by Room
-          </h4>
-          <p className="text-[10px] text-slate-400 mb-3">
-            Panel material (18/9/6mm sheet area) used vs. scrap, if each room's sheets were nested on their own - naturally
-            several times larger than that room's elevation area above, since one cabinet's box is built from many separate
-            panels
-          </p>
-          <StackedHorizontalBarChart
-            data={[...roomStats]
-              .sort((a, b) => b.materials.grossBoardAreaSqFt - a.materials.grossBoardAreaSqFt)
-              .map((rs) => ({
-                label: rs.room,
-                values: [rs.materials.netPartsAreaSqFt, rs.materials.totalScrapWasteSqFt],
-              }))}
-            seriesLabels={['Used', 'Waste']}
-            seriesColors={[CHART_COLOR_USED, CHART_COLOR_WASTE]}
-            unit=" sq.ft"
-            highlightLabel={isFiltered ? selectedRoom : undefined}
-          />
+        {/* Material Used vs Waste by Room, and Sheets Needed by Room, side
+            by side - both are per-room stacked-bar comparisons over the same
+            room list, so they line up row-for-row and read as one paired
+            comparison instead of two separately-scrolled full-width charts. */}
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+          <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-5">
+            <h4 className="text-sm font-bold text-slate-900 mb-1 flex items-center gap-1.5">
+              <Ruler className="w-4 h-4 text-rose-600" /> Material Used vs Waste by Room
+            </h4>
+            <p className="text-xs text-slate-400 mb-3">
+              Panel material (18/9/6mm sheet area) used vs. scrap, nested independently per room - naturally several times
+              larger than that room's elevation area above, since one cabinet's box is built from many separate panels
+            </p>
+            <StackedHorizontalBarChart
+              data={[...roomStats]
+                .sort((a, b) => b.materials.grossBoardAreaSqFt - a.materials.grossBoardAreaSqFt)
+                .map((rs) => ({
+                  label: rs.room,
+                  values: [rs.materials.netPartsAreaSqFt, rs.materials.totalScrapWasteSqFt],
+                }))}
+              seriesLabels={['Used', 'Waste']}
+              seriesColors={[CHART_COLOR_USED, CHART_COLOR_WASTE]}
+              unit=" sq.ft"
+              highlightLabel={isFiltered ? selectedRoom : undefined}
+            />
+          </div>
+
+          {/* Sheets Needed by Room - how many raw boards each room's own cut
+              list requires, split by thickness so it's clear which rooms are
+              driving the 18mm (carcass/shutter) count vs the thinner backs. */}
+          <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-5">
+            <h4 className="text-sm font-bold text-slate-900 mb-1 flex items-center gap-1.5">
+              <Layers className="w-4 h-4 text-violet-600" /> Sheets Needed by Room
+            </h4>
+            <p className="text-xs text-slate-400 mb-3">
+              Raw 8×4ft boards required per room, by thickness - nested independently per room like the figures alongside
+            </p>
+            <StackedHorizontalBarChart
+              data={[...roomStats]
+                .sort((a, b) => b.materials.totalSheets - a.materials.totalSheets)
+                .map((rs) => ({
+                  label: rs.room,
+                  values: [rs.materials.ply18mmSheets, rs.materials.ply9mmSheets, rs.materials.ply6mmSheets],
+                }))}
+              seriesLabels={['18mm', '9mm', '6mm']}
+              seriesColors={[CHART_COLOR_18MM, CHART_COLOR_9MM, CHART_COLOR_6MM]}
+              unit=" sheets"
+              highlightLabel={isFiltered ? selectedRoom : undefined}
+            />
+          </div>
         </div>
         </div>
       </section>
@@ -341,38 +362,13 @@ export const AnalyticsReport: React.FC<AnalyticsReportProps> = ({ items, cutList
       {/* Section: Sheets & Hardware */}
       <section>
         <SectionHeading icon={<Layers className="w-4 h-4" />} title="Sheets & Hardware" />
-        <div className="space-y-4">
-        {/* Sheets Needed by Room - how many raw boards each room's own cut
-            list requires, split by thickness so it's clear which rooms are
-            driving the 18mm (carcass/shutter) count vs the thinner backs. */}
-        <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-4">
-          <h4 className="text-xs font-bold text-slate-900 mb-1 flex items-center gap-1.5">
-            <Layers className="w-3.5 h-3.5 text-violet-600" /> Sheets Needed by Room
-          </h4>
-          <p className="text-[10px] text-slate-400 mb-3">
-            Raw 8×4ft boards required per room, by thickness - nested independently per room like the figures above
-          </p>
-          <StackedHorizontalBarChart
-            data={[...roomStats]
-              .sort((a, b) => b.materials.totalSheets - a.materials.totalSheets)
-              .map((rs) => ({
-                label: rs.room,
-                values: [rs.materials.ply18mmSheets, rs.materials.ply9mmSheets, rs.materials.ply6mmSheets],
-              }))}
-            seriesLabels={['18mm', '9mm', '6mm']}
-            seriesColors={[CHART_COLOR_18MM, CHART_COLOR_9MM, CHART_COLOR_6MM]}
-            unit=" sheets"
-            highlightLabel={isFiltered ? selectedRoom : undefined}
-          />
-        </div>
-
-        {/* Sheet composition + hardware detail for more understanding */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-4">
-            <h4 className="text-xs font-bold text-slate-900 mb-2 flex items-center gap-1.5">
-              <Layers className="w-3.5 h-3.5 text-cyan-600" /> Sheet Requirement by Thickness ({scopeLabel})
+        {/* Sheet composition + hardware detail side by side */}
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+          <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-5">
+            <h4 className="text-sm font-bold text-slate-900 mb-2 flex items-center gap-1.5">
+              <Layers className="w-4 h-4 text-cyan-600" /> Sheet Requirement by Thickness ({scopeLabel})
             </h4>
-            <div className="mb-3">
+            <div className="mb-4">
               <HorizontalBarChart
                 data={[
                   { label: '18mm', value: displayStats.materials.ply18mmSheets },
@@ -383,7 +379,7 @@ export const AnalyticsReport: React.FC<AnalyticsReportProps> = ({ items, cutList
                 unit=" sheets"
               />
             </div>
-            <div className="space-y-1.5 text-[11px]">
+            <div className="space-y-2 text-sm">
               <div className="flex justify-between">
                 <span className="text-slate-500">18mm (carcass/shutter)</span>
                 <span className="font-mono font-bold text-slate-800">
@@ -402,7 +398,7 @@ export const AnalyticsReport: React.FC<AnalyticsReportProps> = ({ items, cutList
                   {displayStats.materials.ply6mmSheets} sheets • {displayStats.materials.ply6mmAreaSqFt.toLocaleString()} sq.ft
                 </span>
               </div>
-              <div className="flex justify-between pt-1.5 border-t border-slate-100">
+              <div className="flex justify-between pt-2 border-t border-slate-100">
                 <span className="text-slate-500">Inner / Outer Laminate Sheets</span>
                 <span className="font-mono font-bold text-slate-800">
                   {displayStats.materials.innerLaminateSheets} / {displayStats.materials.outerLaminateSheets}
@@ -411,11 +407,11 @@ export const AnalyticsReport: React.FC<AnalyticsReportProps> = ({ items, cutList
             </div>
           </div>
 
-          <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-4">
-            <h4 className="text-xs font-bold text-slate-900 mb-2 flex items-center gap-1.5">
-              <Package className="w-3.5 h-3.5 text-amber-600" /> Hardware Requirement ({scopeLabel})
+          <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-5">
+            <h4 className="text-sm font-bold text-slate-900 mb-2 flex items-center gap-1.5">
+              <Package className="w-4 h-4 text-amber-600" /> Hardware Requirement ({scopeLabel})
             </h4>
-            <div className="space-y-1.5 text-[11px]">
+            <div className="space-y-2 text-sm">
               <div className="flex justify-between">
                 <span className="text-slate-500">Soft-Close Hinge Pairs</span>
                 <span className="font-mono font-bold text-slate-800">{Math.ceil(displayStats.materials.softCloseHingesPairs)}</span>
@@ -428,13 +424,12 @@ export const AnalyticsReport: React.FC<AnalyticsReportProps> = ({ items, cutList
                 <span className="text-slate-500">Drawer Channels</span>
                 <span className="font-mono font-bold text-slate-800">{displayStats.materials.drawerChannels}</span>
               </div>
-              <div className="flex justify-between pt-1.5 border-t border-slate-100">
+              <div className="flex justify-between pt-2 border-t border-slate-100">
                 <span className="text-slate-500">Tandem Box Channels</span>
                 <span className="font-mono font-bold text-slate-800">{displayStats.materials.tandemBoxChannels}</span>
               </div>
             </div>
           </div>
-        </div>
         </div>
       </section>
 
@@ -442,9 +437,9 @@ export const AnalyticsReport: React.FC<AnalyticsReportProps> = ({ items, cutList
       <section>
         <SectionHeading icon={<Palette className="w-4 h-4" />} title="Finishes" />
         {/* Laminate / Color breakdown */}
-        <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-4">
-          <h4 className="text-xs font-bold text-slate-900 mb-3 flex items-center gap-1.5">
-            <Palette className="w-3.5 h-3.5 text-amber-600" /> Color Laminates & Finish Breakdown ({scopeLabel})
+        <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-5">
+          <h4 className="text-sm font-bold text-slate-900 mb-3 flex items-center gap-1.5">
+            <Palette className="w-4 h-4 text-amber-600" /> Color Laminates & Finish Breakdown ({scopeLabel})
           </h4>
           <div className="mb-4">
             <HorizontalBarChart
@@ -457,28 +452,28 @@ export const AnalyticsReport: React.FC<AnalyticsReportProps> = ({ items, cutList
             />
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full text-[11px]">
+            <table className="w-full text-sm">
               <thead>
-                <tr className="text-slate-400 uppercase tracking-wide text-[10px] border-b border-slate-200">
-                  <th className="text-left py-1.5 pr-3">Finish Type</th>
-                  <th className="text-left py-1.5 pr-3">Color / Laminate Code</th>
-                  <th className="text-right py-1.5 pr-3">Units</th>
-                  <th className="text-right py-1.5">Area (sq.ft)</th>
+                <tr className="text-slate-400 uppercase tracking-wide text-xs border-b border-slate-200">
+                  <th className="text-left py-2 pr-3">Finish Type</th>
+                  <th className="text-left py-2 pr-3">Color / Laminate Code</th>
+                  <th className="text-right py-2 pr-3">Units</th>
+                  <th className="text-right py-2">Area (sq.ft)</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {displayStats.laminateGroups.map((g) => (
                   <tr key={g.key}>
-                    <td className="py-1.5 pr-3 font-semibold text-slate-800">{g.finishType}</td>
-                    <td className="py-1.5 pr-3">
+                    <td className="py-2 pr-3 font-semibold text-slate-800">{g.finishType}</td>
+                    <td className="py-2 pr-3">
                       {g.colorCode ? (
                         <span className="font-mono font-bold text-slate-800">{g.colorCode}</span>
                       ) : (
                         <span className="italic text-slate-400">Unspecified</span>
                       )}
                     </td>
-                    <td className="py-1.5 pr-3 text-right font-mono">{g.count}</td>
-                    <td className="py-1.5 text-right font-mono font-bold">{g.areaSqFt.toLocaleString()}</td>
+                    <td className="py-2 pr-3 text-right font-mono">{g.count}</td>
+                    <td className="py-2 text-right font-mono font-bold">{g.areaSqFt.toLocaleString()}</td>
                   </tr>
                 ))}
               </tbody>
@@ -487,7 +482,7 @@ export const AnalyticsReport: React.FC<AnalyticsReportProps> = ({ items, cutList
         </div>
       </section>
 
-      <div className="flex items-start gap-2 text-[11px] text-slate-500 bg-slate-50 border border-slate-200 rounded-lg p-3">
+      <div className="flex items-start gap-2 text-sm text-slate-500 bg-slate-50 border border-slate-200 rounded-lg p-4">
         <Info className="w-3.5 h-3.5 mt-0.5 shrink-0 text-slate-400" />
         <span>
           <strong>Total Sq.ft</strong> at the top sums every item's Width × Height in feet (its elevation/opening area, e.g. a
@@ -515,7 +510,7 @@ export const AnalyticsReport: React.FC<AnalyticsReportProps> = ({ items, cutList
               onClick={() =>
                 setExpandedRooms((prev) => (prev.size === rooms.length ? new Set() : new Set(rooms)))
               }
-              className="text-[11px] font-bold text-cyan-700 hover:text-cyan-900 flex items-center gap-1"
+              className="text-sm font-bold text-cyan-700 hover:text-cyan-900 flex items-center gap-1"
             >
               {expandedRooms.size === rooms.length ? (
                 <>
@@ -536,7 +531,7 @@ export const AnalyticsReport: React.FC<AnalyticsReportProps> = ({ items, cutList
             <button
               key={rs.room}
               onClick={() => jumpToRoom(rs.room)}
-              className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-white border border-slate-200 text-slate-600 hover:border-cyan-300 hover:text-cyan-700 transition"
+              className="text-xs font-semibold px-3 py-1.5 rounded-full bg-white border border-slate-200 text-slate-600 hover:border-cyan-300 hover:text-cyan-700 transition"
             >
               {rs.room}
             </button>
@@ -550,51 +545,51 @@ export const AnalyticsReport: React.FC<AnalyticsReportProps> = ({ items, cutList
         <div key={rs.room} id={roomAnchor(rs.room)} className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden scroll-mt-4">
           <button
             onClick={() => toggleRoom(rs.room)}
-            className="w-full flex flex-wrap items-center justify-between gap-3 px-5 py-3.5 bg-slate-50 hover:bg-slate-100/70 transition text-left"
+            className="w-full flex flex-wrap items-center justify-between gap-3 px-5 py-4 bg-slate-50 hover:bg-slate-100/70 transition text-left"
           >
-            <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+            <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
               {isExpanded ? (
                 <ChevronDown className="w-4 h-4 text-slate-400 shrink-0" />
               ) : (
                 <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
               )}
               {rs.room}
-              <span className="text-[11px] font-mono font-semibold text-slate-500">({rs.itemCount} units)</span>
+              <span className="text-sm font-mono font-semibold text-slate-500">({rs.itemCount} units)</span>
             </h3>
-            <div className="flex flex-wrap items-center gap-2 text-[11px] font-bold">
-              <span className="px-2.5 py-1 rounded-full bg-slate-100 text-slate-700">{rs.totalAreaSqFt.toLocaleString()} sq.ft</span>
-              <span className="px-2.5 py-1 rounded-full bg-cyan-100 text-cyan-800">{rs.materials.totalSheets} sheets</span>
-              <span className="px-2.5 py-1 rounded-full bg-fuchsia-100 text-fuchsia-800">{rs.wardrobeCount} wardrobe(s)</span>
-              <span className="px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800">
+            <div className="flex flex-wrap items-center gap-2 text-sm font-bold">
+              <span className="px-3 py-1 rounded-full bg-slate-100 text-slate-700">{rs.totalAreaSqFt.toLocaleString()} sq.ft</span>
+              <span className="px-3 py-1 rounded-full bg-cyan-100 text-cyan-800">{rs.materials.totalSheets} sheets</span>
+              <span className="px-3 py-1 rounded-full bg-fuchsia-100 text-fuchsia-800">{rs.wardrobeCount} wardrobe(s)</span>
+              <span className="px-3 py-1 rounded-full bg-emerald-100 text-emerald-800">
                 {(rs.materials.edgeBand2mmMeters + rs.materials.edgeBand08mmMeters).toFixed(1)}m edge band
               </span>
             </div>
           </button>
 
           {isExpanded && (
-          <div className="p-4 overflow-x-auto">
-            <table className="w-full text-[11px]">
+          <div className="p-5 overflow-x-auto">
+            <table className="w-full text-sm">
               <thead>
-                <tr className="text-slate-400 uppercase tracking-wide text-[10px] border-b border-slate-200">
-                  <th className="text-left py-1.5 pr-3">Finish Type</th>
-                  <th className="text-left py-1.5 pr-3">Color / Laminate Code</th>
-                  <th className="text-right py-1.5 pr-3">Units</th>
-                  <th className="text-right py-1.5">Area (sq.ft)</th>
+                <tr className="text-slate-400 uppercase tracking-wide text-xs border-b border-slate-200">
+                  <th className="text-left py-2 pr-3">Finish Type</th>
+                  <th className="text-left py-2 pr-3">Color / Laminate Code</th>
+                  <th className="text-right py-2 pr-3">Units</th>
+                  <th className="text-right py-2">Area (sq.ft)</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {rs.laminateGroups.map((g) => (
                   <tr key={g.key}>
-                    <td className="py-1.5 pr-3 font-semibold text-slate-800">{g.finishType}</td>
-                    <td className="py-1.5 pr-3">
+                    <td className="py-2 pr-3 font-semibold text-slate-800">{g.finishType}</td>
+                    <td className="py-2 pr-3">
                       {g.colorCode ? (
                         <span className="font-mono font-bold text-slate-800">{g.colorCode}</span>
                       ) : (
                         <span className="italic text-slate-400">Unspecified</span>
                       )}
                     </td>
-                    <td className="py-1.5 pr-3 text-right font-mono">{g.count}</td>
-                    <td className="py-1.5 text-right font-mono font-bold">{g.areaSqFt.toLocaleString()}</td>
+                    <td className="py-2 pr-3 text-right font-mono">{g.count}</td>
+                    <td className="py-2 text-right font-mono font-bold">{g.areaSqFt.toLocaleString()}</td>
                   </tr>
                 ))}
               </tbody>
