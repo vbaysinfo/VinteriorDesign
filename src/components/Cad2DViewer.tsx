@@ -112,6 +112,12 @@ export const Cad2DViewer: React.FC<Cad2DViewerProps> = ({
     return items.filter((item) => item.room === selectedRoom);
   }, [items, selectedRoom]);
 
+  // With "All Rooms" active, one wall elevation can mix cabinets from every
+  // room together - the room name has to ride along on each cabinet's own
+  // label, or there's no way to tell which room a given box belongs to.
+  // Redundant (and dropped) once a single room is already selected.
+  const showRoomInLabels = selectedRoom === 'ALL';
+
   // Filter items by wall
   const wallItems = useMemo(() => {
     if (activeWall === 'all') return roomItems;
@@ -911,9 +917,19 @@ export const Cad2DViewer: React.FC<Cad2DViewerProps> = ({
                     );
                   };
 
-                  // Dynamic compact badge inside cabinet
-                  const badgeW = Math.min(pos.w - 20, Math.max(160, 240 * fontScale));
-                  const badgeH = Math.min(pos.h - 16, Math.round(66 * fontScale));
+                  // Dynamic compact badge inside cabinet. Sized to the actual
+                  // label text (the name from the uploaded Excel row, never
+                  // truncated) instead of a fixed 160px floor - a fixed floor
+                  // either clipped long names or, on a narrow cabinet, forced
+                  // the label to disappear entirely once the badge no longer
+                  // fit, leaving an unlabeled box the user can't identify.
+                  const badgeTitleLine = `#${pos.item.sNo} ${pos.item.description}`;
+                  const badgeSubLine = `${showRoomInLabels ? `${pos.item.room} • ` : ''}${pos.w} × ${pos.h}${
+                    pos.item.depthMm > 0 ? ` × ${pos.item.depthMm}mm` : ''
+                  }`;
+                  const estBadgeW = Math.max(badgeTitleLine.length * 6.4, badgeSubLine.length * 5.4) * fontScale + 20;
+                  const badgeW = Math.min(pos.w - 12, Math.max(90, estBadgeW));
+                  const badgeH = Math.min(pos.h - 10, Math.round(66 * fontScale));
                   const badgeX = pos.x + (pos.w - badgeW) / 2;
                   const badgeY = itemY + (pos.h > 350 ? 20 : (pos.h - badgeH) / 2);
 
@@ -1164,7 +1180,7 @@ export const Cad2DViewer: React.FC<Cad2DViewerProps> = ({
                           would silently swallow clicks meant for whichever
                           shutter/door happens to be behind the label instead
                           of letting them reach it. */}
-                      {pos.w >= 140 && pos.h >= 100 && (
+                      {pos.w >= 46 && pos.h >= 36 && (
                         <g pointerEvents="none">
                           <rect
                             x={badgeX}
@@ -1185,7 +1201,7 @@ export const Cad2DViewer: React.FC<Cad2DViewerProps> = ({
                             fontWeight="bold"
                             textAnchor="middle"
                           >
-                            #{pos.item.sNo} {pos.item.description.slice(0, 16)}
+                            {badgeTitleLine}
                           </text>
                           <text
                             x={badgeX + badgeW / 2}
@@ -1195,7 +1211,7 @@ export const Cad2DViewer: React.FC<Cad2DViewerProps> = ({
                             fontWeight="600"
                             textAnchor="middle"
                           >
-                            {pos.w} × {pos.h} {pos.item.depthMm > 0 ? `× ${pos.item.depthMm}mm` : ''}
+                            {badgeSubLine}
                           </text>
 
                           {/* Edit affordance: reveals on hover, but the whole cabinet
@@ -1497,7 +1513,7 @@ export const Cad2DViewer: React.FC<Cad2DViewerProps> = ({
                           strokeDasharray={isLoftOrOverhead ? '4,3' : 'none'}
                         />
                         {/* Shutter / module indicators */}
-                        {rectW > 50 && rectH > 20 && (
+                        {rectW > 34 && rectH > 16 && (
                           <text
                             x={rectX + rectW / 2}
                             y={rectY + rectH / 2 + 4}
@@ -1506,7 +1522,9 @@ export const Cad2DViewer: React.FC<Cad2DViewerProps> = ({
                             fontWeight="bold"
                             textAnchor="middle"
                           >
-                            #{item.sNo} {isLoftOrOverhead ? '[LOFT]' : ''} {item.description.slice(0, 10)}
+                            #{item.sNo} {isLoftOrOverhead ? '[LOFT] ' : ''}
+                            {showRoomInLabels ? `${item.room} • ` : ''}
+                            {item.description.slice(0, 22)}
                           </text>
                         )}
                       </g>

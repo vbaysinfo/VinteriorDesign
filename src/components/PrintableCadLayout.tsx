@@ -169,7 +169,7 @@ export const PrintableCadLayout: React.FC<PrintableCadLayoutProps> = ({ items, p
 
                                 {/* Item label above the box */}
                                 <text x={boxX + w / 2} y={boxY - 4} textAnchor="middle" fontSize="8" fontWeight="bold" fill="#0f172a">
-                                  #{item.sNo} {item.description.slice(0, 18)}
+                                  #{item.sNo} {item.description.slice(0, 26)}
                                 </text>
                                 <text x={boxX + w / 2} y={floorLineY + 10} textAnchor="middle" fontSize="7.5" fill="#475569">
                                   {item.widthMm} × {item.heightMm}
