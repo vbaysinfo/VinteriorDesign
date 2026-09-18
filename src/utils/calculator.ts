@@ -566,33 +566,12 @@ export function generateCutListForItem(item: ModularItem, globalProjectType: Pro
     });
   }
 
-  // 6. Ceiling Pelmet / Infill Strip (for Lofts and overhead units to seal ceiling gap)
-  const isLoftUnit = item.category === 'loft' || item.category === 'kitchen_loft';
-  if (isLoftUnit) {
-    parts.push({
-      id: `${item.id}-pelmet-top`,
-      itemId: item.id,
-      room: item.room,
-      itemName: item.description,
-      wall: item.wall,
-      partName: 'Pelmet/Skirting',
-      lengthMm: w,
-      widthMm: 75,
-      thicknessMm: 18,
-      qty: 1,
-      material: `${getCoreMaterialLabel(item)} (${getFinishLabel(item)})`,
-      materialCategory: 'Color/Laminate',
-      edgeL1: true,
-      edgeL2: false,
-      edgeW1: false,
-      edgeW2: false,
-      edgeThicknessMm: 0.8,
-      grainDirection: 'any',
-      canRotate: true,
-      notes: '75mm Ceiling Infill Pelmet for slab leveling',
-      areaSqMt: Number(((w * 75) / 1_000_000).toFixed(3)),
-    });
-  }
+  // 6. Loft units never get skirting/pelmet of any kind - a Loft is
+  // Carcass + Shutter (or Expo/Dummy panel, handled above) only. This used
+  // to add a 75mm "Ceiling Infill Pelmet" here, but per the factory's own
+  // rule a module identified as LOFT must never produce a skirting piece,
+  // skirting dimensions, skirting edge-banding, or a skirting BOM entry -
+  // no exceptions - so nothing is generated for it at all.
 
   // 7. Special Wall Paneling / Partition
   if (item.category === 'tv_panel' || item.category === 'partition') {
