@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { ModularItem, WallType, ProjectType } from '../types';
 import {
   RotateCcw,
@@ -64,6 +64,10 @@ interface PolyFace {
   strokeDash?: string;
   opacity?: number;
   isClickable?: boolean;
+  // Which door (0-based, left to right) this face belongs to, when it's a
+  // shutter facia - lets a click target one specific door of a multi-door
+  // wardrobe instead of always just selecting the whole cabinet item.
+  shutterIndex?: number;
 }
 
 export const Isometric3DViewer: React.FC<Isometric3DViewerProps> = ({
@@ -97,6 +101,21 @@ export const Isometric3DViewer: React.FC<Isometric3DViewerProps> = ({
   const [drawerSlidePercent, setDrawerSlidePercent] = useState<number>(0); // 0 to 100%
   const [explodedView, setExplodedView] = useState<boolean>(false);
   const [hoveredItemId, setHoveredItemId] = useState<string | null>(null);
+  // Which specific door of the selected item was last clicked, so a
+  // multi-door wardrobe can highlight just that one shutter instead of the
+  // whole cabinet's doors lighting up as one indistinguishable amber block.
+  const [selectedShutterIndex, setSelectedShutterIndex] = useState<number | null>(null);
+  // Tracks which item id our OWN click last selected, so the reset effect
+  // below can tell "selectedItemId changed because we clicked a door of a
+  // different item" (keep the new shutter index) apart from "selectedItemId
+  // changed some other way, e.g. picked from a list elsewhere" (clear it).
+  const lastClickItemIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (selectedItemId !== lastClickItemIdRef.current) {
+      setSelectedShutterIndex(null);
+    }
+  }, [selectedItemId]);
 
   const fontScale = fontSizeLevel === 'normal' ? 1.0 : fontSizeLevel === 'large' ? 1.35 : 1.75;
 
@@ -507,7 +526,8 @@ export const Isometric3DViewer: React.FC<Isometric3DViewerProps> = ({
       strokeWidth = 1.2,
       itemId?: string,
       partName = '',
-      opacity?: number
+      opacity?: number,
+      shutterIndex?: number
     ) => {
       const proj = [projectPoint(p1), projectPoint(p2), projectPoint(p3), projectPoint(p4)];
       polys.push({
@@ -521,6 +541,7 @@ export const Isometric3DViewer: React.FC<Isometric3DViewerProps> = ({
         strokeWidth,
         opacity,
         isClickable: !!itemId,
+        shutterIndex,
       });
     };
 
@@ -931,18 +952,30 @@ export const Isometric3DViewer: React.FC<Isometric3DViewerProps> = ({
           const sP2 = { ...pFrontRight, y: yExp + h - 4 };
           const sP3 = { ...pFrontLeft, y: yExp + h - 4 };
 
-          // Shutter Front Face
+          // Shutter Front Face. When a specific door of this item was last
+          // clicked, only that one lights up amber - the rest stay their
+          // normal wood color so it's clear which door is actually
+          // targeted, instead of every door in the cabinet turning the
+          // same solid amber block regardless of which one was clicked.
+          const isThisDoorTargeted = selectedShutterIndex === sIdx;
+          const thisShutterFill = isSelected
+            ? selectedShutterIndex === null || isThisDoorTargeted
+              ? '#f59e0b'
+              : styleConfig.shutter
+            : shutterFill;
           addQuad(
             `shutter-front-${item.id}-${sIdx}`,
             sP0,
             sP1,
             sP2,
             sP3,
-            shutterFill,
-            strokeColor,
-            isSelected ? 2.2 : 1.4,
+            thisShutterFill,
+            isSelected && isThisDoorTargeted ? '#ffffff' : strokeColor,
+            isSelected && isThisDoorTargeted ? 3 : isSelected ? 1.6 : 1.4,
             item.id,
-            `Shutter ${sIdx + 1} Facia`
+            `Shutter ${sIdx + 1} Facia`,
+            undefined,
+            sIdx
           );
 
           // Handle Bar / Profile J-Pull
@@ -988,6 +1021,7 @@ export const Isometric3DViewer: React.FC<Isometric3DViewerProps> = ({
     drawerSlidePercent,
     explodedView,
     selectedItemId,
+    selectedShutterIndex,
     hoveredItemId,
   ]);
 
@@ -1490,7 +1524,11 @@ export const Isometric3DViewer: React.FC<Isometric3DViewerProps> = ({
                     if (poly.itemId && onSelectItem) {
                       e.stopPropagation();
                       const itm = items.find((i) => i.id === poly.itemId);
-                      if (itm) onSelectItem(itm);
+                      if (itm) {
+                        lastClickItemIdRef.current = itm.id;
+                        onSelectItem(itm);
+                        setSelectedShutterIndex(poly.shutterIndex ?? null);
+                      }
                     }
                   }}
                   onMouseEnter={() => {
