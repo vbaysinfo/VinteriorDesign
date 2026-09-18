@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { ModularItem, ProjectInfo, ProjectType, FactoryRates, CutListPart } from './types';
 import { INITIAL_ITEMS, DEFAULT_PROJECT_INFO, DEFAULT_FACTORY_RATES } from './data/initialData';
 import { generateAllCutLists, calculateMaterialUsage, calculateProjectCost } from './utils/calculator';
@@ -14,6 +14,7 @@ import { AIAnalysisPage } from './components/AIAnalysisPage';
 import { ItemInspectorDrawer } from './components/ItemInspectorDrawer';
 import { ProjectSettingsModal } from './components/ProjectSettingsModal';
 import { PrintableCadLayout } from './components/PrintableCadLayout';
+import { PrintableCuttingList } from './components/PrintableCuttingList';
 import { Layers, FileSpreadsheet, Scissors, Calculator, Info, UploadCloud, Maximize2, Minimize2, Boxes, BarChart3, Sparkles } from 'lucide-react';
 
 export default function App() {
@@ -133,12 +134,38 @@ export default function App() {
     showToast('BOM Proposal PDF generated and downloaded!');
   };
 
+  // Two separate print outputs (the 2D CAD layout, and the factory cutting
+  // list's sheets) share one print stylesheet, so only one can be visible
+  // at a time - printTarget picks which of PrintableCadLayout /
+  // PrintableCuttingList gets the "active" (print:block) class below.
+  // window.print() has to wait for that class change to actually reach the
+  // DOM first (setState is async), so it fires from an effect keyed off
+  // pendingPrint rather than right after setPrintTarget.
+  const [printTarget, setPrintTarget] = useState<'cad' | 'cutlist'>('cad');
+  const [pendingPrint, setPendingPrint] = useState(false);
+
+  useEffect(() => {
+    if (pendingPrint) {
+      window.print();
+      setPendingPrint(false);
+    }
+  }, [pendingPrint]);
+
   // Print only the 2D CAD layout, all rooms, forced to a light theme -
   // independent of whatever theme/room/zoom the interactive canvas is
-  // currently showing. See PrintableCadLayout: it's the only thing visible
-  // in the print stylesheet, everything else is print:hidden.
+  // currently showing.
   const handlePrintCadLayout = () => {
-    window.print();
+    setPrintTarget('cad');
+    setPendingPrint(true);
+  };
+
+  // Print every sheet the factory needs to cut (ignoring whatever the
+  // Active Room selector is currently set to - nesting shares sheets
+  // across rooms, so "print all sheets" has to mean the whole project),
+  // grouped by room, in black & white.
+  const handlePrintCuttingList = () => {
+    setPrintTarget('cutlist');
+    setPendingPrint(true);
   };
 
   return (
@@ -348,6 +375,7 @@ export default function App() {
               projectType={projectType}
               selectedRoom={selectedRoom}
               onUpdatePart={handleUpdatePart}
+              onPrintCuttingList={handlePrintCuttingList}
             />
           </div>
         )}
@@ -423,7 +451,8 @@ export default function App() {
     {/* Print-only output: the interactive app above is hidden via
         print:hidden, and this light-theme, room-by-room CAD layout is the
         only thing that appears in the printed/PDF output. */}
-    <PrintableCadLayout items={items} projectName={projectInfo.projectName} projectType={projectType} />
+    <PrintableCadLayout items={items} projectName={projectInfo.projectName} projectType={projectType} active={printTarget === 'cad'} />
+    <PrintableCuttingList cutList={cutList} projectName={projectInfo.projectName} active={printTarget === 'cutlist'} />
     </>
   );
 }

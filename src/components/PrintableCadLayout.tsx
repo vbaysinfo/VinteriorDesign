@@ -6,6 +6,7 @@ interface PrintableCadLayoutProps {
   items: ModularItem[];
   projectName: string;
   projectType: ProjectType;
+  active: boolean;
 }
 
 const WALL_ORDER: WallType[] = ['front', 'left', 'right', 'back'];
@@ -42,7 +43,7 @@ const isOverheadCategory = (i: ModularItem) => i.category === 'kitchen_overhead'
 // the units below it, not beside them, so summing every item's width into
 // one row would double-count the same wall footprint and wildly overstate
 // the wall's real width.
-export const PrintableCadLayout: React.FC<PrintableCadLayoutProps> = ({ items, projectName, projectType }) => {
+export const PrintableCadLayout: React.FC<PrintableCadLayoutProps> = ({ items, projectName, projectType, active }) => {
   const rooms = useMemo(() => {
     const seen: string[] = [];
     items.forEach((i) => {
@@ -52,7 +53,7 @@ export const PrintableCadLayout: React.FC<PrintableCadLayoutProps> = ({ items, p
   }, [items]);
 
   return (
-    <div className="hidden print:block bg-white text-slate-900">
+    <div className={active ? 'hidden print:block bg-white text-slate-900' : 'hidden'}>
       {rooms.map((room, roomIdx) => {
         const roomItems = items.filter((i) => i.room === room);
         const walls = WALL_ORDER.filter((w) => roomItems.some((i) => i.wall === w));

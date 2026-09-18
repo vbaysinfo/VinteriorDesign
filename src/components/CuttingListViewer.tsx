@@ -21,7 +21,8 @@ import {
   Info,
   Pencil,
   X,
-  Square
+  Square,
+  Printer
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { PartEditModal } from './PartEditModal';
@@ -32,6 +33,7 @@ interface CuttingListViewerProps {
   projectType: ProjectType;
   selectedRoom: string;
   onUpdatePart?: (partId: string, updates: Partial<CutListPart>) => void;
+  onPrintCuttingList?: () => void;
 }
 
 export const CuttingListViewer: React.FC<CuttingListViewerProps> = ({
@@ -40,6 +42,7 @@ export const CuttingListViewer: React.FC<CuttingListViewerProps> = ({
   projectType,
   selectedRoom,
   onUpdatePart,
+  onPrintCuttingList,
 }) => {
   // Generate 2D sheet nesting layouts and assign sheetNumber to each piece
   const { layouts: sheetLayouts, updatedCutList } = useMemo(() => {
@@ -310,6 +313,16 @@ export const CuttingListViewer: React.FC<CuttingListViewerProps> = ({
         </div>
 
         <div className="flex items-center gap-2">
+          {onPrintCuttingList && (
+            <button
+              onClick={onPrintCuttingList}
+              className="px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition"
+              title="Print every sheet, grouped by room, in black & white"
+            >
+              <Printer className="w-3.5 h-3.5" />
+              <span>Print All Sheets</span>
+            </button>
+          )}
           <button
             onClick={handleExportCutList}
             className="px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow-xs transition"
@@ -883,6 +896,15 @@ export const CuttingListViewer: React.FC<CuttingListViewerProps> = ({
                   {/* 3. Nested Cut Parts */}
                   {activeVisualSheet.parts.map((p) => {
                     const isSmall = p.w < 280 || p.h < 180;
+                    // Skirting battens are always only 100mm tall and small
+                    // shelves/drawer sides can be nearly as short, so they
+                    // hit isSmall on almost every sheet - too tight for the
+                    // full 3-line label, but the exact size is exactly what
+                    // a factory worker needs off a piece that thin. Never
+                    // drop to a bare, size-less part name; only drop the
+                    // part name once there's truly no room for a 2nd line.
+                    const canFitTwoLines = p.h >= 70 && p.w >= 90;
+                    const canFitOneLine = p.h >= 34 && p.w >= 60;
                     const isSelected = selectedPartDetail?.partId === p.partId;
                     const isSkirting = p.partName === 'Pelmet/Skirting';
 
@@ -940,22 +962,31 @@ export const CuttingListViewer: React.FC<CuttingListViewerProps> = ({
                           </text>
                         )}
 
-                        {/* Part Name */}
-                        <text
-                          x={p.x + p.w / 2}
-                          y={p.y + p.h / 2 - (isSmall ? 0 : 4)}
-                          textAnchor="middle"
-                          dominantBaseline="central"
-                          fill="#ffffff"
-                          fontSize={isSmall ? '28' : '38'}
-                          fontWeight="bold"
-                          fontFamily="sans-serif"
-                          className="pointer-events-none drop-shadow-md"
-                        >
-                          {p.partName}
-                        </text>
+                        {/* Part Name - only when there's room for it plus
+                            the dimension line below; a thin strip shows the
+                            size alone instead (see canFitOneLine below). */}
+                        {(!isSmall || canFitTwoLines) && (
+                          <text
+                            x={p.x + p.w / 2}
+                            y={p.y + p.h / 2 - (isSmall ? 14 : 4)}
+                            textAnchor="middle"
+                            dominantBaseline="central"
+                            fill="#ffffff"
+                            fontSize={isSmall ? '20' : '38'}
+                            fontWeight="bold"
+                            fontFamily="sans-serif"
+                            className="pointer-events-none drop-shadow-md"
+                          >
+                            {p.partName}
+                          </text>
+                        )}
 
-                        {/* Dimension text */}
+                        {/* Dimension text - the exact cut size. Shown
+                            whenever there's room for even one line, never
+                            gated behind the full label the way it used to
+                            be, so a 100mm-tall skirting batten or a narrow
+                            shelf still always shows what size it actually
+                            is. */}
                         {!isSmall && (
                           <text
                             x={p.x + p.w / 2}
@@ -969,6 +1000,21 @@ export const CuttingListViewer: React.FC<CuttingListViewerProps> = ({
                             className="pointer-events-none drop-shadow-sm"
                           >
                             {p.w} × {p.h} mm {p.rotated ? '↻' : ''}
+                          </text>
+                        )}
+                        {isSmall && canFitOneLine && (
+                          <text
+                            x={p.x + p.w / 2}
+                            y={p.y + p.h / 2 + (canFitTwoLines ? 14 : 0)}
+                            textAnchor="middle"
+                            dominantBaseline="central"
+                            fill="#e2e8f0"
+                            fontSize={canFitTwoLines ? '18' : '22'}
+                            fontWeight="bold"
+                            fontFamily="monospace"
+                            className="pointer-events-none drop-shadow-sm"
+                          >
+                            {p.w} × {p.h} mm
                           </text>
                         )}
                       </g>
