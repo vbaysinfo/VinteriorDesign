@@ -398,34 +398,53 @@ export const AnalyticsReport: React.FC<AnalyticsReportProps> = ({ items, cutList
                   {displayStats.materials.ply6mmSheets} sheets • {displayStats.materials.ply6mmAreaSqFt.toLocaleString()} sq.ft
                 </span>
               </div>
-              <div className="pt-2 border-t border-slate-100 space-y-2">
+              <div className="pt-2 border-t border-slate-100 space-y-3">
                 <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wide">
                   Fabric & Shutter Color - Two Different Material Rules
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Box Fabric (Gables/Decks/Back Panel, W×H×D)</span>
-                  <span className="font-mono font-bold text-slate-800">
-                    {displayStats.materials.boxFabricSheets} sheets • {displayStats.materials.boxFabricAreaSqFt.toLocaleString()} sq.ft
-                  </span>
+                <div className="text-[11px] text-slate-400">
+                  Same standard factory sheet for both: 8×4 ft, 32 sq.ft
                 </div>
-                {displayStats.materials.boxFabricBothSidesAreaSqFt > 0 && (
-                  <div className="flex justify-between pl-3 text-[11px] text-slate-400">
-                    <span>of which, both-sides selected by customer</span>
-                    <span className="font-mono">{displayStats.materials.boxFabricBothSidesAreaSqFt.toLocaleString()} sq.ft</span>
+
+                <div className="space-y-1">
+                  <div className="text-[11px] font-bold text-slate-600">BOX (Gables/Decks/Back Panel, W×H×D)</div>
+                  <div className="flex justify-between pl-3">
+                    <span className="text-slate-500">Fabric Pieces / Sheets</span>
+                    <span className="font-mono font-bold text-slate-800">
+                      {displayStats.materials.boxFabricPieces} pcs • {displayStats.materials.boxFabricSheets} sheets •{' '}
+                      {displayStats.materials.boxFabricAreaSqFt.toLocaleString()} sq.ft
+                    </span>
                   </div>
-                )}
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Shutter Fabric Back (Shutter/Drawer Front, W×H)</span>
-                  <span className="font-mono font-bold text-slate-800">
-                    {displayStats.materials.shutterFabricBackSheets} sheets • {displayStats.materials.shutterFabricBackAreaSqFt.toLocaleString()} sq.ft
-                  </span>
+                  {displayStats.materials.boxFabricBothSidesAreaSqFt > 0 && (
+                    <div className="flex justify-between pl-6 text-[11px] text-slate-400">
+                      <span>of which, both-sides selected by customer</span>
+                      <span className="font-mono">{displayStats.materials.boxFabricBothSidesAreaSqFt.toLocaleString()} sq.ft</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between pl-3">
+                    <span className="text-slate-500">Color Laminate Pieces / Sheets (if applicable)</span>
+                    <span className="font-mono font-bold text-fuchsia-700">
+                      {displayStats.materials.boxColorLaminatePieces} pcs • {displayStats.materials.boxColorLaminateSheets} sheets •{' '}
+                      {displayStats.materials.boxColorLaminateAreaSqFt.toLocaleString()} sq.ft
+                    </span>
+                  </div>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Shutter Color/Finish (front face, W×H)</span>
-                  <span className="font-mono font-bold text-fuchsia-700">
-                    {displayStats.materials.shutterColorSheets} sheets • {displayStats.materials.shutterColorAreaSqFt.toLocaleString()} sq.ft
-                  </span>
+
+                <div className="space-y-1">
+                  <div className="text-[11px] font-bold text-slate-600">SHUTTERS (Shutter/Drawer Front/visible faces, W×H)</div>
+                  <div className="flex justify-between pl-3">
+                    <span className="text-slate-500">Color Laminate Pieces / Sheets</span>
+                    <span className="font-mono font-bold text-fuchsia-700">
+                      {displayStats.materials.shutterColorPieces} pcs • {displayStats.materials.shutterColorSheets} sheets •{' '}
+                      {displayStats.materials.shutterColorAreaSqFt.toLocaleString()} sq.ft
+                    </span>
+                  </div>
+                  <div className="flex justify-between pl-3 text-[11px] text-slate-400">
+                    <span>Fabric</span>
+                    <span className="font-mono">None (shutters carry no fabric)</span>
+                  </div>
                 </div>
+
                 <div className="flex justify-between pt-1 border-t border-slate-100 text-[11px] text-slate-400">
                   <span>Total Fabric / Color-Laminate Sheets</span>
                   <span className="font-mono">

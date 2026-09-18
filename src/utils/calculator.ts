@@ -199,7 +199,9 @@ export function generateCutListForItem(item: ModularItem, globalProjectType: Pro
       qty: 1,
       material: `${getCoreMaterialLabel(item)} (${getFinishLabel(item)})`,
       materialCategory: 'Color/Laminate',
-      backMaterialCategory: 'Fabric',
+      // No fabric on a shutter-type panel, per the factory's own rule -
+      // this is one Color/Laminate piece, not a mixed two-face panel.
+      backMaterialCategory: 'Color/Laminate',
       edgeL1: true,
       edgeL2: true,
       edgeW1: true,
@@ -255,7 +257,9 @@ export function generateCutListForItem(item: ModularItem, globalProjectType: Pro
         qty,
         material: `${getCoreMaterialLabel(item)} (${getFinishLabel(item)})`,
         materialCategory: 'Color/Laminate',
-        backMaterialCategory: 'Fabric',
+        // No fabric on shutters - Color/Laminate only, per the factory's
+        // own material rule.
+        backMaterialCategory: 'Color/Laminate',
         edgeL1: true,
         edgeL2: true,
         edgeW1: true,
@@ -288,7 +292,9 @@ export function generateCutListForItem(item: ModularItem, globalProjectType: Pro
       qty: dCount,
       material: `${getCoreMaterialLabel(item)} (${getFinishLabel(item)})`,
       materialCategory: 'Color/Laminate',
-      backMaterialCategory: 'Fabric',
+      // No fabric on a shutter-type panel (Drawer Front is a visible face
+      // just like a Shutter) - Color/Laminate only.
+      backMaterialCategory: 'Color/Laminate',
       edgeL1: true,
       edgeL2: true,
       edgeW1: true,
@@ -524,12 +530,11 @@ export function generateCutListForItem(item: ModularItem, globalProjectType: Pro
       // customer's actual color like a shutter would.
       material: `${getCoreMaterialLabel(item)} (${item.category === 'shelves' ? getFinishLabel(item) : 'Fabric'})`,
       materialCategory: item.category === 'shelves' ? 'Color/Laminate' : 'Fabric',
-      // An open shelves unit's shelf is one-side-fabric (visible face
-      // Color/Laminate, hidden underside Fabric, unaffected by
-      // fabricBothSides - that only ever doubles a box surface); a
+      // An open shelves unit's shelf is a shutter-type panel - Color/
+      // Laminate only, no fabric tracked at all, same as a Shutter. A
       // closed wardrobe's hidden shelf is a box surface, so it's Fabric
       // on one face by default or both if the item selected it.
-      backMaterialCategory: 'Fabric',
+      backMaterialCategory: item.category === 'shelves' ? 'Color/Laminate' : 'Fabric',
       fabricBothSides: item.category === 'shelves' ? undefined : item.fabricBothSides ?? false,
       edgeL1: true,
       edgeL2: false,
@@ -567,10 +572,11 @@ export function generateCutListForItem(item: ModularItem, globalProjectType: Pro
       thicknessMm: 18,
       qty: 1,
       // Visible kickplate along the floor - carries the customer's actual
-      // color/laminate, same as a shutter, per the skirting rule.
+      // color/laminate, same as a shutter, per the skirting rule. Shutter-
+      // type panel, so no fabric tracked at all - Color/Laminate only.
       material: `${getCoreMaterialLabel(item)} (${getFinishLabel(item)})`,
       materialCategory: 'Color/Laminate',
-      backMaterialCategory: 'Fabric',
+      backMaterialCategory: 'Color/Laminate',
       edgeL1: true, // Top edge banded with 0.8mm PVC to seal against water spills
       edgeL2: false,
       edgeW1: true, // Side end edge banded
@@ -640,7 +646,8 @@ export function generateCutListForItem(item: ModularItem, globalProjectType: Pro
       qty: 1,
       material: `${getCoreMaterialLabel(item)} (${getFinishLabel(item)})`,
       materialCategory: 'Color/Laminate',
-      backMaterialCategory: 'Fabric',
+      // Shutter-type panel - no fabric tracked at all.
+      backMaterialCategory: 'Color/Laminate',
       edgeL1: true,
       edgeL2: true,
       edgeW1: true,
@@ -731,11 +738,14 @@ export function calculateMaterialUsage(cutList: CutListPart[]): MaterialBreakdow
       outerLaminateSheets: 0,
       boxFabricAreaSqFt: 0,
       boxFabricSheets: 0,
+      boxFabricPieces: 0,
       boxFabricBothSidesAreaSqFt: 0,
-      shutterFabricBackAreaSqFt: 0,
-      shutterFabricBackSheets: 0,
+      boxColorLaminateAreaSqFt: 0,
+      boxColorLaminateSheets: 0,
+      boxColorLaminatePieces: 0,
       shutterColorAreaSqFt: 0,
       shutterColorSheets: 0,
+      shutterColorPieces: 0,
       edgeBandMeters: 0,
       edgeBand2mmMeters: 0,
       edgeBand08mmMeters: 0,
@@ -772,19 +782,25 @@ export function calculateMaterialUsage(cutList: CutListPart[]): MaterialBreakdow
   let totalPieces = 0;
   let skirtingLinearMeters = 0;
   let skirtingPiecesCount = 0;
-  // Fabric and shutter color are two different material rules. A BOX
-  // surface (Gable/Deck/Back Panel/Drawer box/hidden shelf/batten - both
-  // faces Fabric) is Width x Height x Depth derived and Fabric-laminated
-  // on one face by factory-standard default, doubled per item wherever
-  // fabricBothSides was selected. A SHUTTER-type surface (Width x Height
-  // only - Shutter, Drawer Front, visible Skirting, Expo/Dummy panel, an
-  // open shelf) is Color/Finish on the front with a plain Fabric backing
-  // on the rear, calculated separately and never doubled by
-  // fabricBothSides (that only ever applies to the box).
+  // Fabric and shutter color are two different material rules, each
+  // calculated separately, both against the same standard 8x4ft/32 sq.ft
+  // sheet (see effectiveAreaPerSheetSqMt below).
+  // BOX (Gable/Deck/Back Panel/Drawer box/hidden shelf/batten - both
+  // faces Fabric): Width x Height x Depth derived, Fabric-laminated on
+  // one face by factory-standard default, doubled per item wherever
+  // fabricBothSides was selected. A box surface Color/Laminate branch is
+  // tracked too for whenever one applies (none of the categories
+  // currently generate one, but the rule reserves the bucket).
+  // SHUTTER (Shutter, Drawer Front, visible Skirting, Expo/Dummy panel,
+  // an open shelf - Width x Height only): Color/Finish only, no fabric
+  // at all - counted once per panel, not per face.
   let boxFabricAreaSqMt = 0; // box-panel area actually needed (already includes doubling where selected)
   let boxFabricBothSidesAreaSqMt = 0; // the subset of the above from a both-sides selection (informational)
-  let shutterFabricBackAreaSqMt = 0; // the Fabric-backed rear face of shutter-type panels
-  let shutterColorAreaSqMt = 0; // those same panels' Color/Finish front face
+  let boxFabricPieces = 0;
+  let boxColorLaminateAreaSqMt = 0; // reserved: a box surface finished in the customer's color, if any category ever generates one
+  let boxColorLaminatePieces = 0;
+  let shutterColorAreaSqMt = 0;
+  let shutterColorPieces = 0;
 
   for (const part of cutList) {
     totalPieces += part.qty;
@@ -797,21 +813,26 @@ export function calculateMaterialUsage(cutList: CutListPart[]): MaterialBreakdow
       ply6mmAreaSqMt += partAreaSqMt;
     }
 
-    if (part.materialCategory === 'Fabric' && part.backMaterialCategory === 'Fabric') {
-      // A box surface - single face by default, doubled if selected.
+    if (part.backMaterialCategory === 'Fabric') {
+      // A box surface (front and back both Fabric) - single face by
+      // default, doubled if selected.
       boxFabricAreaSqMt += partAreaSqMt;
+      boxFabricPieces += part.qty;
       if (part.fabricBothSides) {
         boxFabricAreaSqMt += partAreaSqMt;
         boxFabricBothSidesAreaSqMt += partAreaSqMt;
       }
+    } else if (part.materialCategory === 'Fabric') {
+      // Reserved: a box surface whose front is Fabric but back is Color/
+      // Laminate. Not generated by any current category, but handled for
+      // completeness.
+      boxColorLaminateAreaSqMt += partAreaSqMt;
+      boxColorLaminatePieces += part.qty;
     } else {
-      // A shutter-type surface: Color/Finish on one face, Fabric on the
-      // other (whichever way round - materialCategory is always the
-      // front here, so this is really just "the front" and "the back").
-      if (part.materialCategory === 'Color/Laminate') shutterColorAreaSqMt += partAreaSqMt;
-      else shutterFabricBackAreaSqMt += partAreaSqMt;
-      if (part.backMaterialCategory === 'Color/Laminate') shutterColorAreaSqMt += partAreaSqMt;
-      else shutterFabricBackAreaSqMt += partAreaSqMt;
+      // A shutter-type panel - Color/Laminate only, counted once (not
+      // per face), since no fabric is ever tracked for it.
+      shutterColorAreaSqMt += partAreaSqMt;
+      shutterColorPieces += part.qty;
     }
 
     if (part.partName === 'Pelmet/Skirting') {
@@ -879,14 +900,19 @@ export function calculateMaterialUsage(cutList: CutListPart[]): MaterialBreakdow
   // 75% to 85% of 100mm skirting runners are harvested directly from sheet offcut strips without buying extra sheets!
   const skirtingFromOffcutsMeters = Number((skirtingLinearMeters * 0.82).toFixed(1));
 
-  // Real box/shutter breakdown (not a guessed ratio of the board sheet
-  // count): boxFabricAreaSqMt already includes doubling per item where
+  // Fabric and Color/Laminate both use the same standard factory sheet -
+  // 8ft x 4ft, 32 sq.ft - per the factory's own material sheet rule. This
+  // is the raw sheet area, not the board nesting's kerf/trim-adjusted
+  // effectiveAreaPerSheetSqMt above: a laminate/fabric sheet is pasted on
+  // as one continuous layer, not cut into many small parts, so a plain
+  // ceiling-division against the full 32 sq.ft is the right sheet count.
+  // boxFabricAreaSqMt already includes doubling per item where
   // fabricBothSides was selected (see the accumulation loop above).
-  const boxFabricSheets = Math.max(1, Math.ceil(boxFabricAreaSqMt / effectiveAreaPerSheetSqMt));
-  const shutterFabricBackSheets = Math.ceil(shutterFabricBackAreaSqMt / effectiveAreaPerSheetSqMt);
-  const shutterColorSheets = Math.ceil(shutterColorAreaSqMt / effectiveAreaPerSheetSqMt);
-  const innerLaminateSheets = Math.max(1, boxFabricSheets + shutterFabricBackSheets);
-  const outerLaminateSheets = Math.max(1, shutterColorSheets);
+  const boxFabricSheets = Math.max(1, Math.ceil(boxFabricAreaSqMt / sheetAreaSqMt));
+  const boxColorLaminateSheets = Math.ceil(boxColorLaminateAreaSqMt / sheetAreaSqMt);
+  const shutterColorSheets = Math.ceil(shutterColorAreaSqMt / sheetAreaSqMt);
+  const innerLaminateSheets = Math.max(1, boxFabricSheets);
+  const outerLaminateSheets = Math.max(1, boxColorLaminateSheets + shutterColorSheets);
 
   const roundedEdgeBand2mm = Math.round(edgeBand2mmMeters);
   const roundedEdgeBand08mm = Math.round(edgeBand08mmMeters);
@@ -906,11 +932,14 @@ export function calculateMaterialUsage(cutList: CutListPart[]): MaterialBreakdow
     outerLaminateSheets,
     boxFabricAreaSqFt: Number((boxFabricAreaSqMt * 10.7639).toFixed(1)),
     boxFabricSheets,
+    boxFabricPieces,
     boxFabricBothSidesAreaSqFt: Number((boxFabricBothSidesAreaSqMt * 10.7639).toFixed(1)),
-    shutterFabricBackAreaSqFt: Number((shutterFabricBackAreaSqMt * 10.7639).toFixed(1)),
-    shutterFabricBackSheets,
+    boxColorLaminateAreaSqFt: Number((boxColorLaminateAreaSqMt * 10.7639).toFixed(1)),
+    boxColorLaminateSheets,
+    boxColorLaminatePieces,
     shutterColorAreaSqFt: Number((shutterColorAreaSqMt * 10.7639).toFixed(1)),
     shutterColorSheets,
+    shutterColorPieces,
     edgeBandMeters: totalEdgeBand,
     edgeBand2mmMeters: roundedEdgeBand2mm,
     edgeBand08mmMeters: roundedEdgeBand08mm,

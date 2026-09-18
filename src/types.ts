@@ -76,17 +76,17 @@ export interface CutListPart {
   // structural part regardless of room or color. Drives both the sheet
   // nester's compatibility grouping and the on-piece labeling.
   materialCategory: 'Fabric' | 'Color/Laminate';
-  // What the panel's BACK (hidden/rear) side is laminated with. A board's
-  // two faces are pasted independently. A fully-hidden carcass/internal
-  // part (Gable, Deck, Back Panel, Drawer Side/Bottom, a closed
-  // wardrobe's shelf, a structural batten) is Fabric on both faces when
-  // its item selected fabricBothSides below, or Fabric on one face
-  // (front === back here) by factory-standard default otherwise. A
-  // customer-facing part (Shutter, Drawer Front, visible Skirting, Expo/
-  // Dummy panel, an open shelf unit's own shelf) is always Color/Laminate
-  // on the front with a plain Fabric backing on the rear - "one-side
-  // fabric, other side Color/Laminate" - regardless of fabricBothSides,
-  // which only ever applies to the box, never the shutter.
+  // What the panel's BACK (hidden/rear) side is laminated with. Fabric
+  // and shutter color are two different material rules: a fully-hidden
+  // carcass/internal BOX part (Gable, Deck, Back Panel, Drawer Side/
+  // Bottom, a closed wardrobe's shelf, a structural batten) is Fabric on
+  // one face by factory-standard default (front === back here), or both
+  // faces if its item selected fabricBothSides below. A customer-facing
+  // SHUTTER-type part (Shutter, Drawer Front, visible Skirting, Expo/
+  // Dummy panel, an open shelf unit's own shelf) is Color/Laminate on
+  // both front and back - no fabric on a shutter at all - counted once,
+  // not per face, and never affected by fabricBothSides, which only ever
+  // applies to the box.
   backMaterialCategory: 'Fabric' | 'Color/Laminate';
   // Copied from the originating item, and only meaningful when both
   // materialCategory and backMaterialCategory above are 'Fabric' (a box
@@ -179,23 +179,29 @@ export interface MaterialBreakdown {
   // innerLaminateSheets/outerLaminateSheets are the totals used for
   // costing (PricingReport) - computed from the box/shutter breakdown
   // below, not a guessed ratio of the board sheet count.
-  innerLaminateSheets: number; // = boxFabricSheets + shutterFabricBackSheets
-  outerLaminateSheets: number; // = shutterColorSheets
+  innerLaminateSheets: number; // = boxFabricSheets (Fabric is never used on a shutter-type panel)
+  outerLaminateSheets: number; // = boxColorLaminateSheets + shutterColorSheets
   // Fabric and shutter color are two different material rules (see
-  // CutListPart.backMaterialCategory / fabricBothSides).
-  // BOX: Width x Height x Depth, Fabric-laminated - single face by
+  // CutListPart.backMaterialCategory / fabricBothSides), both costed
+  // against the same standard 8ft x 4ft / 32 sq.ft factory sheet.
+  // BOX: Width x Height x Depth. Fabric-laminated - single face by
   // factory-standard default, doubled per item wherever the customer
-  // selected fabric on both faces.
+  // selected fabric on both faces. A box surface finished in the
+  // customer's Color/Laminate instead is tracked too, for whichever
+  // category ever generates one (none currently do).
   boxFabricAreaSqFt: number; // total box-panel fabric area actually needed (already includes doubling where selected)
   boxFabricSheets: number;
+  boxFabricPieces: number;
   boxFabricBothSidesAreaSqFt: number; // how much of the above came from a both-sides selection (informational)
-  // SHUTTER: Width x Height only, Color/Finish on the front with a plain
-  // Fabric backing on the rear - calculated separately from the box, and
+  boxColorLaminateAreaSqFt: number;
+  boxColorLaminateSheets: number;
+  boxColorLaminatePieces: number;
+  // SHUTTER: Width x Height only. Color/Finish only - no fabric on a
+  // shutter at all - calculated completely separately from the box, and
   // never affected by a box's fabricBothSides selection.
-  shutterFabricBackAreaSqFt: number; // the Fabric-backed rear face
-  shutterFabricBackSheets: number;
-  shutterColorAreaSqFt: number; // the Color/Finish front face
+  shutterColorAreaSqFt: number;
   shutterColorSheets: number;
+  shutterColorPieces: number;
   edgeBandMeters: number;
   edgeBand2mmMeters: number;
   edgeBand08mmMeters: number;
