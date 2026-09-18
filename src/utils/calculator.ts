@@ -43,6 +43,16 @@ export function getCoreMaterialLabel(item: ModularItem): string {
   return item.materialCode?.trim() ? item.materialCode.trim() : item.coreMaterial;
 }
 
+// The finish type alone ("Laminate") doesn't say which color - two items
+// both finished in "Laminate" can be completely different physical boards
+// (Ivory vs. Walnut). Folding the color code in here makes this the real
+// purchasable-board identity, used both for display and as the sheet
+// nesting compatibility key below, so different colors never get nested
+// onto the same physical sheet.
+export function getFinishLabel(item: ModularItem): string {
+  return item.laminateColorCode?.trim() ? `${item.finishType} - ${item.laminateColorCode.trim()}` : item.finishType;
+}
+
 // Single source of truth for how many shutters an item gets and how wide
 // each one is - used by the real cut list below, the interactive 2D CAD
 // elevation, and the printable layout, so all three always agree with each
@@ -193,7 +203,7 @@ export function generateCutListForItem(item: ModularItem, globalProjectType: Pro
         widthMm: shutterWidth,
         thicknessMm: 18,
         qty,
-        material: `${getCoreMaterialLabel(item)} (${item.finishType})`,
+        material: `${getCoreMaterialLabel(item)} (${getFinishLabel(item)})`,
         edgeL1: true,
         edgeL2: true,
         edgeW1: true,
@@ -224,7 +234,7 @@ export function generateCutListForItem(item: ModularItem, globalProjectType: Pro
       widthMm: faciaHeight,
       thicknessMm: 18,
       qty: dCount,
-      material: `${getCoreMaterialLabel(item)} (${item.finishType})`,
+      material: `${getCoreMaterialLabel(item)} (${getFinishLabel(item)})`,
       edgeL1: true,
       edgeL2: true,
       edgeW1: true,
@@ -295,7 +305,13 @@ export function generateCutListForItem(item: ModularItem, globalProjectType: Pro
       widthMm: carcassDepth,
       thicknessMm: 18,
       qty: 1,
-      material: `${getCoreMaterialLabel(item)} (Laminate)`,
+      // Hidden carcass part - per the factory's fabric/laminate rule, only
+      // the customer-visible faces (shutters, drawer fronts, skirtings, an
+      // open expo/shelf unit's own shelves) carry the selected color;
+      // everything else inside the box is a standard "Fabric" liner shared
+      // across every room and color, which is also what lets these nest
+      // freely together for maximum sheet reuse below.
+      material: `${getCoreMaterialLabel(item)} (Fabric)`,
       edgeL1: true,
       edgeL2: false,
       edgeW1: true,
@@ -315,7 +331,7 @@ export function generateCutListForItem(item: ModularItem, globalProjectType: Pro
       widthMm: carcassDepth,
       thicknessMm: 18,
       qty: 1,
-      material: `${getCoreMaterialLabel(item)} (Laminate)`,
+      material: `${getCoreMaterialLabel(item)} (Fabric)`,
       edgeL1: true,
       edgeL2: false,
       edgeW1: true,
@@ -337,7 +353,7 @@ export function generateCutListForItem(item: ModularItem, globalProjectType: Pro
       widthMm: carcassDepth,
       thicknessMm: 18,
       qty: 1,
-      material: `${getCoreMaterialLabel(item)} (Laminate)`,
+      material: `${getCoreMaterialLabel(item)} (Fabric)`,
       edgeL1: true,
       edgeL2: false,
       edgeW1: false,
@@ -357,7 +373,7 @@ export function generateCutListForItem(item: ModularItem, globalProjectType: Pro
       widthMm: carcassDepth,
       thicknessMm: 18,
       qty: 1,
-      material: `${getCoreMaterialLabel(item)} (Laminate)`,
+      material: `${getCoreMaterialLabel(item)} (Fabric)`,
       edgeL1: true,
       edgeL2: false,
       edgeW1: false,
@@ -407,7 +423,13 @@ export function generateCutListForItem(item: ModularItem, globalProjectType: Pro
       widthMm: shelfDepth,
       thicknessMm: 18,
       qty: shelfCount,
-      material: `${getCoreMaterialLabel(item)} (Laminate)`,
+      // A closed wardrobe's shelves sit hidden behind its doors (generic
+      // Fabric liner), but an open "expo"/"shelves" display unit has no
+      // door at all - its shelves ARE the visible face, so they carry the
+      // customer's actual color like a shutter would.
+      material: `${getCoreMaterialLabel(item)} (${
+        item.category === 'expo' || item.category === 'shelves' ? getFinishLabel(item) : 'Fabric'
+      })`,
       edgeL1: true,
       edgeL2: false,
       edgeW1: false,
@@ -443,7 +465,9 @@ export function generateCutListForItem(item: ModularItem, globalProjectType: Pro
       widthMm: 100,
       thicknessMm: 18,
       qty: 1,
-      material: '18mm BWP Marine Ply (Moisture-Resistant Skirting Plinth)',
+      // Visible kickplate along the floor - carries the customer's actual
+      // color/laminate, same as a shutter, per the skirting rule.
+      material: `${getCoreMaterialLabel(item)} (${getFinishLabel(item)})`,
       edgeL1: true, // Top edge banded with 0.8mm PVC to seal against water spills
       edgeL2: false,
       edgeW1: true, // Side end edge banded
@@ -469,7 +493,8 @@ export function generateCutListForItem(item: ModularItem, globalProjectType: Pro
       widthMm: 100,
       thicknessMm: 18,
       qty: battenQty,
-      material: '18mm BWP Marine Ply (Under-Carcass Load Transfer Battens)',
+      // Hidden structural batten under the carcass - generic Fabric liner.
+      material: `${getCoreMaterialLabel(item)} (Fabric)`,
       edgeL1: false,
       edgeL2: false,
       edgeW1: false,
@@ -496,7 +521,7 @@ export function generateCutListForItem(item: ModularItem, globalProjectType: Pro
       widthMm: 75,
       thicknessMm: 18,
       qty: 1,
-      material: `${getCoreMaterialLabel(item)} (${item.finishType})`,
+      material: `${getCoreMaterialLabel(item)} (${getFinishLabel(item)})`,
       edgeL1: true,
       edgeL2: false,
       edgeW1: false,
@@ -522,7 +547,7 @@ export function generateCutListForItem(item: ModularItem, globalProjectType: Pro
       widthMm: w,
       thicknessMm: 18,
       qty: 1,
-      material: `${getCoreMaterialLabel(item)} (${item.finishType})`,
+      material: `${getCoreMaterialLabel(item)} (${getFinishLabel(item)})`,
       edgeL1: true,
       edgeL2: true,
       edgeW1: true,
@@ -775,15 +800,36 @@ export function generateSheetNestingLayouts(cutList: CutListPart[]): {
   const layouts: SheetLayout[] = [];
   const updatedCutList: CutListPart[] = [...cutList];
 
-  // Group parts by thickness: 18mm, 9mm, 6mm
-  const thicknessGroups = [
-    { thickness: 18, name: '18mm Core Board (Plywood/HDHMR)', prefix: '18' },
-    { thickness: 9, name: '9mm Drawer Bottom Board', prefix: '09' },
-    { thickness: 6, name: '6mm Backing Ply Panel', prefix: '06' },
-  ];
+  // Physical sheets are single-material: a board pre-laminated in one
+  // color can't also yield a different color's shutter, and a factory
+  // can't buy a sheet that's simultaneously two different core plies. So
+  // the real nesting compatibility key is thickness AND material (which
+  // now folds in the laminate color - see getFinishLabel), not thickness
+  // alone - grouping by thickness only would have let a Walnut shutter and
+  // an Ivory shutter get cut from the same "sheet". Groups are discovered
+  // from whatever materials the project actually uses, not a fixed list.
+  const THICKNESS_PREFIX: Record<number, string> = { 18: '18', 9: '09', 6: '06' };
+  const materialsByThickness = new Map<number, string[]>();
+  updatedCutList.forEach((p) => {
+    const seen = materialsByThickness.get(p.thicknessMm) || [];
+    if (!seen.includes(p.material)) seen.push(p.material);
+    materialsByThickness.set(p.thicknessMm, seen);
+  });
 
-  for (const group of thicknessGroups) {
-    const groupParts = updatedCutList.filter((p) => p.thicknessMm === group.thickness);
+  const groups: { thickness: number; material: string; name: string; prefix: string }[] = [];
+  materialsByThickness.forEach((materials, thickness) => {
+    const thicknessPrefix = THICKNESS_PREFIX[thickness] || String(thickness);
+    materials.forEach((material, idx) => {
+      // Only append a letter suffix once a thickness actually has more than
+      // one material - the common single-material case keeps the plain
+      // "18"/"09"/"06" sheet IDs instead of always saying "18A".
+      const prefix = materials.length > 1 ? `${thicknessPrefix}${String.fromCharCode(65 + idx)}` : thicknessPrefix;
+      groups.push({ thickness, material, name: material, prefix });
+    });
+  });
+
+  for (const group of groups) {
+    const groupParts = updatedCutList.filter((p) => p.thicknessMm === group.thickness && p.material === group.material);
     if (groupParts.length === 0) continue;
 
     interface NestingUnit {
@@ -821,8 +867,22 @@ export function generateSheetNestingLayouts(cutList: CutListPart[]): {
       }
     });
 
-    // Priority sorting: Large panels first (decreasing area & primary length), narrow skirtings/cleats fill strips later
+    // Priority sorting: one room's own pieces first (largest area first
+    // within it), then the next room's - not one global size-only sort
+    // across every room sharing this material. The bin packer below always
+    // searches every sheet already open, so once a room's pieces are
+    // placed the next room's still gets to reuse whatever space is left on
+    // those same sheets; it just never gets first pick of a fresh sheet
+    // ahead of the room that's already using it. That's what keeps a
+    // sheet's rooms to "this room, then whichever compatible room needed
+    // the leftover" instead of an arbitrary size-driven shuffle.
+    const roomOrder = new Map<string, number>();
+    groupParts.forEach((p) => {
+      if (!roomOrder.has(p.room)) roomOrder.set(p.room, roomOrder.size);
+    });
     units.sort((a, b) => {
+      const roomDiff = (roomOrder.get(a.room) ?? 0) - (roomOrder.get(b.room) ?? 0);
+      if (roomDiff !== 0) return roomDiff;
       const areaA = a.dim1 * a.dim2;
       const areaB = b.dim1 * b.dim2;
       return areaB - areaA || b.dim1 - a.dim1;
