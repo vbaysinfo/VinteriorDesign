@@ -163,7 +163,12 @@ export async function parseExcelFile(file: File): Promise<ModularItem[]> {
             projectType: projectTypeOverride,
             shutterCount: wFt > 6 ? 4 : wFt > 3 ? 2 : 1,
             drawerCount: category === 'tandem_box' ? 3 : category === 'sitting_box' ? 2 : 0,
-            shelfCount: category === 'expo' || category === 'shelves' ? 4 : 2,
+            // Not read from any Excel column - there isn't one for this.
+            // An Expo/Shelves unit defaults to 0 (no assumed shelves)
+            // rather than guessing a count the uploaded sheet never
+            // specified; set a real value per item in the Item Inspector
+            // after upload if it actually needs shelves.
+            shelfCount: category === 'expo' || category === 'shelves' ? 0 : 2,
             finishType: desc.toLowerCase().includes('glass') || desc.toLowerCase().includes('profile') ? 'Profile Glass' : 'Laminate',
             coreMaterial: currentRoom.toLowerCase().includes('kitchen') ? 'BWP Marine Ply' : 'BWR Commercial Ply',
             quantity,

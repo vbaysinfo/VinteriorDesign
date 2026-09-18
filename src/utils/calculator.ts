@@ -416,8 +416,12 @@ export function generateCutListForItem(item: ModularItem, globalProjectType: Pro
   // 4. Internal Shelves - `?? ` (not `||`) so an explicit 0 (shelves
   // removed) is respected instead of silently falling back to the default
   // count, which used to keep drawing a phantom Internal Shelf part even
-  // after the user zeroed the shelf count out.
-  const shelfCount = item.shelfCount ?? (item.category === 'shelves' || item.category === 'expo' ? 4 : 2);
+  // after the user zeroed the shelf count out. This fallback only matters
+  // if shelfCount is ever missing entirely (every real construction site -
+  // Excel upload, sample dataset, new-row default - already sets it): an
+  // Expo/Shelves unit defaults to 0, not a guessed count, since nothing
+  // upstream actually specified a shelf count for it.
+  const shelfCount = item.shelfCount ?? (item.category === 'shelves' || item.category === 'expo' ? 0 : 2);
   if (shelfCount > 0) {
     const shelfWidth = Math.max(100, w - 36);
     const shelfDepth = d > 0 ? d - 30 : 350;
