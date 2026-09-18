@@ -828,190 +828,198 @@ export function generateSheetNestingLayouts(cutList: CutListPart[]): {
       return areaB - areaA || b.dim1 - a.dim1;
     });
 
-    let sheetNumber = 1;
-    let currentSheetParts: SheetLayout['parts'] = [];
-    let currentSheetOffcuts: SheetLayout['offcuts'] = [];
-    let primaryRipCuts: number[] = [];
-    let currentX = 0; // Along SHEET_LENGTH_MM (2440)
-    let currentY = 0; // Along SHEET_WIDTH_MM (1220)
-    let currentShelfHeight = 0; // Height of current strip along 1220
-    let usedArea = 0;
+    // Free-rectangle guillotine bin packing: every piece is placed into the
+    // best-fitting (least-leftover-area) empty rectangle across ALL sheets
+    // opened so far for this thickness - not just the current one - before a
+    // new sheet is opened at all. That's what makes an already-nested
+    // sheet's unused corner get filled with a later, smaller piece instead
+    // of sitting empty while a fresh sheet is started for it.
+    interface FreeRect {
+      x: number;
+      y: number;
+      w: number;
+      h: number;
+    }
+    interface WorkingSheet {
+      sheetIndex: number;
+      freeRects: FreeRect[];
+      parts: SheetLayout['parts'];
+      usedArea: number; // sq.m
+      ripCutYs: Set<number>;
+    }
+
+    const MIN_REUSABLE_MM = 60; // below this on either side it's kerf dust, not a reusable offcut
+    const sheets: WorkingSheet[] = [];
     const sheetPartAssignments = new Map<number, string>();
+    const sheetIdFor = (sheetIndex: number) => `Sheet ${group.prefix}-${String(sheetIndex).padStart(2, '0')}`;
 
-    const finalizeSheet = () => {
-      if (currentSheetParts.length === 0) return;
-      const sheetId = `Sheet ${group.prefix}-${String(sheetNumber).padStart(2, '0')}`;
-      const totalSheetArea = (SHEET_LENGTH_MM * SHEET_WIDTH_MM) / 1_000_000;
+    // Splits the rectangle a piece was just placed into around that piece,
+    // into up to two new free rectangles - the standard guillotine choice
+    // between "full-width bottom + right sliver" and "full-height right +
+    // bottom sliver", picked so the larger of the two leftovers is as big as
+    // possible (maximizes the chance a later piece can reuse it in one go).
+    const splitFreeRect = (rect: FreeRect, usedW: number, usedH: number): FreeRect[] => {
+      const rightW = rect.w - usedW - SAW_KERF_MM;
+      const bottomH = rect.h - usedH - SAW_KERF_MM;
+      const optA: FreeRect[] = [
+        { x: rect.x, y: rect.y + usedH + SAW_KERF_MM, w: rect.w, h: bottomH },
+        { x: rect.x + usedW + SAW_KERF_MM, y: rect.y, w: rightW, h: usedH },
+      ];
+      const optB: FreeRect[] = [
+        { x: rect.x + usedW + SAW_KERF_MM, y: rect.y, w: rightW, h: rect.h },
+        { x: rect.x, y: rect.y + usedH + SAW_KERF_MM, w: usedW, h: bottomH },
+      ];
+      const largest = (opts: FreeRect[]) => Math.max(...opts.map((r) => Math.max(0, r.w) * Math.max(0, r.h)));
+      const chosen = largest(optA) >= largest(optB) ? optA : optB;
+      return chosen.filter((r) => r.w >= MIN_REUSABLE_MM && r.h >= MIN_REUSABLE_MM);
+    };
 
-      // Identify remaining offcut rectangles on this sheet
-      // 1. Right end of last active shelf
-      if (currentX + 150 < SHEET_LENGTH_MM && currentShelfHeight > 80) {
-        const offW = SHEET_LENGTH_MM - currentX;
-        const offH = currentShelfHeight;
-        const offArea = Number(((offW * offH) / 1_000_000).toFixed(3));
-        const isUsable = offW >= 500 && offH >= 90;
-        currentSheetOffcuts.push({
-          id: `${sheetId}-offcut-strip`,
-          x: currentX,
-          y: currentY,
-          w: offW,
-          h: offH,
-          areaSqMt: offArea,
-          isUsable,
-          recommendedUse: isUsable
-            ? offH <= 120
-              ? '100mm Skirting Runner / Plinth Support'
-              : 'Internal Shelf / Drawer Side'
-            : 'Saw Kerf & Trimmer Scrap',
+    interface Placement {
+      sheet: WorkingSheet;
+      rectIdx: number;
+      w: number;
+      h: number;
+      rotated: boolean;
+    }
+
+    // Best-area-fit: search every free rectangle on every open sheet and
+    // take whichever leaves the smallest leftover area, trying the rotated
+    // orientation too when the piece is allowed to rotate.
+    const findBestPlacement = (dim1: number, dim2: number, canRotate: boolean): Placement | null => {
+      let best: Placement | null = null;
+      let bestLeftover = Infinity;
+      for (const sheet of sheets) {
+        sheet.freeRects.forEach((rect, rectIdx) => {
+          const options: { w: number; h: number; rotated: boolean }[] = [{ w: dim1, h: dim2, rotated: false }];
+          if (canRotate) options.push({ w: dim2, h: dim1, rotated: true });
+          options.forEach((opt) => {
+            if (opt.w <= rect.w && opt.h <= rect.h) {
+              const leftover = rect.w * rect.h - opt.w * opt.h;
+              if (leftover < bestLeftover) {
+                bestLeftover = leftover;
+                best = { sheet, rectIdx, w: opt.w, h: opt.h, rotated: opt.rotated };
+              }
+            }
+          });
         });
       }
+      return best;
+    };
 
-      // 2. Bottom remaining un-cut slab across sheet width (1220mm)
-      const bottomRemainingY = currentY + currentShelfHeight + SAW_KERF_MM;
-      if (bottomRemainingY + 80 < SHEET_WIDTH_MM) {
-        const offW = SHEET_LENGTH_MM;
-        const offH = SHEET_WIDTH_MM - bottomRemainingY;
-        const offArea = Number(((offW * offH) / 1_000_000).toFixed(3));
-        const isUsable = offH >= 90;
-        currentSheetOffcuts.push({
-          id: `${sheetId}-offcut-bottom`,
-          x: 0,
-          y: bottomRemainingY,
-          w: offW,
-          h: offH,
-          areaSqMt: offArea,
-          isUsable,
-          recommendedUse: isUsable
-            ? offH <= 120
-              ? '100mm Skirting Plinth Runners (Full 2.4m Length)'
-              : 'Standard Shelves / Infill Cleats'
-            : 'Saw Dust & Trimmer Scrap',
-        });
-        primaryRipCuts.push(bottomRemainingY);
-      }
-
-      const usableOffcutArea = currentSheetOffcuts
-        .filter((o) => o.isUsable)
-        .reduce((sum, o) => sum + o.areaSqMt, 0);
-
-      const scrapArea = Math.max(0, totalSheetArea - usedArea - usableOffcutArea);
-      const utilPercent = Math.min(98, Math.max(35, Math.round((usedArea / totalSheetArea) * 100)));
-      const recPercent = Math.min(99, Math.round(((usedArea + usableOffcutArea) / totalSheetArea) * 100));
-
-      layouts.push({
-        sheetId,
-        sheetIndex: sheetNumber,
-        thicknessMm: group.thickness,
-        materialName: group.name,
-        sheetWidthMm: SHEET_LENGTH_MM,
-        sheetHeightMm: SHEET_WIDTH_MM,
-        usedAreaSqMt: Number(usedArea.toFixed(2)),
-        offcutAreaSqMt: Number(usableOffcutArea.toFixed(2)),
-        scrapAreaSqMt: Number(scrapArea.toFixed(2)),
-        utilizationPercent: utilPercent,
-        recoveryPercent: recPercent,
-        parts: currentSheetParts,
-        offcuts: currentSheetOffcuts,
-        primaryRipCuts: [...new Set(primaryRipCuts)].sort((a, b) => a - b),
-      });
-
-      sheetNumber++;
-      currentSheetParts = [];
-      currentSheetOffcuts = [];
-      primaryRipCuts = [];
-      currentX = 0;
-      currentY = 0;
-      currentShelfHeight = 0;
-      usedArea = 0;
+    const openNewSheet = (): WorkingSheet => {
+      const sheet: WorkingSheet = {
+        sheetIndex: sheets.length + 1,
+        freeRects: [{ x: 0, y: 0, w: SHEET_LENGTH_MM, h: SHEET_WIDTH_MM }],
+        parts: [],
+        usedArea: 0,
+        ripCutYs: new Set(),
+      };
+      sheets.push(sheet);
+      return sheet;
     };
 
     for (const unit of units) {
-      // Determine best orientation (length along X, width along Y vs rotated)
-      let partW = unit.dim1; // along sheet length (2440)
-      let partH = unit.dim2; // along sheet width (1220)
-      let isRotated = false;
-
-      // If unit can rotate, check if rotated orientation fits better or uses less strip height
-      if (unit.canRotate) {
-        // Try fitting within remaining current shelf
-        const fitsNormal = currentX + unit.dim1 + SAW_KERF_MM <= SHEET_LENGTH_MM && unit.dim2 <= (currentShelfHeight || SHEET_WIDTH_MM);
-        const fitsRotated = currentX + unit.dim2 + SAW_KERF_MM <= SHEET_LENGTH_MM && unit.dim1 <= (currentShelfHeight || SHEET_WIDTH_MM);
-
-        if (!fitsNormal && fitsRotated) {
-          partW = unit.dim2;
-          partH = unit.dim1;
-          isRotated = true;
-        } else if (currentShelfHeight === 0) {
-          // Starting a new shelf: pick orientation that consumes less vertical height along 1220
-          const minH = Math.min(unit.dim1, unit.dim2);
-          const maxW = Math.max(unit.dim1, unit.dim2);
-          if (maxW <= SHEET_LENGTH_MM && minH <= SHEET_WIDTH_MM) {
-            partW = maxW;
-            partH = minH;
-            isRotated = partW !== unit.dim1;
-          }
-        }
-      }
-
-      // If part exceeds sheet length even alone, clamp or rotate
-      if (partW > SHEET_LENGTH_MM) {
-        if (unit.canRotate && partH <= SHEET_LENGTH_MM && partW <= SHEET_WIDTH_MM) {
-          const temp = partW;
-          partW = partH;
-          partH = temp;
-          isRotated = !isRotated;
+      // Clamp/rotate a piece bigger than the sheet even alone, same
+      // fallback the previous packer used, so it still gets a placement.
+      let dim1 = unit.dim1;
+      let dim2 = unit.dim2;
+      if (dim1 > SHEET_LENGTH_MM) {
+        if (unit.canRotate && dim2 <= SHEET_LENGTH_MM && dim1 <= SHEET_WIDTH_MM) {
+          [dim1, dim2] = [dim2, dim1];
         } else {
-          partW = Math.min(partW, SHEET_LENGTH_MM);
+          dim1 = Math.min(dim1, SHEET_LENGTH_MM);
         }
       }
+      dim2 = Math.min(dim2, SHEET_WIDTH_MM);
 
-      // Check if part fits on current horizontal shelf
-      if (currentX + partW + SAW_KERF_MM > SHEET_LENGTH_MM) {
-        // Move to next shelf vertically
-        if (currentShelfHeight > 0) {
-          primaryRipCuts.push(currentY + currentShelfHeight);
-        }
-        currentX = 0;
-        currentY += currentShelfHeight + SAW_KERF_MM;
-        currentShelfHeight = 0;
+      let placement = findBestPlacement(dim1, dim2, unit.canRotate);
+      if (!placement) {
+        openNewSheet();
+        placement = findBestPlacement(dim1, dim2, unit.canRotate);
+        if (!placement) continue; // unreachable: a fresh sheet always fits a clamped piece
       }
 
-      // Check if part fits vertically within the 1220mm sheet width
-      if (currentY + partH + SAW_KERF_MM > SHEET_WIDTH_MM) {
-        // Sheet full -> open new sheet
-        finalizeSheet();
-      }
+      const { sheet, rectIdx, w, h, rotated } = placement;
+      const rect = sheet.freeRects[rectIdx];
+      sheet.freeRects.splice(rectIdx, 1);
+      splitFreeRect(rect, w, h).forEach((r) => {
+        sheet.freeRects.push(r);
+        if (r.x === 0 && r.w === SHEET_LENGTH_MM) sheet.ripCutYs.add(r.y);
+      });
 
-      // Place part on current sheet
-      const currentSheetId = `Sheet ${group.prefix}-${String(sheetNumber).padStart(2, '0')}`;
-      currentSheetParts.push({
+      sheet.parts.push({
         partId: unit.partId,
         partName: unit.partName,
         itemName: unit.itemName,
         room: unit.room,
-        x: currentX,
-        y: currentY,
-        w: partW,
-        h: partH,
-        rotated: isRotated,
+        x: rect.x,
+        y: rect.y,
+        w,
+        h,
+        rotated,
         color: unit.color,
         grain: unit.grain,
       });
+      sheet.usedArea += (w * h) / 1_000_000;
 
-      usedArea += (partW * partH) / 1_000_000;
-      currentX += partW + SAW_KERF_MM;
-      currentShelfHeight = Math.max(currentShelfHeight, partH);
-
-      // Record sheet assignment for master cutList part
       if (!sheetPartAssignments.has(unit.partIndex)) {
-        sheetPartAssignments.set(unit.partIndex, currentSheetId);
+        sheetPartAssignments.set(unit.partIndex, sheetIdFor(sheet.sheetIndex));
       }
     }
 
-    // Finalize last sheet of this thickness
-    finalizeSheet();
+    // Turn each working sheet into a SheetLayout. Whatever free rectangles
+    // are still left once every piece in this project's own cut list has
+    // had a chance to reuse them are the real, final offcut inventory -
+    // large enough ones are flagged usable (skirting/shelf stock) so they
+    // show up for reuse rather than being written off as scrap.
+    const totalSheetArea = (SHEET_LENGTH_MM * SHEET_WIDTH_MM) / 1_000_000;
+    sheets.forEach((sheet) => {
+      const sheetId = sheetIdFor(sheet.sheetIndex);
+      const offcuts: SheetLayout['offcuts'] = sheet.freeRects
+        .filter((r) => r.w * r.h > 0)
+        .map((r, i) => {
+          const areaSqMt = Number(((r.w * r.h) / 1_000_000).toFixed(3));
+          const isUsable = (r.w >= 500 && r.h >= 90) || (r.h >= 500 && r.w >= 90);
+          const shortSide = Math.min(r.w, r.h);
+          return {
+            id: `${sheetId}-offcut-${i}`,
+            x: r.x,
+            y: r.y,
+            w: r.w,
+            h: r.h,
+            areaSqMt,
+            isUsable,
+            recommendedUse: isUsable
+              ? shortSide <= 120
+                ? '100mm Skirting Runner / Plinth Support'
+                : 'Internal Shelf / Drawer Side'
+              : 'Saw Kerf & Trimmer Scrap',
+          };
+        });
 
-    // Assign sheetNumber to original parts
+      const usableOffcutArea = offcuts.filter((o) => o.isUsable).reduce((sum, o) => sum + o.areaSqMt, 0);
+      const scrapArea = Math.max(0, totalSheetArea - sheet.usedArea - usableOffcutArea);
+      const utilizationPercent = Math.round((sheet.usedArea / totalSheetArea) * 100);
+      const recoveryPercent = Math.round(((sheet.usedArea + usableOffcutArea) / totalSheetArea) * 100);
+
+      layouts.push({
+        sheetId,
+        sheetIndex: sheet.sheetIndex,
+        thicknessMm: group.thickness,
+        materialName: group.name,
+        sheetWidthMm: SHEET_LENGTH_MM,
+        sheetHeightMm: SHEET_WIDTH_MM,
+        usedAreaSqMt: Number(sheet.usedArea.toFixed(2)),
+        offcutAreaSqMt: Number(usableOffcutArea.toFixed(2)),
+        scrapAreaSqMt: Number(scrapArea.toFixed(2)),
+        utilizationPercent,
+        recoveryPercent,
+        parts: sheet.parts,
+        offcuts,
+        primaryRipCuts: Array.from(sheet.ripCutYs).sort((a, b) => a - b),
+      });
+    });
+
     sheetPartAssignments.forEach((sId, pIdx) => {
       if (updatedCutList[pIdx]) {
         updatedCutList[pIdx].sheetNumber = sId;
