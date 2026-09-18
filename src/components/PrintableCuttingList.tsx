@@ -116,8 +116,21 @@ export const PrintableCuttingList: React.FC<PrintableCuttingListProps> = ({ cutL
                       strokeWidth={1.5}
                       strokeDasharray={offcut.isUsable ? '10 6' : '4 8'}
                     />
-                    {offcut.isUsable && offcut.w >= 260 && offcut.h >= 70 && (
-                      <text x={offcut.x + offcut.w / 2} y={offcut.y + offcut.h / 2} textAnchor="middle" dominantBaseline="central" fontSize="20" fontWeight="bold" fill="#475569">
+                    {offcut.isUsable && Math.max(offcut.w, offcut.h) >= 260 && Math.min(offcut.w, offcut.h) >= 70 && (
+                      <text
+                        x={offcut.x + offcut.w / 2}
+                        y={offcut.y + offcut.h / 2}
+                        textAnchor="middle"
+                        dominantBaseline="central"
+                        fontSize="20"
+                        fontWeight="bold"
+                        fill="#475569"
+                        transform={
+                          offcut.h > offcut.w
+                            ? `rotate(-90, ${offcut.x + offcut.w / 2}, ${offcut.y + offcut.h / 2})`
+                            : undefined
+                        }
+                      >
                         REUSABLE: L:{offcut.w}×W:{offcut.h}mm ({offcut.recommendedUse})
                       </text>
                     )}
@@ -128,17 +141,36 @@ export const PrintableCuttingList: React.FC<PrintableCuttingListProps> = ({ cutL
                   // Slightly wider than the interactive view's threshold -
                   // the added "L:"/"W:" labels need a touch more room at
                   // this tier's larger 30px dimension font before they'd
-                  // start crowding a narrower piece's own edges.
-                  const canFitFull = p.w >= 340 && p.h >= 160;
-                  const canFitTwoLines = p.h >= 70 && p.w >= 90;
-                  const canFitOneLine = p.h >= 34 && p.w >= 60;
+                  // start crowding a narrower piece's own edges. Which axis
+                  // (w or h) supplies the "run" room vs. the "stack" room
+                  // flips with the piece's own shape, so gate on long/thin
+                  // rather than raw w/h - see isVertical below.
+                  const longDim = Math.max(p.w, p.h);
+                  const thinDim = Math.min(p.w, p.h);
+                  const isVertical = p.h > p.w;
+                  const canFitFull = longDim >= 340 && thinDim >= 160;
+                  const canFitTwoLines = thinDim >= 70 && longDim >= 90;
+                  const canFitOneLine = thinDim >= 34 && longDim >= 60;
                   const shortCategory = p.materialCategory === 'Color/Laminate' ? 'Color' : 'Fabric';
+
+                  // A tall-narrow piece (e.g. a 100x458mm skirting batten
+                  // standing on end) rotates its text -90deg about each
+                  // line's own anchor point so it reads along the piece's
+                  // long axis instead of overflowing its narrow width -
+                  // same technique the sheet's own axis rulers use.
+                  const cx = p.x + p.w / 2;
+                  const cy = p.y + p.h / 2;
+                  const textPos = (offset: number) =>
+                    isVertical
+                      ? { x: cx + offset, y: cy, transform: `rotate(-90, ${cx + offset}, ${cy})` }
+                      : { x: cx, y: cy + offset, transform: undefined };
+
                   return (
                     <g key={p.partId}>
                       <rect x={p.x} y={p.y} width={p.w} height={p.h} fill="#ffffff" stroke="#0f172a" strokeWidth={2} />
                       {canFitFull ? (
                         <>
-                          <text x={p.x + p.w / 2} y={p.y + p.h / 2 - 38} textAnchor="middle" fontSize="17" fill="#334155">
+                          <text {...textPos(-38)} textAnchor="middle" fontSize="17" fill="#334155">
                             {p.room} • {p.itemName.length > 24 ? `${p.itemName.slice(0, 23)}…` : p.itemName}
                           </text>
                           {/* Part name + whether this piece is the
@@ -147,7 +179,7 @@ export const PrintableCuttingList: React.FC<PrintableCuttingListProps> = ({ cutL
                               sheet, so calling it out here confirms at a
                               glance which board this piece has to come
                               from. */}
-                          <text x={p.x + p.w / 2} y={p.y + p.h / 2 - 8} textAnchor="middle" fontSize="24" fontWeight="bold" fill="#0f172a">
+                          <text {...textPos(-8)} textAnchor="middle" fontSize="24" fontWeight="bold" fill="#0f172a">
                             {p.partName}
                             <tspan fontSize="16" fontWeight="600" fill="#7c3aed">
                               {' '}· {p.materialCategory}
@@ -157,25 +189,25 @@ export const PrintableCuttingList: React.FC<PrintableCuttingListProps> = ({ cutL
                               above the label text above it per the factory's
                               request to make this the most legible line on
                               the printed sheet. */}
-                          <text x={p.x + p.w / 2} y={p.y + p.h / 2 + 30} textAnchor="middle" fontSize="30" fontWeight="bold" fontFamily="monospace" fill="#0f172a">
+                          <text {...textPos(30)} textAnchor="middle" fontSize="30" fontWeight="bold" fontFamily="monospace" fill="#0f172a">
                             L:{p.w} × W:{p.h} mm{p.rotated ? ' ↻' : ''}
                           </text>
                         </>
                       ) : canFitTwoLines ? (
                         <>
-                          <text x={p.x + p.w / 2} y={p.y + p.h / 2 - 15} textAnchor="middle" fontSize="14" fontWeight="bold" fill="#0f172a">
+                          <text {...textPos(-15)} textAnchor="middle" fontSize="14" fontWeight="bold" fill="#0f172a">
                             {p.partName}
                             <tspan fontSize="11" fontWeight="600" fill="#7c3aed">
                               {' '}· {shortCategory}
                             </tspan>
                           </text>
-                          <text x={p.x + p.w / 2} y={p.y + p.h / 2 + 15} textAnchor="middle" fontSize="16" fontWeight="bold" fontFamily="monospace" fill="#0f172a">
+                          <text {...textPos(15)} textAnchor="middle" fontSize="16" fontWeight="bold" fontFamily="monospace" fill="#0f172a">
                             {p.w}L × {p.h}W mm
                           </text>
                         </>
                       ) : (
                         canFitOneLine && (
-                          <text x={p.x + p.w / 2} y={p.y + p.h / 2} textAnchor="middle" dominantBaseline="central" fontSize="14" fontWeight="bold" fontFamily="monospace" fill="#0f172a">
+                          <text {...textPos(0)} textAnchor="middle" dominantBaseline="central" fontSize="14" fontWeight="bold" fontFamily="monospace" fill="#0f172a">
                             {p.w}L×{p.h}W
                           </text>
                         )

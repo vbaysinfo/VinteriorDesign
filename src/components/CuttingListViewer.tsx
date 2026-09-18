@@ -865,7 +865,7 @@ export const CuttingListViewer: React.FC<CuttingListViewerProps> = ({
                           strokeDasharray="8 5"
                           rx="2"
                         />
-                        {offcut.w >= 280 && offcut.h >= 60 && (
+                        {Math.max(offcut.w, offcut.h) >= 280 && Math.min(offcut.w, offcut.h) >= 60 && (
                           <text
                             x={offcut.x + offcut.w / 2}
                             y={offcut.y + offcut.h / 2}
@@ -875,6 +875,11 @@ export const CuttingListViewer: React.FC<CuttingListViewerProps> = ({
                             fontSize="28"
                             fontWeight="bold"
                             fontFamily="monospace"
+                            transform={
+                              offcut.h > offcut.w
+                                ? `rotate(-90, ${offcut.x + offcut.w / 2}, ${offcut.y + offcut.h / 2})`
+                                : undefined
+                            }
                           >
                             REUSABLE OFFCUT: L:{offcut.w} × W:{offcut.h} mm ({offcut.recommendedUse})
                           </text>
@@ -910,18 +915,37 @@ export const CuttingListViewer: React.FC<CuttingListViewerProps> = ({
 
                   {/* 3. Nested Cut Parts */}
                   {activeVisualSheet.parts.map((p) => {
-                    const isSmall = p.w < 280 || p.h < 180;
-                    // Skirting battens are always only 100mm tall and small
-                    // shelves/drawer sides can be nearly as short, so they
-                    // hit isSmall on almost every sheet - too tight for the
-                    // full 3-line label, but the exact size is exactly what
-                    // a factory worker needs off a piece that thin. Never
-                    // drop to a bare, size-less part name; only drop the
-                    // part name once there's truly no room for a 2nd line.
-                    const canFitTwoLines = p.h >= 70 && p.w >= 90;
-                    const canFitOneLine = p.h >= 34 && p.w >= 60;
+                    // Labels always need ~280 units to run the full text and
+                    // ~180 to stack 3 lines - but which physical axis (w or
+                    // h) plays which role flips with the piece's own shape:
+                    // a piece taller than it is wide (e.g. a 100x458mm
+                    // skirting batten standing on end) needs its text
+                    // rotated to run along the tall axis instead of
+                    // overflowing sideways past a 100mm-wide box.
+                    const longDim = Math.max(p.w, p.h);
+                    const thinDim = Math.min(p.w, p.h);
+                    const isVertical = p.h > p.w;
+                    const isSmall = longDim < 280 || thinDim < 180;
+                    const canFitTwoLines = thinDim >= 70 && longDim >= 90;
+                    const canFitOneLine = thinDim >= 34 && longDim >= 60;
                     const isSelected = selectedPartDetail?.partId === p.partId;
                     const isSkirting = p.partName === 'Pelmet/Skirting';
+
+                    // Every text line for this piece is centered on the same
+                    // point in the un-rotated (horizontal-piece) layout,
+                    // stacked by offsetting perpendicular to the reading
+                    // direction. For a vertical (tall-narrow) piece that
+                    // perpendicular/stacking axis is x instead of y, and the
+                    // text itself is rotated -90 deg about its own anchor so
+                    // it reads along the piece's long (height) axis instead
+                    // of overflowing its short width - same technique the
+                    // sheet's own "1220mm (Width)" axis label already uses.
+                    const cx = p.x + p.w / 2;
+                    const cy = p.y + p.h / 2;
+                    const textPos = (offset: number) =>
+                      isVertical
+                        ? { x: cx + offset, y: cy, transform: `rotate(-90, ${cx + offset}, ${cy})` }
+                        : { x: cx, y: cy + offset, transform: undefined };
 
                     return (
                       <g
@@ -964,8 +988,7 @@ export const CuttingListViewer: React.FC<CuttingListViewerProps> = ({
                             clicking the piece (below). */}
                         {!isSmall && (
                           <text
-                            x={p.x + p.w / 2}
-                            y={p.y + p.h / 2 - 38}
+                            {...textPos(-38)}
                             textAnchor="middle"
                             dominantBaseline="central"
                             fill="#fde68a"
@@ -984,8 +1007,7 @@ export const CuttingListViewer: React.FC<CuttingListViewerProps> = ({
                             size alone instead (see canFitOneLine below). */}
                         {(!isSmall || canFitTwoLines) && (
                           <text
-                            x={p.x + p.w / 2}
-                            y={p.y + p.h / 2 - (isSmall ? 14 : 4)}
+                            {...textPos(isSmall ? -14 : -4)}
                             textAnchor="middle"
                             dominantBaseline="central"
                             fill="#ffffff"
@@ -1014,8 +1036,7 @@ export const CuttingListViewer: React.FC<CuttingListViewerProps> = ({
                             narrow shelf still always shows its size. */}
                         {!isSmall && (
                           <text
-                            x={p.x + p.w / 2}
-                            y={p.y + p.h / 2 + 34}
+                            {...textPos(34)}
                             textAnchor="middle"
                             dominantBaseline="central"
                             fill="#e2e8f0"
@@ -1029,8 +1050,7 @@ export const CuttingListViewer: React.FC<CuttingListViewerProps> = ({
                         )}
                         {isSmall && canFitOneLine && (
                           <text
-                            x={p.x + p.w / 2}
-                            y={p.y + p.h / 2 + (canFitTwoLines ? 14 : 0)}
+                            {...textPos(canFitTwoLines ? 14 : 0)}
                             textAnchor="middle"
                             dominantBaseline="central"
                             fill="#e2e8f0"
