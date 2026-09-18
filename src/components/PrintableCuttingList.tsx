@@ -6,6 +6,12 @@ interface PrintableCuttingListProps {
   cutList: CutListPart[];
   projectName: string;
   active: boolean;
+  // 'ALL' prints every sheet, grouped under whichever room contributes most
+  // area to each one (see below). A specific room instead prints every
+  // sheet that room has ANY piece on - the same set the sidebar's "N of M
+  // sheets used by <room>" already counts - under one flat room header,
+  // since a per-room print run isn't trying to sort sheets by primary room.
+  roomFilter: string;
 }
 
 // Black & white, room-grouped print of every sheet the factory needs to
@@ -19,9 +25,12 @@ interface PrintableCuttingListProps {
 // pattern as PrintableCadLayout - white background regardless of the
 // interactive canvas's dark theme, and no fill colors at all (a factory
 // floor printer is almost always black & white).
-export const PrintableCuttingList: React.FC<PrintableCuttingListProps> = ({ cutList, projectName, active }) => {
+export const PrintableCuttingList: React.FC<PrintableCuttingListProps> = ({ cutList, projectName, active, roomFilter }) => {
   const { layouts } = useMemo(() => generateSheetNestingLayouts(cutList), [cutList]);
+  const isSingleRoomPrint = roomFilter !== 'ALL';
 
+  // Whole-project print: group every sheet under whichever room contributes
+  // the most area to it, so paging through the printout reads room by room.
   const { roomOrder, sheetsByRoom } = useMemo(() => {
     const order: string[] = [];
     const byRoom = new Map<string, typeof layouts>();
@@ -42,13 +51,21 @@ export const PrintableCuttingList: React.FC<PrintableCuttingListProps> = ({ cutL
     return { roomOrder: order, sheetsByRoom: byRoom };
   }, [layouts]);
 
-  const totalSheets = layouts.length;
+  // Single-room print: every sheet that room touches at all, not just the
+  // ones where it happens to be the dominant occupant - matches the
+  // sidebar's own "N of M sheets used by <room>" count.
+  const singleRoomSheets = useMemo(
+    () => (isSingleRoomPrint ? layouts.filter((sheet) => sheet.parts.some((p) => p.room === roomFilter)) : []),
+    [layouts, isSingleRoomPrint, roomFilter]
+  );
+
+  const sheetGroups = isSingleRoomPrint ? [{ room: roomFilter, sheets: singleRoomSheets }] : roomOrder.map((room) => ({ room, sheets: sheetsByRoom.get(room) || [] }));
+  const totalSheets = isSingleRoomPrint ? singleRoomSheets.length : layouts.length;
   let printedIndex = 0;
 
   return (
     <div className={active ? 'hidden print:block bg-white text-slate-900' : 'hidden'}>
-      {roomOrder.map((room) => {
-        const roomSheets = sheetsByRoom.get(room) || [];
+      {sheetGroups.map(({ room, sheets: roomSheets }) => {
         return roomSheets.map((sheet, sheetIdxInRoom) => {
           printedIndex++;
           const isVeryLastPage = printedIndex === totalSheets;
@@ -100,7 +117,7 @@ export const PrintableCuttingList: React.FC<PrintableCuttingListProps> = ({ cutL
                       strokeDasharray={offcut.isUsable ? '10 6' : '4 8'}
                     />
                     {offcut.isUsable && offcut.w >= 260 && offcut.h >= 70 && (
-                      <text x={offcut.x + offcut.w / 2} y={offcut.y + offcut.h / 2} textAnchor="middle" dominantBaseline="central" fontSize="18" fill="#475569">
+                      <text x={offcut.x + offcut.w / 2} y={offcut.y + offcut.h / 2} textAnchor="middle" dominantBaseline="central" fontSize="20" fontWeight="bold" fill="#475569">
                         REUSABLE: {offcut.w}×{offcut.h}mm ({offcut.recommendedUse})
                       </text>
                     )}
@@ -108,7 +125,7 @@ export const PrintableCuttingList: React.FC<PrintableCuttingListProps> = ({ cutL
                 ))}
 
                 {sheet.parts.map((p) => {
-                  const canFitFull = p.w >= 260 && p.h >= 160;
+                  const canFitFull = p.w >= 300 && p.h >= 160;
                   const canFitTwoLines = p.h >= 70 && p.w >= 90;
                   const canFitOneLine = p.h >= 34 && p.w >= 60;
                   return (
@@ -116,28 +133,32 @@ export const PrintableCuttingList: React.FC<PrintableCuttingListProps> = ({ cutL
                       <rect x={p.x} y={p.y} width={p.w} height={p.h} fill="#ffffff" stroke="#0f172a" strokeWidth={2} />
                       {canFitFull ? (
                         <>
-                          <text x={p.x + p.w / 2} y={p.y + p.h / 2 - 32} textAnchor="middle" fontSize="16" fill="#334155">
+                          <text x={p.x + p.w / 2} y={p.y + p.h / 2 - 38} textAnchor="middle" fontSize="17" fill="#334155">
                             {p.room} • {p.itemName.length > 24 ? `${p.itemName.slice(0, 23)}…` : p.itemName}
                           </text>
-                          <text x={p.x + p.w / 2} y={p.y + p.h / 2 - 4} textAnchor="middle" fontSize="20" fontWeight="bold" fill="#0f172a">
+                          <text x={p.x + p.w / 2} y={p.y + p.h / 2 - 8} textAnchor="middle" fontSize="24" fontWeight="bold" fill="#0f172a">
                             {p.partName}
                           </text>
-                          <text x={p.x + p.w / 2} y={p.y + p.h / 2 + 26} textAnchor="middle" fontSize="18" fontWeight="bold" fontFamily="monospace" fill="#0f172a">
-                            {p.w} × {p.h} mm {p.rotated ? '(rotated)' : ''}
+                          {/* Width x Height - the exact cut size, sized well
+                              above the label text above it per the factory's
+                              request to make this the most legible line on
+                              the printed sheet. */}
+                          <text x={p.x + p.w / 2} y={p.y + p.h / 2 + 30} textAnchor="middle" fontSize="30" fontWeight="bold" fontFamily="monospace" fill="#0f172a">
+                            {p.w} × {p.h} mm{p.rotated ? ' ↻' : ''}
                           </text>
                         </>
                       ) : canFitTwoLines ? (
                         <>
-                          <text x={p.x + p.w / 2} y={p.y + p.h / 2 - 10} textAnchor="middle" fontSize="13" fontWeight="bold" fill="#0f172a">
+                          <text x={p.x + p.w / 2} y={p.y + p.h / 2 - 15} textAnchor="middle" fontSize="16" fontWeight="bold" fill="#0f172a">
                             {p.partName}
                           </text>
-                          <text x={p.x + p.w / 2} y={p.y + p.h / 2 + 10} textAnchor="middle" fontSize="12" fontFamily="monospace" fill="#0f172a">
+                          <text x={p.x + p.w / 2} y={p.y + p.h / 2 + 15} textAnchor="middle" fontSize="19" fontWeight="bold" fontFamily="monospace" fill="#0f172a">
                             {p.w} × {p.h} mm
                           </text>
                         </>
                       ) : (
                         canFitOneLine && (
-                          <text x={p.x + p.w / 2} y={p.y + p.h / 2} textAnchor="middle" dominantBaseline="central" fontSize="11" fontFamily="monospace" fill="#0f172a">
+                          <text x={p.x + p.w / 2} y={p.y + p.h / 2} textAnchor="middle" dominantBaseline="central" fontSize="16" fontWeight="bold" fontFamily="monospace" fill="#0f172a">
                             {p.w} × {p.h} mm
                           </text>
                         )

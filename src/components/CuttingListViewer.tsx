@@ -33,7 +33,7 @@ interface CuttingListViewerProps {
   projectType: ProjectType;
   selectedRoom: string;
   onUpdatePart?: (partId: string, updates: Partial<CutListPart>) => void;
-  onPrintCuttingList?: () => void;
+  onPrintCuttingList?: (room?: string) => void;
 }
 
 export const CuttingListViewer: React.FC<CuttingListViewerProps> = ({
@@ -315,7 +315,7 @@ export const CuttingListViewer: React.FC<CuttingListViewerProps> = ({
         <div className="flex items-center gap-2">
           {onPrintCuttingList && (
             <button
-              onClick={onPrintCuttingList}
+              onClick={() => onPrintCuttingList()}
               className="px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition"
               title="Print every sheet, grouped by room, in black & white"
             >
@@ -741,6 +741,21 @@ export const CuttingListViewer: React.FC<CuttingListViewerProps> = ({
                     </span>
                   </div>
                 </div>
+
+                {onPrintCuttingList && (
+                  <button
+                    onClick={() => onPrintCuttingList(selectedRoom)}
+                    className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition"
+                    title={
+                      selectedRoom === 'ALL'
+                        ? 'Print every sheet, grouped by room'
+                        : `Print only the sheets used by ${selectedRoom}, in black & white`
+                    }
+                  >
+                    <Printer className="w-3.5 h-3.5" />
+                    <span>Print {selectedRoom === 'ALL' ? 'All Sheets' : `${selectedRoom} Sheets`}</span>
+                  </button>
+                )}
 
                 <div className="flex items-center gap-4 font-mono text-xs flex-wrap">
                   <div>

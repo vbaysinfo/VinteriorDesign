@@ -142,6 +142,7 @@ export default function App() {
   // DOM first (setState is async), so it fires from an effect keyed off
   // pendingPrint rather than right after setPrintTarget.
   const [printTarget, setPrintTarget] = useState<'cad' | 'cutlist'>('cad');
+  const [printRoomFilter, setPrintRoomFilter] = useState<string>('ALL');
   const [pendingPrint, setPendingPrint] = useState(false);
 
   useEffect(() => {
@@ -159,11 +160,14 @@ export default function App() {
     setPendingPrint(true);
   };
 
-  // Print every sheet the factory needs to cut (ignoring whatever the
-  // Active Room selector is currently set to - nesting shares sheets
-  // across rooms, so "print all sheets" has to mean the whole project),
-  // grouped by room, in black & white.
-  const handlePrintCuttingList = () => {
+  // Print the factory cutting list's sheets, in black & white. With no room
+  // (or 'ALL') this is every sheet the project needs, grouped by whichever
+  // room contributes most to each one; passing a specific room instead
+  // prints only the sheets that room actually touches - nesting shares
+  // sheets across rooms, so this is "every sheet with a piece for this
+  // room," the same set the sidebar's own per-room sheet count uses.
+  const handlePrintCuttingList = (room: string = 'ALL') => {
+    setPrintRoomFilter(room);
     setPrintTarget('cutlist');
     setPendingPrint(true);
   };
@@ -452,7 +456,12 @@ export default function App() {
         print:hidden, and this light-theme, room-by-room CAD layout is the
         only thing that appears in the printed/PDF output. */}
     <PrintableCadLayout items={items} projectName={projectInfo.projectName} projectType={projectType} active={printTarget === 'cad'} />
-    <PrintableCuttingList cutList={cutList} projectName={projectInfo.projectName} active={printTarget === 'cutlist'} />
+    <PrintableCuttingList
+      cutList={cutList}
+      projectName={projectInfo.projectName}
+      active={printTarget === 'cutlist'}
+      roomFilter={printRoomFilter}
+    />
     </>
   );
 }
