@@ -953,14 +953,15 @@ export const CuttingListViewer: React.FC<CuttingListViewerProps> = ({
                           className="opacity-0 group-hover:opacity-100 transition"
                         />
 
-                        {/* Source Item Name - which cabinet/unit (from the
-                            uploaded Excel sheet's description column, e.g.
-                            "Wardrobe Shutter", "Loft") this piece was cut
-                            for, labeled directly on the piece the way a
-                            nesting/optimizer tool like MaxCut tags each
-                            offcut with its job. Truncated with an ellipsis
-                            when it won't fit; the full name is still always
-                            available by clicking the piece (below). */}
+                        {/* Room + Source Item Name - which room and which
+                            cabinet/unit (from the uploaded Excel sheet's
+                            description column, e.g. "Wardrobe Shutter",
+                            "Loft") this piece was cut for, labeled directly
+                            on the piece the way a nesting/optimizer tool
+                            like MaxCut tags each offcut with its job.
+                            Truncated with an ellipsis when it won't fit;
+                            the full name is still always available by
+                            clicking the piece (below). */}
                         {!isSmall && (
                           <text
                             x={p.x + p.w / 2}
@@ -973,11 +974,12 @@ export const CuttingListViewer: React.FC<CuttingListViewerProps> = ({
                             fontFamily="sans-serif"
                             className="pointer-events-none drop-shadow-md"
                           >
-                            {p.itemName.length > 22 ? `${p.itemName.slice(0, 21)}…` : p.itemName}
+                            {p.room} • {p.itemName.length > 22 ? `${p.itemName.slice(0, 21)}…` : p.itemName}
                           </text>
                         )}
 
-                        {/* Part Name - only when there's room for it plus
+                        {/* Part Name + Fabric/Color-Laminate material
+                            category - only when there's room for it plus
                             the dimension line below; a thin strip shows the
                             size alone instead (see canFitOneLine below). */}
                         {(!isSmall || canFitTwoLines) && (
@@ -993,6 +995,11 @@ export const CuttingListViewer: React.FC<CuttingListViewerProps> = ({
                             className="pointer-events-none drop-shadow-md"
                           >
                             {p.partName}
+                            {!isSmall && (
+                              <tspan fill="#bae6fd" fontSize="20" fontWeight="700">
+                                {' '}· {p.materialCategory}
+                              </tspan>
+                            )}
                           </text>
                         )}
 
@@ -1056,6 +1063,20 @@ export const CuttingListViewer: React.FC<CuttingListViewerProps> = ({
                     </div>
                   </div>
                   <div className="flex items-center gap-4 font-mono">
+                    <div>
+                      <span className="text-slate-500">Room:</span>{' '}
+                      <strong className="text-slate-900">{selectedPartDetail.room}</strong>
+                    </div>
+                    <div>
+                      <span className="text-slate-500">Material:</span>{' '}
+                      <strong
+                        className={
+                          selectedPartDetail.materialCategory === 'Color/Laminate' ? 'text-fuchsia-700' : 'text-slate-700'
+                        }
+                      >
+                        {selectedPartDetail.materialCategory}
+                      </strong>
+                    </div>
                     <div>
                       <span className="text-slate-500">Dimensions:</span>{' '}
                       <strong>{selectedPartDetail.w} × {selectedPartDetail.h} mm</strong>

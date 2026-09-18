@@ -61,6 +61,12 @@ export interface CutListPart {
   thicknessMm: number;
   qty: number;
   material: string;
+  // Whether this panel carries the customer's selected decorative color
+  // (a visible face - shutter, drawer front, skirting kickplate, an open
+  // expo/shelves unit's own shelves) or the generic "Fabric" liner used by
+  // every hidden/structural part regardless of room or color. Drives both
+  // the sheet nester's compatibility grouping and the on-piece labeling.
+  materialCategory: 'Fabric' | 'Color/Laminate';
   sheetNumber?: string;
   edgeL1: boolean;
   edgeL2: boolean;
@@ -101,6 +107,7 @@ export interface SheetLayout {
     partName: string;
     itemName: string;
     room: string;
+    materialCategory: 'Fabric' | 'Color/Laminate';
     x: number;
     y: number;
     w: number;

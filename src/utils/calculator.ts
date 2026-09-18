@@ -204,6 +204,7 @@ export function generateCutListForItem(item: ModularItem, globalProjectType: Pro
         thicknessMm: 18,
         qty,
         material: `${getCoreMaterialLabel(item)} (${getFinishLabel(item)})`,
+        materialCategory: 'Color/Laminate',
         edgeL1: true,
         edgeL2: true,
         edgeW1: true,
@@ -235,6 +236,7 @@ export function generateCutListForItem(item: ModularItem, globalProjectType: Pro
       thicknessMm: 18,
       qty: dCount,
       material: `${getCoreMaterialLabel(item)} (${getFinishLabel(item)})`,
+      materialCategory: 'Color/Laminate',
       edgeL1: true,
       edgeL2: true,
       edgeW1: true,
@@ -258,6 +260,7 @@ export function generateCutListForItem(item: ModularItem, globalProjectType: Pro
       thicknessMm: 18,
       qty: dCount * 2,
       material: '18mm Prelam / BWP',
+      materialCategory: 'Fabric',
       edgeL1: true,
       edgeL2: false,
       edgeW1: true,
@@ -279,6 +282,7 @@ export function generateCutListForItem(item: ModularItem, globalProjectType: Pro
       thicknessMm: 9,
       qty: dCount,
       material: '9mm Plywood',
+      materialCategory: 'Fabric',
       edgeL1: false,
       edgeL2: false,
       edgeW1: false,
@@ -312,6 +316,7 @@ export function generateCutListForItem(item: ModularItem, globalProjectType: Pro
       // across every room and color, which is also what lets these nest
       // freely together for maximum sheet reuse below.
       material: `${getCoreMaterialLabel(item)} (Fabric)`,
+      materialCategory: 'Fabric',
       edgeL1: true,
       edgeL2: false,
       edgeW1: true,
@@ -332,6 +337,7 @@ export function generateCutListForItem(item: ModularItem, globalProjectType: Pro
       thicknessMm: 18,
       qty: 1,
       material: `${getCoreMaterialLabel(item)} (Fabric)`,
+      materialCategory: 'Fabric',
       edgeL1: true,
       edgeL2: false,
       edgeW1: true,
@@ -354,6 +360,7 @@ export function generateCutListForItem(item: ModularItem, globalProjectType: Pro
       thicknessMm: 18,
       qty: 1,
       material: `${getCoreMaterialLabel(item)} (Fabric)`,
+      materialCategory: 'Fabric',
       edgeL1: true,
       edgeL2: false,
       edgeW1: false,
@@ -374,6 +381,7 @@ export function generateCutListForItem(item: ModularItem, globalProjectType: Pro
       thicknessMm: 18,
       qty: 1,
       material: `${getCoreMaterialLabel(item)} (Fabric)`,
+      materialCategory: 'Fabric',
       edgeL1: true,
       edgeL2: false,
       edgeW1: false,
@@ -395,6 +403,7 @@ export function generateCutListForItem(item: ModularItem, globalProjectType: Pro
       thicknessMm: 6,
       qty: 1,
       material: '6mm Backing Ply',
+      materialCategory: 'Fabric',
       edgeL1: false,
       edgeL2: false,
       edgeW1: false,
@@ -430,6 +439,7 @@ export function generateCutListForItem(item: ModularItem, globalProjectType: Pro
       material: `${getCoreMaterialLabel(item)} (${
         item.category === 'expo' || item.category === 'shelves' ? getFinishLabel(item) : 'Fabric'
       })`,
+      materialCategory: item.category === 'expo' || item.category === 'shelves' ? 'Color/Laminate' : 'Fabric',
       edgeL1: true,
       edgeL2: false,
       edgeW1: false,
@@ -468,6 +478,7 @@ export function generateCutListForItem(item: ModularItem, globalProjectType: Pro
       // Visible kickplate along the floor - carries the customer's actual
       // color/laminate, same as a shutter, per the skirting rule.
       material: `${getCoreMaterialLabel(item)} (${getFinishLabel(item)})`,
+      materialCategory: 'Color/Laminate',
       edgeL1: true, // Top edge banded with 0.8mm PVC to seal against water spills
       edgeL2: false,
       edgeW1: true, // Side end edge banded
@@ -495,6 +506,7 @@ export function generateCutListForItem(item: ModularItem, globalProjectType: Pro
       qty: battenQty,
       // Hidden structural batten under the carcass - generic Fabric liner.
       material: `${getCoreMaterialLabel(item)} (Fabric)`,
+      materialCategory: 'Fabric',
       edgeL1: false,
       edgeL2: false,
       edgeW1: false,
@@ -522,6 +534,7 @@ export function generateCutListForItem(item: ModularItem, globalProjectType: Pro
       thicknessMm: 18,
       qty: 1,
       material: `${getCoreMaterialLabel(item)} (${getFinishLabel(item)})`,
+      materialCategory: 'Color/Laminate',
       edgeL1: true,
       edgeL2: false,
       edgeW1: false,
@@ -548,6 +561,7 @@ export function generateCutListForItem(item: ModularItem, globalProjectType: Pro
       thicknessMm: 18,
       qty: 1,
       material: `${getCoreMaterialLabel(item)} (${getFinishLabel(item)})`,
+      materialCategory: 'Color/Laminate',
       edgeL1: true,
       edgeL2: true,
       edgeW1: true,
@@ -838,6 +852,7 @@ export function generateSheetNestingLayouts(cutList: CutListPart[]): {
       partName: string;
       itemName: string;
       room: string;
+      materialCategory: 'Fabric' | 'Color/Laminate';
       dim1: number; // length
       dim2: number; // width
       color: string;
@@ -858,6 +873,7 @@ export function generateSheetNestingLayouts(cutList: CutListPart[]): {
           partName: part.partName,
           itemName: part.itemName,
           room: part.room,
+          materialCategory: part.materialCategory,
           dim1: part.lengthMm,
           dim2: part.widthMm,
           color: PART_COLORS[part.partName] || '#64748b',
@@ -1012,6 +1028,7 @@ export function generateSheetNestingLayouts(cutList: CutListPart[]): {
         partName: unit.partName,
         itemName: unit.itemName,
         room: unit.room,
+        materialCategory: unit.materialCategory,
         x: rect.x,
         y: rect.y,
         w,

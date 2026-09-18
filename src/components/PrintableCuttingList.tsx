@@ -128,6 +128,7 @@ export const PrintableCuttingList: React.FC<PrintableCuttingListProps> = ({ cutL
                   const canFitFull = p.w >= 300 && p.h >= 160;
                   const canFitTwoLines = p.h >= 70 && p.w >= 90;
                   const canFitOneLine = p.h >= 34 && p.w >= 60;
+                  const shortCategory = p.materialCategory === 'Color/Laminate' ? 'Color' : 'Fabric';
                   return (
                     <g key={p.partId}>
                       <rect x={p.x} y={p.y} width={p.w} height={p.h} fill="#ffffff" stroke="#0f172a" strokeWidth={2} />
@@ -136,8 +137,17 @@ export const PrintableCuttingList: React.FC<PrintableCuttingListProps> = ({ cutL
                           <text x={p.x + p.w / 2} y={p.y + p.h / 2 - 38} textAnchor="middle" fontSize="17" fill="#334155">
                             {p.room} • {p.itemName.length > 24 ? `${p.itemName.slice(0, 23)}…` : p.itemName}
                           </text>
+                          {/* Part name + whether this piece is the
+                              customer's Color/Laminate or the generic
+                              Fabric liner - the two can never share a
+                              sheet, so calling it out here confirms at a
+                              glance which board this piece has to come
+                              from. */}
                           <text x={p.x + p.w / 2} y={p.y + p.h / 2 - 8} textAnchor="middle" fontSize="24" fontWeight="bold" fill="#0f172a">
                             {p.partName}
+                            <tspan fontSize="16" fontWeight="600" fill="#7c3aed">
+                              {' '}· {p.materialCategory}
+                            </tspan>
                           </text>
                           {/* Width x Height - the exact cut size, sized well
                               above the label text above it per the factory's
@@ -149,8 +159,11 @@ export const PrintableCuttingList: React.FC<PrintableCuttingListProps> = ({ cutL
                         </>
                       ) : canFitTwoLines ? (
                         <>
-                          <text x={p.x + p.w / 2} y={p.y + p.h / 2 - 15} textAnchor="middle" fontSize="16" fontWeight="bold" fill="#0f172a">
+                          <text x={p.x + p.w / 2} y={p.y + p.h / 2 - 15} textAnchor="middle" fontSize="14" fontWeight="bold" fill="#0f172a">
                             {p.partName}
+                            <tspan fontSize="11" fontWeight="600" fill="#7c3aed">
+                              {' '}· {shortCategory}
+                            </tspan>
                           </text>
                           <text x={p.x + p.w / 2} y={p.y + p.h / 2 + 15} textAnchor="middle" fontSize="19" fontWeight="bold" fontFamily="monospace" fill="#0f172a">
                             {p.w} × {p.h} mm
