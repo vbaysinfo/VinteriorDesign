@@ -585,6 +585,22 @@ export const Isometric3DViewer: React.FC<Isometric3DViewerProps> = ({
       const isSelected = selectedItemId === item.id;
       const isHovered = hoveredItemId === item.id;
 
+      // Two cabinets sitting side by side along the same single wall run
+      // (only true in this mode - see layout3D above, where modules are
+      // pushed in one strict left-to-right sequence) share almost no gap
+      // between them, so the facing gable of one and the facing gable of
+      // its neighbor end up at nearly identical projected depth. The
+      // painter's-algorithm sort (plain average depth, no real z-buffer)
+      // has no reliable way to order two faces that close together, so
+      // they'd flicker/interleave right at the seam. Real cabinet runs
+      // don't expose a visible double-gable there anyway - only the two
+      // OUTERMOST ends of the run have an actual visible end panel - so
+      // interior-facing gables are simply skipped instead of rendered and
+      // fought over.
+      const isSingleWallRun = activeWall !== 'all';
+      const hasLeftNeighbor = isSingleWallRun && idx > 0;
+      const hasRightNeighbor = isSingleWallRun && idx < layout3D.modules.length - 1;
+
       // Exploded offset
       const exp = explodedView ? 50 : 0;
       const xExp = x;
@@ -661,35 +677,42 @@ export const Isometric3DViewer: React.FC<Isometric3DViewerProps> = ({
         styleConfig.opacity
       );
 
-      // Left Gable face (p0, p4, p7, p3)
-      addQuad(
-        `box-left-${item.id}`,
-        { x: p0.x - exp, y: p0.y, z: p0.z },
-        { x: p4.x - exp, y: p4.y, z: p4.z },
-        { x: p7.x - exp, y: p7.y, z: p7.z },
-        { x: p3.x - exp, y: p3.y, z: p3.z },
-        sideFill,
-        strokeColor,
-        isSelected ? 2 : 1.2,
-        item.id,
-        'Left Gable',
-        styleConfig.opacity
-      );
+      // Left Gable face (p0, p4, p7, p3) - skipped when a neighboring
+      // cabinet already sits flush against this side (see hasLeftNeighbor
+      // above).
+      if (!hasLeftNeighbor) {
+        addQuad(
+          `box-left-${item.id}`,
+          { x: p0.x - exp, y: p0.y, z: p0.z },
+          { x: p4.x - exp, y: p4.y, z: p4.z },
+          { x: p7.x - exp, y: p7.y, z: p7.z },
+          { x: p3.x - exp, y: p3.y, z: p3.z },
+          sideFill,
+          strokeColor,
+          isSelected ? 2 : 1.2,
+          item.id,
+          'Left Gable',
+          styleConfig.opacity
+        );
+      }
 
-      // Right Gable face (p1, p2, p6, p5)
-      addQuad(
-        `box-right-${item.id}`,
-        { x: p5.x + exp, y: p5.y, z: p5.z },
-        { x: p1.x + exp, y: p1.y, z: p1.z },
-        { x: p2.x + exp, y: p2.y, z: p2.z },
-        { x: p6.x + exp, y: p6.y, z: p6.z },
-        sideFill,
-        strokeColor,
-        isSelected ? 2 : 1.2,
-        item.id,
-        'Right Gable',
-        styleConfig.opacity
-      );
+      // Right Gable face (p1, p2, p6, p5) - skipped when a neighboring
+      // cabinet already sits flush against this side.
+      if (!hasRightNeighbor) {
+        addQuad(
+          `box-right-${item.id}`,
+          { x: p5.x + exp, y: p5.y, z: p5.z },
+          { x: p1.x + exp, y: p1.y, z: p1.z },
+          { x: p2.x + exp, y: p2.y, z: p2.z },
+          { x: p6.x + exp, y: p6.y, z: p6.z },
+          sideFill,
+          strokeColor,
+          isSelected ? 2 : 1.2,
+          item.id,
+          'Right Gable',
+          styleConfig.opacity
+        );
+      }
 
       // Bottom Deck face (p0, p1, p5, p4)
       addQuad(
