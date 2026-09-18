@@ -34,11 +34,11 @@ export const HorizontalBarChart: React.FC<HorizontalBarChartProps> = ({
   valueFormatter = (v) => v.toLocaleString(),
 }) => {
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
-  const barH = 18;
-  const rowH = 28;
-  const labelW = 118;
-  const chartW = 480;
-  const tipReserve = 64;
+  const barH = 14;
+  const rowH = 24;
+  const labelW = 112;
+  const chartW = 460;
+  const tipReserve = 92;
   const plotW = chartW - labelW - tipReserve;
   const max = Math.max(...data.map((d) => d.value), 1);
   const svgH = data.length * rowH;
@@ -46,63 +46,68 @@ export const HorizontalBarChart: React.FC<HorizontalBarChartProps> = ({
   if (data.length === 0) return null;
 
   return (
-    <svg width="100%" viewBox={`0 0 ${chartW} ${svgH}`} className="overflow-visible" role="img" aria-label={`Bar chart: ${data.map((d) => `${d.label} ${d.value}`).join(', ')}`}>
-      {data.map((d, i) => {
-        const y = i * rowH + (rowH - barH) / 2;
-        const w = Math.max(2, (d.value / max) * plotW);
-        const isHovered = hoverIdx === i;
-        // A label that won't fit doesn't get clipped mid-character - truncate
-        // with an ellipsis and keep the full text reachable via the native
-        // <title> tooltip on hover/focus, same "never gate a value" rule the
-        // hover layer follows.
-        const maxChars = 18;
-        const displayLabel = d.label.length > maxChars ? `${d.label.slice(0, maxChars - 1)}…` : d.label;
-        return (
-          <g key={d.label}>
-            <text
-              x={labelW - 8}
-              y={y + barH / 2}
-              textAnchor="end"
-              dominantBaseline="central"
-              fontSize="11"
-              fontWeight={isHovered ? 800 : 600}
-              fill="#475569"
-            >
-              {displayLabel !== d.label && <title>{d.label}</title>}
-              {displayLabel}
-            </text>
-            {/* Hit target spans the full row, not just the painted bar, so hover is easy to land */}
-            <rect
-              x={labelW}
-              y={i * rowH}
-              width={plotW + tipReserve}
-              height={rowH}
-              fill="transparent"
-              onMouseEnter={() => setHoverIdx(i)}
-              onMouseLeave={() => setHoverIdx(null)}
-            >
-              <title>
-                {d.label}: {valueFormatter(d.value)}
+    // Capped at a fixed max width instead of scaling to fill whatever card
+    // it sits in - full-width cards would otherwise blow the viewBox up 3x+
+    // (giant bars, oversized text), which reads as unpolished, not "modern".
+    <div className="max-w-[520px]">
+      <svg width="100%" viewBox={`0 0 ${chartW} ${svgH}`} className="overflow-visible" role="img" aria-label={`Bar chart: ${data.map((d) => `${d.label} ${d.value}`).join(', ')}`}>
+        {data.map((d, i) => {
+          const y = i * rowH + (rowH - barH) / 2;
+          const w = Math.max(2, (d.value / max) * plotW);
+          const isHovered = hoverIdx === i;
+          // A label that won't fit doesn't get clipped mid-character - truncate
+          // with an ellipsis and keep the full text reachable via the native
+          // <title> tooltip on hover/focus, same "never gate a value" rule the
+          // hover layer follows.
+          const maxChars = 16;
+          const displayLabel = d.label.length > maxChars ? `${d.label.slice(0, maxChars - 1)}…` : d.label;
+          return (
+            <g key={d.label}>
+              <text
+                x={labelW - 8}
+                y={y + barH / 2}
+                textAnchor="end"
+                dominantBaseline="central"
+                fontSize="10"
+                fontWeight={isHovered ? 800 : 600}
+                fill="#475569"
+              >
+                {displayLabel !== d.label && <title>{d.label}</title>}
+                {displayLabel}
+              </text>
+              {/* Hit target spans the full row, not just the painted bar, so hover is easy to land */}
+              <rect
+                x={labelW}
+                y={i * rowH}
+                width={plotW + tipReserve}
+                height={rowH}
+                fill="transparent"
+                onMouseEnter={() => setHoverIdx(i)}
+                onMouseLeave={() => setHoverIdx(null)}
+              >
+                <title>
+                  {d.label}: {valueFormatter(d.value)}
+                  {unit}
+                </title>
+              </rect>
+              <path d={hBarPath(labelW, y, w, barH, 2.5)} fill={color} opacity={isHovered ? 1 : 0.85} />
+              <text
+                x={labelW + w + 6}
+                y={y + barH / 2}
+                dominantBaseline="central"
+                fontSize="10"
+                fontWeight="700"
+                fill="#0f172a"
+                fontFamily="ui-monospace, monospace"
+              >
+                {valueFormatter(d.value)}
                 {unit}
-              </title>
-            </rect>
-            <path d={hBarPath(labelW, y, w, barH, 3)} fill={color} opacity={isHovered ? 1 : 0.85} />
-            <text
-              x={labelW + w + 6}
-              y={y + barH / 2}
-              dominantBaseline="central"
-              fontSize="11"
-              fontWeight="700"
-              fill="#0f172a"
-              fontFamily="ui-monospace, monospace"
-            >
-              {valueFormatter(d.value)}
-              {unit}
-            </text>
-          </g>
-        );
-      })}
-    </svg>
+              </text>
+            </g>
+          );
+        })}
+      </svg>
+    </div>
   );
 };
 
@@ -129,8 +134,8 @@ export const MaterialCompositionBar: React.FC<{ segments: CompositionSegment[]; 
   const bars = segments.map((seg, i) => ({ ...seg, pct: (seg.value / total) * 100, i }));
 
   return (
-    <div>
-      <div className="flex w-full rounded-md overflow-hidden gap-0.5" style={{ height: 26 }}>
+    <div className="max-w-[560px]">
+      <div className="flex w-full rounded-md overflow-hidden gap-0.5" style={{ height: 20 }}>
         {bars.map((b) => (
           <div
             key={b.label}
@@ -140,11 +145,11 @@ export const MaterialCompositionBar: React.FC<{ segments: CompositionSegment[]; 
             className="h-full flex items-center justify-center transition-opacity cursor-default"
             style={{ width: `${b.pct}%`, backgroundColor: b.color, opacity: hoverIdx === null || hoverIdx === b.i ? 1 : 0.4 }}
           >
-            {b.pct >= 10 && <span className="text-white text-[10px] font-extrabold select-none">{b.pct.toFixed(0)}%</span>}
+            {b.pct >= 10 && <span className="text-white text-[9px] font-extrabold select-none">{b.pct.toFixed(0)}%</span>}
           </div>
         ))}
       </div>
-      <div className="flex flex-wrap gap-x-5 gap-y-1.5 mt-3">
+      <div className="flex flex-wrap gap-x-5 gap-y-1.5 mt-2.5">
         {bars.map((b) => (
           <div
             key={b.label}
@@ -195,11 +200,11 @@ export const StackedHorizontalBarChart: React.FC<StackedHorizontalBarChartProps>
   highlightLabel,
 }) => {
   const [hover, setHover] = useState<{ row: number; seg: number } | null>(null);
-  const barH = 18;
-  const rowH = 30;
-  const labelW = 118;
-  const chartW = 480;
-  const tipReserve = 70;
+  const barH = 15;
+  const rowH = 26;
+  const labelW = 108;
+  const chartW = 460;
+  const tipReserve = 82;
   const plotW = chartW - labelW - tipReserve;
   const gap = 0.6;
   const totals = data.map((d) => d.values.reduce((s, v) => s + v, 0));
@@ -209,7 +214,10 @@ export const StackedHorizontalBarChart: React.FC<StackedHorizontalBarChartProps>
   if (data.length === 0) return null;
 
   return (
-    <div>
+    // Same fixed max width as the single-series chart - keeps every chart on
+    // this page reading at the same scale instead of some blowing up to fill
+    // whichever card happens to be widest.
+    <div className="max-w-[560px]">
       <svg width="100%" viewBox={`0 0 ${chartW} ${svgH}`} className="overflow-visible" role="img">
         {data.map((row, ri) => {
           const y = ri * rowH + (rowH - barH) / 2;
@@ -249,7 +257,7 @@ export const StackedHorizontalBarChart: React.FC<StackedHorizontalBarChartProps>
                 y={y + barH / 2}
                 textAnchor="end"
                 dominantBaseline="central"
-                fontSize="11"
+                fontSize="10"
                 fontWeight={isRowHighlighted ? 800 : 600}
                 fill={isRowDimmed ? '#b6bcc7' : '#475569'}
               >
@@ -283,7 +291,7 @@ export const StackedHorizontalBarChart: React.FC<StackedHorizontalBarChartProps>
                 // "never overflow a label" rule - the tooltip still carries
                 // it in that rare case.
                 const label = v.toLocaleString();
-                const estTextW = label.length * 6.2 + 10;
+                const estTextW = label.length * 5.6 + 8;
                 const canFitLabel = w >= estTextW;
                 return (
                   <g key={si}>
@@ -308,7 +316,7 @@ export const StackedHorizontalBarChart: React.FC<StackedHorizontalBarChartProps>
                         y={y + barH / 2}
                         textAnchor="middle"
                         dominantBaseline="central"
-                        fontSize="10"
+                        fontSize="9"
                         fontWeight="700"
                         fill="#ffffff"
                         fontFamily="ui-monospace, monospace"
@@ -325,7 +333,7 @@ export const StackedHorizontalBarChart: React.FC<StackedHorizontalBarChartProps>
                 x={labelW + renderedTotalW + 6}
                 y={y + barH / 2}
                 dominantBaseline="central"
-                fontSize="11"
+                fontSize="10"
                 fontWeight="700"
                 fill={isRowDimmed ? '#b6bcc7' : '#0f172a'}
                 fontFamily="ui-monospace, monospace"
@@ -337,7 +345,7 @@ export const StackedHorizontalBarChart: React.FC<StackedHorizontalBarChartProps>
           );
         })}
       </svg>
-      <div className="flex flex-wrap gap-x-5 gap-y-1.5 mt-3">
+      <div className="flex flex-wrap gap-x-5 gap-y-1.5 mt-2.5">
         {seriesLabels.map((label, i) => (
           <div key={label} className="flex items-center gap-1.5 text-[11px]">
             <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ backgroundColor: seriesColors[i] }} />
