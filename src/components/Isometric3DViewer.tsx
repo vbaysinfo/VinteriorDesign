@@ -702,7 +702,7 @@ export const Isometric3DViewer: React.FC<Isometric3DViewerProps> = ({
 
       // INTERNAL SHELVES (If in X-Ray mode or doors opened)
       if (doorOpenPercent > 20 || renderStyle === 'xray_translucent') {
-        const shelfCount = item.shelfCount || 2;
+        const shelfCount = item.shelfCount ?? 2;
         for (let s = 1; s <= shelfCount; s++) {
           const sY = yExp + (h / (shelfCount + 1)) * s;
           const sThickness = 18;
@@ -797,7 +797,7 @@ export const Isometric3DViewer: React.FC<Isometric3DViewerProps> = ({
       // 3. FRONT SHUTTERS & DRAWERS EXTRUSION
       // Drawers: slide out in 3D along depth
       const drawerCount = item.drawerCount || 0;
-      const shutterCount = item.shutterCount || (drawerCount > 0 ? 0 : 2);
+      const shutterCount = item.shutterCount ?? (drawerCount > 0 ? 0 : 2);
       const slideOutDist = (drawerSlidePercent / 100) * 350; // up to 350mm pull-out
 
       if (drawerCount > 0) {

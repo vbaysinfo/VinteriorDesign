@@ -56,7 +56,7 @@ export function getCoreMaterialLabel(item: ModularItem): string {
 // call sites that only care about the even-split case.
 export function getShutterLayout(item: ModularItem): { count: number; widths: number[]; shutterWidthMm: number; gapMm: number } {
   const w = item.widthMm;
-  const count = Math.max(1, item.shutterCount || (w > 1800 ? 4 : w > 1000 ? 3 : w > 500 ? 2 : 1));
+  const count = Math.max(1, item.shutterCount ?? (w > 1800 ? 4 : w > 1000 ? 3 : w > 500 ? 2 : 1));
   const gapMm = count > 1 ? 3 : 0;
   // Floored, not rounded: see the note in generateCutListForItem - rounding
   // up even by 0.5mm compounds across every shutter sharing this one width.
@@ -94,9 +94,16 @@ export function redistributeShutterWidths(item: ModularItem, editIndex: number, 
 }
 
 // Whether an item has doors drawn/cut at all - excludes drawer-only units
-// and flat panel/partition categories that never get hinged shutters.
+// and flat panel/partition categories that never get hinged shutters, and
+// any item explicitly set to 0 shutters (an open expo/display unit with no
+// doors at all, not just "use the default door count").
 export function hasShutterDoors(item: ModularItem): boolean {
-  return item.category !== 'tv_panel' && item.category !== 'partition' && item.category !== 'tandem_box';
+  return (
+    item.shutterCount !== 0 &&
+    item.category !== 'tv_panel' &&
+    item.category !== 'partition' &&
+    item.category !== 'tandem_box'
+  );
 }
 
 // Color palette for nesting diagram
@@ -381,8 +388,11 @@ export function generateCutListForItem(item: ModularItem, globalProjectType: Pro
     });
   }
 
-  // 4. Internal Shelves
-  const shelfCount = item.shelfCount || (item.category === 'shelves' || item.category === 'expo' ? 4 : 2);
+  // 4. Internal Shelves - `?? ` (not `||`) so an explicit 0 (shelves
+  // removed) is respected instead of silently falling back to the default
+  // count, which used to keep drawing a phantom Internal Shelf part even
+  // after the user zeroed the shelf count out.
+  const shelfCount = item.shelfCount ?? (item.category === 'shelves' || item.category === 'expo' ? 4 : 2);
   if (shelfCount > 0) {
     const shelfWidth = Math.max(100, w - 36);
     const shelfDepth = d > 0 ? d - 30 : 350;
