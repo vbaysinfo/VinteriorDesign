@@ -48,6 +48,13 @@ export interface ModularItem {
   materialCode?: string; // free-text override for the exported "Material" label; falls back to `${coreMaterial} (${finishType})` when blank
   edgeBindingNote?: string; // free-text summary of edge banding treatment for this item (display/export only - the real per-panel edge banding used for hardware/cost is computed automatically per part)
   shutterWidthOverrides?: number[]; // per-shutter widths in mm, left-to-right; length must equal the item's shutter count or it's ignored and widths fall back to an even auto-split of widthMm
+  // Fabric and shutter color are two different material rules: a box's
+  // carcass surfaces (Gables/Decks/Back Panel - Width x Height x Depth)
+  // take Fabric, laminated on ONE side by default (the factory standard);
+  // the customer can select fabric on BOTH sides, which doubles the
+  // fabric quantity for those surfaces. Never applies to the shutter,
+  // which is Color/Finish on Width x Height only, calculated separately.
+  fabricBothSides?: boolean;
 }
 
 export interface CutListPart {
@@ -70,14 +77,23 @@ export interface CutListPart {
   // nester's compatibility grouping and the on-piece labeling.
   materialCategory: 'Fabric' | 'Color/Laminate';
   // What the panel's BACK (hidden/rear) side is laminated with. A board's
-  // two faces are pasted independently: a fully-hidden carcass/internal
+  // two faces are pasted independently. A fully-hidden carcass/internal
   // part (Gable, Deck, Back Panel, Drawer Side/Bottom, a closed
-  // wardrobe's shelf, a structural batten) is Fabric on both faces -
-  // "both-side fabric" pasting. A customer-facing part (Shutter, Drawer
-  // Front, visible Skirting, Expo/Dummy panel, an open shelf unit's own
-  // shelf) is Color/Laminate on the front only, with a plain Fabric
-  // backing on the rear - "one-side fabric, other side Color/Laminate".
+  // wardrobe's shelf, a structural batten) is Fabric on both faces when
+  // its item selected fabricBothSides below, or Fabric on one face
+  // (front === back here) by factory-standard default otherwise. A
+  // customer-facing part (Shutter, Drawer Front, visible Skirting, Expo/
+  // Dummy panel, an open shelf unit's own shelf) is always Color/Laminate
+  // on the front with a plain Fabric backing on the rear - "one-side
+  // fabric, other side Color/Laminate" - regardless of fabricBothSides,
+  // which only ever applies to the box, never the shutter.
   backMaterialCategory: 'Fabric' | 'Color/Laminate';
+  // Copied from the originating item, and only meaningful when both
+  // materialCategory and backMaterialCategory above are 'Fabric' (a box
+  // surface): whether the customer selected fabric on both faces of this
+  // surface, doubling its fabric quantity, instead of the factory-
+  // standard single face.
+  fabricBothSides?: boolean;
   sheetNumber?: string;
   edgeL1: boolean;
   edgeL2: boolean;
@@ -161,18 +177,25 @@ export interface MaterialBreakdown {
   ply6mmSheets: number; // back panels
   ply6mmAreaSqFt: number;
   // innerLaminateSheets/outerLaminateSheets are the totals used for
-  // costing (PricingReport) - computed from the real one-side/both-side
-  // breakdown below, not a guessed ratio of the board sheet count.
-  innerLaminateSheets: number;
-  outerLaminateSheets: number;
-  // Two-sided fabric/laminate pasting breakdown - see
-  // CutListPart.backMaterialCategory for what each bucket means.
-  bothSideFabricAreaSqFt: number; // hidden panels' area (Gables, Decks, Back Panel, Drawer box, hidden shelves, battens)
-  bothSideFabricSheets: number; // sheets to laminate BOTH faces of those panels
-  oneSideFabricAreaSqFt: number; // the Fabric-backed rear face of customer-facing panels
-  oneSideFabricSheets: number;
-  oneSideColorLaminateAreaSqFt: number; // the same customer-facing panels' front face
-  oneSideColorLaminateSheets: number;
+  // costing (PricingReport) - computed from the box/shutter breakdown
+  // below, not a guessed ratio of the board sheet count.
+  innerLaminateSheets: number; // = boxFabricSheets + shutterFabricBackSheets
+  outerLaminateSheets: number; // = shutterColorSheets
+  // Fabric and shutter color are two different material rules (see
+  // CutListPart.backMaterialCategory / fabricBothSides).
+  // BOX: Width x Height x Depth, Fabric-laminated - single face by
+  // factory-standard default, doubled per item wherever the customer
+  // selected fabric on both faces.
+  boxFabricAreaSqFt: number; // total box-panel fabric area actually needed (already includes doubling where selected)
+  boxFabricSheets: number;
+  boxFabricBothSidesAreaSqFt: number; // how much of the above came from a both-sides selection (informational)
+  // SHUTTER: Width x Height only, Color/Finish on the front with a plain
+  // Fabric backing on the rear - calculated separately from the box, and
+  // never affected by a box's fabricBothSides selection.
+  shutterFabricBackAreaSqFt: number; // the Fabric-backed rear face
+  shutterFabricBackSheets: number;
+  shutterColorAreaSqFt: number; // the Color/Finish front face
+  shutterColorSheets: number;
   edgeBandMeters: number;
   edgeBand2mmMeters: number;
   edgeBand08mmMeters: number;

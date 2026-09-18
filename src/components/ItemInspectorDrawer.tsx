@@ -282,6 +282,23 @@ export const ItemInspectorDrawer: React.FC<ItemInspectorDrawerProps> = ({
               />
             </div>
           </div>
+
+          {/* Fabric and shutter color are two different material rules -
+              this only ever affects the box (Gables/Decks/Back Panel and
+              other hidden carcass surfaces), never the shutter, which is
+              always Color/Finish on its own front face regardless. */}
+          <label className="flex items-center gap-2 p-2.5 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer">
+            <input
+              type="checkbox"
+              checked={!!item.fabricBothSides}
+              onChange={(e) => onUpdateItem({ ...item, fabricBothSides: e.target.checked })}
+              className="w-4 h-4 accent-cyan-600"
+            />
+            <span className="text-slate-700 font-medium">Fabric both sides of the box</span>
+            <span className="text-[10px] text-slate-400 ml-auto">
+              {item.fabricBothSides ? 'Doubles box fabric quantity' : 'Single side (factory default)'}
+            </span>
+          </label>
         </div>
 
         {/* Real-time Generated Cut List for this cabinet */}

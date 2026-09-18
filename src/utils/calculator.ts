@@ -320,6 +320,7 @@ export function generateCutListForItem(item: ModularItem, globalProjectType: Pro
         material: '18mm Prelam / BWP',
         materialCategory: 'Fabric',
         backMaterialCategory: 'Fabric',
+        fabricBothSides: item.fabricBothSides ?? false,
         edgeL1: true,
         edgeL2: false,
         edgeW1: true,
@@ -343,6 +344,7 @@ export function generateCutListForItem(item: ModularItem, globalProjectType: Pro
         material: '9mm Plywood',
         materialCategory: 'Fabric',
         backMaterialCategory: 'Fabric',
+        fabricBothSides: item.fabricBothSides ?? false,
         edgeL1: false,
         edgeL2: false,
         edgeW1: false,
@@ -381,6 +383,7 @@ export function generateCutListForItem(item: ModularItem, globalProjectType: Pro
       material: `${getCoreMaterialLabel(item)} (Fabric)`,
       materialCategory: 'Fabric',
       backMaterialCategory: 'Fabric',
+      fabricBothSides: item.fabricBothSides ?? false,
       edgeL1: true,
       edgeL2: false,
       edgeW1: true,
@@ -403,6 +406,7 @@ export function generateCutListForItem(item: ModularItem, globalProjectType: Pro
       material: `${getCoreMaterialLabel(item)} (Fabric)`,
       materialCategory: 'Fabric',
       backMaterialCategory: 'Fabric',
+      fabricBothSides: item.fabricBothSides ?? false,
       edgeL1: true,
       edgeL2: false,
       edgeW1: true,
@@ -427,6 +431,7 @@ export function generateCutListForItem(item: ModularItem, globalProjectType: Pro
       material: `${getCoreMaterialLabel(item)} (Fabric)`,
       materialCategory: 'Fabric',
       backMaterialCategory: 'Fabric',
+      fabricBothSides: item.fabricBothSides ?? false,
       edgeL1: true,
       edgeL2: false,
       edgeW1: false,
@@ -449,6 +454,7 @@ export function generateCutListForItem(item: ModularItem, globalProjectType: Pro
       material: `${getCoreMaterialLabel(item)} (Fabric)`,
       materialCategory: 'Fabric',
       backMaterialCategory: 'Fabric',
+      fabricBothSides: item.fabricBothSides ?? false,
       edgeL1: true,
       edgeL2: false,
       edgeW1: false,
@@ -472,6 +478,7 @@ export function generateCutListForItem(item: ModularItem, globalProjectType: Pro
       material: '6mm Backing Ply',
       materialCategory: 'Fabric',
       backMaterialCategory: 'Fabric',
+      fabricBothSides: item.fabricBothSides ?? false,
       edgeL1: false,
       edgeL2: false,
       edgeW1: false,
@@ -518,10 +525,12 @@ export function generateCutListForItem(item: ModularItem, globalProjectType: Pro
       material: `${getCoreMaterialLabel(item)} (${item.category === 'shelves' ? getFinishLabel(item) : 'Fabric'})`,
       materialCategory: item.category === 'shelves' ? 'Color/Laminate' : 'Fabric',
       // An open shelves unit's shelf is one-side-fabric (visible face
-      // Color/Laminate, hidden underside Fabric); a closed wardrobe's
-      // hidden shelf is Fabric on both faces - nobody ever sees either
-      // side of it.
+      // Color/Laminate, hidden underside Fabric, unaffected by
+      // fabricBothSides - that only ever doubles a box surface); a
+      // closed wardrobe's hidden shelf is a box surface, so it's Fabric
+      // on one face by default or both if the item selected it.
       backMaterialCategory: 'Fabric',
+      fabricBothSides: item.category === 'shelves' ? undefined : item.fabricBothSides ?? false,
       edgeL1: true,
       edgeL2: false,
       edgeW1: false,
@@ -595,6 +604,7 @@ export function generateCutListForItem(item: ModularItem, globalProjectType: Pro
         material: `${getCoreMaterialLabel(item)} (Fabric)`,
         materialCategory: 'Fabric',
         backMaterialCategory: 'Fabric',
+        fabricBothSides: item.fabricBothSides ?? false,
         edgeL1: false,
         edgeL2: false,
         edgeW1: false,
@@ -719,12 +729,13 @@ export function calculateMaterialUsage(cutList: CutListPart[]): MaterialBreakdow
       ply6mmAreaSqFt: 0,
       innerLaminateSheets: 0,
       outerLaminateSheets: 0,
-      bothSideFabricAreaSqFt: 0,
-      bothSideFabricSheets: 0,
-      oneSideFabricAreaSqFt: 0,
-      oneSideFabricSheets: 0,
-      oneSideColorLaminateAreaSqFt: 0,
-      oneSideColorLaminateSheets: 0,
+      boxFabricAreaSqFt: 0,
+      boxFabricSheets: 0,
+      boxFabricBothSidesAreaSqFt: 0,
+      shutterFabricBackAreaSqFt: 0,
+      shutterFabricBackSheets: 0,
+      shutterColorAreaSqFt: 0,
+      shutterColorSheets: 0,
       edgeBandMeters: 0,
       edgeBand2mmMeters: 0,
       edgeBand08mmMeters: 0,
@@ -761,16 +772,19 @@ export function calculateMaterialUsage(cutList: CutListPart[]): MaterialBreakdow
   let totalPieces = 0;
   let skirtingLinearMeters = 0;
   let skirtingPiecesCount = 0;
-  // Two-sided fabric/laminate pasting - a board's two faces are laminated
-  // independently, so a part whose FRONT and BACK are both Fabric (a
-  // hidden carcass/internal part) needs Fabric on both faces, while a
-  // part with Color/Laminate on the front and Fabric on the back (a
-  // customer-facing part) needs one sheet of each. See
-  // CutListPart.backMaterialCategory.
-  let bothSideFabricAreaSqMt = 0; // one face's worth of area for both-side-Fabric parts (doubled below)
-  let oneSideFabricAreaSqMt = 0; // the Fabric-backed rear face of customer-facing parts
-  let oneSideColorLaminateAreaSqMt = 0; // those same parts' Color/Laminate front face
-  let bothSideColorLaminateAreaSqMt = 0; // Color/Laminate on both faces, if that ever occurs
+  // Fabric and shutter color are two different material rules. A BOX
+  // surface (Gable/Deck/Back Panel/Drawer box/hidden shelf/batten - both
+  // faces Fabric) is Width x Height x Depth derived and Fabric-laminated
+  // on one face by factory-standard default, doubled per item wherever
+  // fabricBothSides was selected. A SHUTTER-type surface (Width x Height
+  // only - Shutter, Drawer Front, visible Skirting, Expo/Dummy panel, an
+  // open shelf) is Color/Finish on the front with a plain Fabric backing
+  // on the rear, calculated separately and never doubled by
+  // fabricBothSides (that only ever applies to the box).
+  let boxFabricAreaSqMt = 0; // box-panel area actually needed (already includes doubling where selected)
+  let boxFabricBothSidesAreaSqMt = 0; // the subset of the above from a both-sides selection (informational)
+  let shutterFabricBackAreaSqMt = 0; // the Fabric-backed rear face of shutter-type panels
+  let shutterColorAreaSqMt = 0; // those same panels' Color/Finish front face
 
   for (const part of cutList) {
     totalPieces += part.qty;
@@ -784,15 +798,20 @@ export function calculateMaterialUsage(cutList: CutListPart[]): MaterialBreakdow
     }
 
     if (part.materialCategory === 'Fabric' && part.backMaterialCategory === 'Fabric') {
-      bothSideFabricAreaSqMt += partAreaSqMt;
-    } else if (part.materialCategory === 'Color/Laminate' && part.backMaterialCategory === 'Color/Laminate') {
-      bothSideColorLaminateAreaSqMt += partAreaSqMt;
+      // A box surface - single face by default, doubled if selected.
+      boxFabricAreaSqMt += partAreaSqMt;
+      if (part.fabricBothSides) {
+        boxFabricAreaSqMt += partAreaSqMt;
+        boxFabricBothSidesAreaSqMt += partAreaSqMt;
+      }
     } else {
-      // One face Color/Laminate, the other Fabric (either way round).
-      if (part.materialCategory === 'Color/Laminate') oneSideColorLaminateAreaSqMt += partAreaSqMt;
-      else oneSideFabricAreaSqMt += partAreaSqMt;
-      if (part.backMaterialCategory === 'Color/Laminate') oneSideColorLaminateAreaSqMt += partAreaSqMt;
-      else oneSideFabricAreaSqMt += partAreaSqMt;
+      // A shutter-type surface: Color/Finish on one face, Fabric on the
+      // other (whichever way round - materialCategory is always the
+      // front here, so this is really just "the front" and "the back").
+      if (part.materialCategory === 'Color/Laminate') shutterColorAreaSqMt += partAreaSqMt;
+      else shutterFabricBackAreaSqMt += partAreaSqMt;
+      if (part.backMaterialCategory === 'Color/Laminate') shutterColorAreaSqMt += partAreaSqMt;
+      else shutterFabricBackAreaSqMt += partAreaSqMt;
     }
 
     if (part.partName === 'Pelmet/Skirting') {
@@ -860,17 +879,14 @@ export function calculateMaterialUsage(cutList: CutListPart[]): MaterialBreakdow
   // 75% to 85% of 100mm skirting runners are harvested directly from sheet offcut strips without buying extra sheets!
   const skirtingFromOffcutsMeters = Number((skirtingLinearMeters * 0.82).toFixed(1));
 
-  // Real one-side/both-side breakdown (not a guessed ratio of the board
-  // sheet count): a both-side-Fabric part consumes fabric lamination on
-  // BOTH its faces, so its area counts twice toward the Fabric sheet
-  // total.
-  const bothSideFabricSheets = Math.max(1, Math.ceil((bothSideFabricAreaSqMt * 2) / effectiveAreaPerSheetSqMt));
-  const oneSideFabricSheets = Math.ceil(oneSideFabricAreaSqMt / effectiveAreaPerSheetSqMt);
-  const oneSideColorLaminateSheets = Math.ceil(
-    (oneSideColorLaminateAreaSqMt + bothSideColorLaminateAreaSqMt * 2) / effectiveAreaPerSheetSqMt
-  );
-  const innerLaminateSheets = Math.max(1, bothSideFabricSheets + oneSideFabricSheets);
-  const outerLaminateSheets = Math.max(1, oneSideColorLaminateSheets);
+  // Real box/shutter breakdown (not a guessed ratio of the board sheet
+  // count): boxFabricAreaSqMt already includes doubling per item where
+  // fabricBothSides was selected (see the accumulation loop above).
+  const boxFabricSheets = Math.max(1, Math.ceil(boxFabricAreaSqMt / effectiveAreaPerSheetSqMt));
+  const shutterFabricBackSheets = Math.ceil(shutterFabricBackAreaSqMt / effectiveAreaPerSheetSqMt);
+  const shutterColorSheets = Math.ceil(shutterColorAreaSqMt / effectiveAreaPerSheetSqMt);
+  const innerLaminateSheets = Math.max(1, boxFabricSheets + shutterFabricBackSheets);
+  const outerLaminateSheets = Math.max(1, shutterColorSheets);
 
   const roundedEdgeBand2mm = Math.round(edgeBand2mmMeters);
   const roundedEdgeBand08mm = Math.round(edgeBand08mmMeters);
@@ -888,12 +904,13 @@ export function calculateMaterialUsage(cutList: CutListPart[]): MaterialBreakdow
     ply6mmAreaSqFt,
     innerLaminateSheets,
     outerLaminateSheets,
-    bothSideFabricAreaSqFt: Number((bothSideFabricAreaSqMt * 10.7639).toFixed(1)),
-    bothSideFabricSheets,
-    oneSideFabricAreaSqFt: Number((oneSideFabricAreaSqMt * 10.7639).toFixed(1)),
-    oneSideFabricSheets,
-    oneSideColorLaminateAreaSqFt: Number((oneSideColorLaminateAreaSqMt * 10.7639).toFixed(1)),
-    oneSideColorLaminateSheets,
+    boxFabricAreaSqFt: Number((boxFabricAreaSqMt * 10.7639).toFixed(1)),
+    boxFabricSheets,
+    boxFabricBothSidesAreaSqFt: Number((boxFabricBothSidesAreaSqMt * 10.7639).toFixed(1)),
+    shutterFabricBackAreaSqFt: Number((shutterFabricBackAreaSqMt * 10.7639).toFixed(1)),
+    shutterFabricBackSheets,
+    shutterColorAreaSqFt: Number((shutterColorAreaSqMt * 10.7639).toFixed(1)),
+    shutterColorSheets,
     edgeBandMeters: totalEdgeBand,
     edgeBand2mmMeters: roundedEdgeBand2mm,
     edgeBand08mmMeters: roundedEdgeBand08mm,

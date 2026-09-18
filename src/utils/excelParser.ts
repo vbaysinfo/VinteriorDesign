@@ -107,6 +107,18 @@ export async function parseExcelFile(file: File): Promise<ModularItem[]> {
           const laminateKey = getKey(['laminate color code', 'laminate code', 'colour code', 'color code', 'laminate']);
           const edgeBindingKey = getKey(['edge binding', 'edge band', 'edging']);
           const projectTypeKey = getKey(['project type', 'modular type', 'fabrication type', 'semi/full', 'semi / full']);
+          // Whether the customer wants the box's carcass surfaces
+          // (Gables/Decks/Back Panel) laminated in Fabric on BOTH faces
+          // instead of the factory-standard single face - doubles the
+          // fabric quantity for those surfaces only, never the shutter.
+          const fabricBothSidesKey = getKey([
+            'fabric both side',
+            'both side fabric',
+            'both sides fabric',
+            'fabric sides',
+            'double side fabric',
+            'double sided fabric',
+          ]);
 
           // Room carry-over (in spreadsheets, Room is often merged or blank in subsequent rows)
           if (roomKey && row[roomKey] && String(row[roomKey]).trim() !== '') {
@@ -135,6 +147,9 @@ export async function parseExcelFile(file: File): Promise<ModularItem[]> {
           const notes = noteKey && row[noteKey] ? String(row[noteKey]).trim() : undefined;
           const laminateColorCode = laminateKey && row[laminateKey] ? String(row[laminateKey]).trim() : undefined;
           const edgeBindingNote = edgeBindingKey && row[edgeBindingKey] ? String(row[edgeBindingKey]).trim() : undefined;
+          const fabricBothSides = fabricBothSidesKey
+            ? /^(y|yes|true|both|2)/i.test(String(row[fabricBothSidesKey]).trim())
+            : false;
 
           // Optional per-row Semi/Full override. Left undefined (not 'semi')
           // when absent or unrecognized, so the item inherits whichever
@@ -193,6 +208,7 @@ export async function parseExcelFile(file: File): Promise<ModularItem[]> {
             notes,
             laminateColorCode,
             edgeBindingNote,
+            fabricBothSides,
           };
 
           parsedItems.push(recalculateItemMetrics(item));
