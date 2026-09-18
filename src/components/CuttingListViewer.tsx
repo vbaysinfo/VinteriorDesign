@@ -876,7 +876,7 @@ export const CuttingListViewer: React.FC<CuttingListViewerProps> = ({
                             fontWeight="bold"
                             fontFamily="monospace"
                           >
-                            REUSABLE OFFCUT: {offcut.w} × {offcut.h} mm ({offcut.recommendedUse})
+                            REUSABLE OFFCUT: L:{offcut.w} × W:{offcut.h} mm ({offcut.recommendedUse})
                           </text>
                         )}
                       </g>
@@ -1003,12 +1003,15 @@ export const CuttingListViewer: React.FC<CuttingListViewerProps> = ({
                           </text>
                         )}
 
-                        {/* Dimension text - the exact cut size. Shown
-                            whenever there's room for even one line, never
-                            gated behind the full label the way it used to
-                            be, so a 100mm-tall skirting batten or a narrow
-                            shelf still always shows what size it actually
-                            is. */}
+                        {/* Dimension text - the exact cut size, labeled L
+                            (along the sheet's own horizontal Length axis,
+                            printed at the top of this diagram) and W (along
+                            its vertical Width axis) so the two numbers are
+                            never ambiguous - plain "671 × 988mm" doesn't say
+                            which number is which. Shown whenever there's
+                            room for even one line, never gated behind the
+                            full label, so a 100mm-tall skirting batten or a
+                            narrow shelf still always shows its size. */}
                         {!isSmall && (
                           <text
                             x={p.x + p.w / 2}
@@ -1021,7 +1024,7 @@ export const CuttingListViewer: React.FC<CuttingListViewerProps> = ({
                             fontFamily="monospace"
                             className="pointer-events-none drop-shadow-sm"
                           >
-                            {p.w} × {p.h} mm {p.rotated ? '↻' : ''}
+                            L:{p.w} × W:{p.h} mm {p.rotated ? '↻' : ''}
                           </text>
                         )}
                         {isSmall && canFitOneLine && (
@@ -1036,7 +1039,7 @@ export const CuttingListViewer: React.FC<CuttingListViewerProps> = ({
                             fontFamily="monospace"
                             className="pointer-events-none drop-shadow-sm"
                           >
-                            {p.w} × {p.h} mm
+                            L:{p.w} × W:{p.h}
                           </text>
                         )}
                       </g>
@@ -1078,8 +1081,8 @@ export const CuttingListViewer: React.FC<CuttingListViewerProps> = ({
                       </strong>
                     </div>
                     <div>
-                      <span className="text-slate-500">Dimensions:</span>{' '}
-                      <strong>{selectedPartDetail.w} × {selectedPartDetail.h} mm</strong>
+                      <span className="text-slate-500">Dimensions (L × W):</span>{' '}
+                      <strong>L:{selectedPartDetail.w} × W:{selectedPartDetail.h} mm</strong>
                     </div>
                     <div>
                       <span className="text-slate-500">Grain:</span>{' '}

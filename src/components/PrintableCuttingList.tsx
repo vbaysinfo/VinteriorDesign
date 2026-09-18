@@ -118,14 +118,18 @@ export const PrintableCuttingList: React.FC<PrintableCuttingListProps> = ({ cutL
                     />
                     {offcut.isUsable && offcut.w >= 260 && offcut.h >= 70 && (
                       <text x={offcut.x + offcut.w / 2} y={offcut.y + offcut.h / 2} textAnchor="middle" dominantBaseline="central" fontSize="20" fontWeight="bold" fill="#475569">
-                        REUSABLE: {offcut.w}×{offcut.h}mm ({offcut.recommendedUse})
+                        REUSABLE: L:{offcut.w}×W:{offcut.h}mm ({offcut.recommendedUse})
                       </text>
                     )}
                   </g>
                 ))}
 
                 {sheet.parts.map((p) => {
-                  const canFitFull = p.w >= 300 && p.h >= 160;
+                  // Slightly wider than the interactive view's threshold -
+                  // the added "L:"/"W:" labels need a touch more room at
+                  // this tier's larger 30px dimension font before they'd
+                  // start crowding a narrower piece's own edges.
+                  const canFitFull = p.w >= 340 && p.h >= 160;
                   const canFitTwoLines = p.h >= 70 && p.w >= 90;
                   const canFitOneLine = p.h >= 34 && p.w >= 60;
                   const shortCategory = p.materialCategory === 'Color/Laminate' ? 'Color' : 'Fabric';
@@ -154,7 +158,7 @@ export const PrintableCuttingList: React.FC<PrintableCuttingListProps> = ({ cutL
                               request to make this the most legible line on
                               the printed sheet. */}
                           <text x={p.x + p.w / 2} y={p.y + p.h / 2 + 30} textAnchor="middle" fontSize="30" fontWeight="bold" fontFamily="monospace" fill="#0f172a">
-                            {p.w} × {p.h} mm{p.rotated ? ' ↻' : ''}
+                            L:{p.w} × W:{p.h} mm{p.rotated ? ' ↻' : ''}
                           </text>
                         </>
                       ) : canFitTwoLines ? (
@@ -165,14 +169,14 @@ export const PrintableCuttingList: React.FC<PrintableCuttingListProps> = ({ cutL
                               {' '}· {shortCategory}
                             </tspan>
                           </text>
-                          <text x={p.x + p.w / 2} y={p.y + p.h / 2 + 15} textAnchor="middle" fontSize="19" fontWeight="bold" fontFamily="monospace" fill="#0f172a">
-                            {p.w} × {p.h} mm
+                          <text x={p.x + p.w / 2} y={p.y + p.h / 2 + 15} textAnchor="middle" fontSize="16" fontWeight="bold" fontFamily="monospace" fill="#0f172a">
+                            {p.w}L × {p.h}W mm
                           </text>
                         </>
                       ) : (
                         canFitOneLine && (
-                          <text x={p.x + p.w / 2} y={p.y + p.h / 2} textAnchor="middle" dominantBaseline="central" fontSize="16" fontWeight="bold" fontFamily="monospace" fill="#0f172a">
-                            {p.w} × {p.h} mm
+                          <text x={p.x + p.w / 2} y={p.y + p.h / 2} textAnchor="middle" dominantBaseline="central" fontSize="14" fontWeight="bold" fontFamily="monospace" fill="#0f172a">
+                            {p.w}L×{p.h}W
                           </text>
                         )
                       )}
