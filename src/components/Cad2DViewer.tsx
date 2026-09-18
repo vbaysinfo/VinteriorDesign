@@ -2,7 +2,7 @@ import React, { useState, useMemo, useRef } from 'react';
 import { ModularItem, WallType, ProjectType } from '../types';
 import { Layers, ZoomIn, ZoomOut, Maximize2, Minimize2, Download, Eye, Grid, Box, Sliders, Type, RotateCcw, Move } from 'lucide-react';
 import { Isometric3DViewer } from './Isometric3DViewer';
-import { getEffectiveDepthMm, getShutterLayout, redistributeShutterWidths, mmToFt, recalculateItemMetrics } from '../utils/calculator';
+import { getShutterLayout, redistributeShutterWidths, mmToFt, recalculateItemMetrics } from '../utils/calculator';
 import { NumberField } from './NumberField';
 
 interface Cad2DViewerProps {
@@ -877,11 +877,14 @@ export const Cad2DViewer: React.FC<Cad2DViewerProps> = ({
                       acc += shutterWidths[i] + shutterGapMm;
                     }
                   }
-                  // Same box-clearance rule as the real cut list (calculator.ts):
-                  // a box unit's shutter is 20mm shorter than the carcass to clear
-                  // the top/bottom decks; a civil-built frame's shutter is full height.
+                  // Same construction-method rule as the real cut list
+                  // (calculator.ts): the two methods are never mixed - a
+                  // Full Modular box's shutter is 20mm shorter than the
+                  // carcass to clear the top/bottom decks, while a Semi
+                  // Modular civil-built frame's shutter is always full
+                  // height, regardless of any depth value on the row.
                   const shutterPType = pos.item.projectType || projectType;
-                  const shutterIsBoxUnit = getEffectiveDepthMm(pos.item, shutterPType) > 0;
+                  const shutterIsBoxUnit = shutterPType === 'full';
                   const isShutterSelected = (sIdx: number) =>
                     selectedShutter?.itemId === pos.item.id && selectedShutter.index === sIdx;
                   const selectedShutterIndex =

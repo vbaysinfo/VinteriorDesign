@@ -27,17 +27,19 @@ export function getEffectiveDepthMm(item: ModularItem, effectiveProjectType: Pro
   // fallback depths every other category gets when Full Modular assumes a
   // real factory box.
   if (item.category === 'expo' || item.category === 'dummy') return 0;
+  // The two construction methods are never mixed: Semi Modular is Frame +
+  // Shutter with no factory-built box at all, so it never has an
+  // "effective" fabrication depth - regardless of any depth value that
+  // happens to be present on the row. Only Full Modular ever fabricates a
+  // real depth (the row's own value, or a category fallback below).
+  if (effectiveProjectType !== 'full') return 0;
   let d = item.depthMm;
   if (d === 0) {
-    if (effectiveProjectType === 'full') {
-      if (item.category === 'wardrobe_shutter' || item.category === 'single_wardrobe') d = 560;
-      else if (item.category === 'kitchen_base' || item.category === 'tandem_box') d = 560;
-      else if (item.category === 'kitchen_overhead' || item.category === 'loft' || item.category === 'kitchen_loft') d = 330;
-      else if (item.category === 'sitting_box') d = 488;
-      else d = 350;
-    } else {
-      d = 0;
-    }
+    if (item.category === 'wardrobe_shutter' || item.category === 'single_wardrobe') d = 560;
+    else if (item.category === 'kitchen_base' || item.category === 'tandem_box') d = 560;
+    else if (item.category === 'kitchen_overhead' || item.category === 'loft' || item.category === 'kitchen_loft') d = 330;
+    else if (item.category === 'sitting_box') d = 488;
+    else d = 350;
   }
   return d;
 }
@@ -217,13 +219,16 @@ export function generateCutListForItem(item: ModularItem, globalProjectType: Pro
   // If full-modular and depth was 0, default to factory standard depth (e.g. 560mm for wardrobe, 320mm for loft/overhead)
   const d = getEffectiveDepthMm(item, pType);
 
-  const isBoxUnit = d > 0;
   const isFullModular = pType === 'full';
 
   // 1. Shutter / Doors / Front Paneling
   if (hasShutterDoors(item)) {
     const { widths: shutterWidths } = getShutterLayout(item);
-    const shutterHeight = isBoxUnit ? h - 20 : h; // 20mm clearance or full height
+    // The two construction methods are never mixed: a Semi Modular item is
+    // always Frame + Shutter, full height, regardless of any depth value
+    // that might happen to be present on the row - only Full Modular's
+    // real carcass box gives the shutter a 20mm inset to clear the gables.
+    const shutterHeight = isFullModular ? h - 20 : h;
 
     // Shutters usually share one even width, but a per-shutter override
     // (see getShutterLayout) can make them unequal - group by width so each
@@ -289,56 +294,65 @@ export function generateCutListForItem(item: ModularItem, globalProjectType: Pro
       areaSqMt: Number(((faciaWidth * faciaHeight * dCount) / 1_000_000).toFixed(3)),
     });
 
-    // Drawer internal box sides & bottom (if depth > 0)
-    const drawerDepth = d > 0 ? d - 50 : 450;
-    // Left & Right Drawer sides
-    parts.push({
-      id: `${item.id}-drawer-sides`,
-      itemId: item.id,
-      room: item.room,
-      itemName: item.description,
-      wall: item.wall,
-      partName: 'Drawer Side',
-      lengthMm: drawerDepth,
-      widthMm: Math.max(120, faciaHeight - 50),
-      thicknessMm: 18,
-      qty: dCount * 2,
-      material: '18mm Prelam / BWP',
-      materialCategory: 'Fabric',
-      edgeL1: true,
-      edgeL2: false,
-      edgeW1: true,
-      edgeW2: false,
-      edgeThicknessMm: 0.8,
-      areaSqMt: Number(((drawerDepth * Math.max(120, faciaHeight - 50) * dCount * 2) / 1_000_000).toFixed(3)),
-    });
+    // Drawer internal box (sides & bottom) is a factory-built carcass
+    // component - it only exists for Full Modular. A Semi Modular item is
+    // Frame + Shutter only: the drawer front above still gets cut (it's
+    // the visible face, same as a shutter), but the sliding box behind it
+    // is civil/site work, not part of this construction method's own
+    // production calculation.
+    if (isFullModular) {
+      const drawerDepth = d > 0 ? d - 50 : 450;
+      // Left & Right Drawer sides
+      parts.push({
+        id: `${item.id}-drawer-sides`,
+        itemId: item.id,
+        room: item.room,
+        itemName: item.description,
+        wall: item.wall,
+        partName: 'Drawer Side',
+        lengthMm: drawerDepth,
+        widthMm: Math.max(120, faciaHeight - 50),
+        thicknessMm: 18,
+        qty: dCount * 2,
+        material: '18mm Prelam / BWP',
+        materialCategory: 'Fabric',
+        edgeL1: true,
+        edgeL2: false,
+        edgeW1: true,
+        edgeW2: false,
+        edgeThicknessMm: 0.8,
+        areaSqMt: Number(((drawerDepth * Math.max(120, faciaHeight - 50) * dCount * 2) / 1_000_000).toFixed(3)),
+      });
 
-    // Drawer Bottom (9mm Ply)
-    parts.push({
-      id: `${item.id}-drawer-bottom`,
-      itemId: item.id,
-      room: item.room,
-      itemName: item.description,
-      wall: item.wall,
-      partName: 'Drawer Bottom',
-      lengthMm: faciaWidth - 40,
-      widthMm: drawerDepth,
-      thicknessMm: 9,
-      qty: dCount,
-      material: '9mm Plywood',
-      materialCategory: 'Fabric',
-      edgeL1: false,
-      edgeL2: false,
-      edgeW1: false,
-      edgeW2: false,
-      edgeThicknessMm: 0,
-      areaSqMt: Number((((faciaWidth - 40) * drawerDepth * dCount) / 1_000_000).toFixed(3)),
-    });
+      // Drawer Bottom (9mm Ply)
+      parts.push({
+        id: `${item.id}-drawer-bottom`,
+        itemId: item.id,
+        room: item.room,
+        itemName: item.description,
+        wall: item.wall,
+        partName: 'Drawer Bottom',
+        lengthMm: faciaWidth - 40,
+        widthMm: drawerDepth,
+        thicknessMm: 9,
+        qty: dCount,
+        material: '9mm Plywood',
+        materialCategory: 'Fabric',
+        edgeL1: false,
+        edgeL2: false,
+        edgeW1: false,
+        edgeW2: false,
+        edgeThicknessMm: 0,
+        areaSqMt: Number((((faciaWidth - 40) * drawerDepth * dCount) / 1_000_000).toFixed(3)),
+      });
+    }
   }
 
   // 3. Carcass Panels: Left Gable, Right Gable, Top Deck, Bottom Deck, Back Panel
-  // Generated in Full Modular ALWAYS, and in Semi Modular only when isBoxUnit is true (depth > 0)
-  if (isFullModular || isBoxUnit) {
+  // Full Modular only - a Semi Modular item is Frame + Shutter, never a
+  // factory-built box, regardless of whether a depth value happens to be
+  // present on the row.
+  if (isFullModular) {
     const carcassDepth = d > 0 ? d : 560;
     
     // Left & Right Gables
@@ -466,8 +480,14 @@ export function generateCutListForItem(item: ModularItem, globalProjectType: Pro
   // Shelves unit defaults to 0, not a guessed count, since nothing
   // upstream actually specified a shelf count for it. (Expo/Dummy never
   // reach here at all - they returned as a flat panel above.)
+  // Also never mixed: a closed unit's shelves are a hidden internal
+  // carcass component (Full Modular only, same as the drawer box above),
+  // but an open "shelves" display unit's shelves ARE the whole visible
+  // product - not something hidden inside a box - so they're cut
+  // regardless of construction method, the same way an Expo/Dummy panel
+  // is.
   const shelfCount = item.shelfCount ?? (item.category === 'shelves' ? 0 : 2);
-  if (shelfCount > 0) {
+  if (shelfCount > 0 && (isFullModular || item.category === 'shelves')) {
     const shelfWidth = Math.max(100, w - 36);
     const shelfDepth = d > 0 ? d - 30 : 350;
     parts.push({
@@ -537,33 +557,38 @@ export function generateCutListForItem(item: ModularItem, globalProjectType: Pro
       areaSqMt: Number(((w * 100) / 1_000_000).toFixed(3)),
     });
 
-    // 5B. Cross Battens / Sub-Carcass Leveler Supports (Returns)
-    const battenLength = Math.max(250, (d > 0 ? d : 560) - 50);
-    const battenQty = w > 1500 ? 3 : 2; // Left return, right return, + center stiffener if wide
-    parts.push({
-      id: `${item.id}-skirting-battens`,
-      itemId: item.id,
-      room: item.room,
-      itemName: item.description,
-      wall: item.wall,
-      partName: 'Pelmet/Skirting',
-      lengthMm: battenLength,
-      widthMm: 100,
-      thicknessMm: 18,
-      qty: battenQty,
-      // Hidden structural batten under the carcass - generic Fabric liner.
-      material: `${getCoreMaterialLabel(item)} (Fabric)`,
-      materialCategory: 'Fabric',
-      edgeL1: false,
-      edgeL2: false,
-      edgeW1: false,
-      edgeW2: false,
-      edgeThicknessMm: 0,
-      grainDirection: 'any',
-      canRotate: true, // Harvested directly from board offcuts
-      notes: '100mm Sub-carcass leveler batten & structural floor riser',
-      areaSqMt: Number(((battenLength * 100 * battenQty) / 1_000_000).toFixed(3)),
-    });
+    // 5B. Cross Battens / Sub-Carcass Leveler Supports (Returns) - these
+    // level and support a factory-built carcass box, so like the rest of
+    // the box's internal components they only exist for Full Modular;
+    // there's no carcass under Semi Modular for them to support.
+    if (isFullModular) {
+      const battenLength = Math.max(250, (d > 0 ? d : 560) - 50);
+      const battenQty = w > 1500 ? 3 : 2; // Left return, right return, + center stiffener if wide
+      parts.push({
+        id: `${item.id}-skirting-battens`,
+        itemId: item.id,
+        room: item.room,
+        itemName: item.description,
+        wall: item.wall,
+        partName: 'Pelmet/Skirting',
+        lengthMm: battenLength,
+        widthMm: 100,
+        thicknessMm: 18,
+        qty: battenQty,
+        // Hidden structural batten under the carcass - generic Fabric liner.
+        material: `${getCoreMaterialLabel(item)} (Fabric)`,
+        materialCategory: 'Fabric',
+        edgeL1: false,
+        edgeL2: false,
+        edgeW1: false,
+        edgeW2: false,
+        edgeThicknessMm: 0,
+        grainDirection: 'any',
+        canRotate: true, // Harvested directly from board offcuts
+        notes: '100mm Sub-carcass leveler batten & structural floor riser',
+        areaSqMt: Number(((battenLength * 100 * battenQty) / 1_000_000).toFixed(3)),
+      });
+    }
   }
 
   // 6. Loft units never get skirting/pelmet of any kind - a Loft is
