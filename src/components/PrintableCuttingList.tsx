@@ -139,16 +139,17 @@ export const PrintableCuttingList: React.FC<PrintableCuttingListProps> = ({ cutL
 
                 {sheet.parts.map((p) => {
                   // Slightly wider than the interactive view's threshold -
-                  // the added "L:"/"W:" labels need a touch more room at
-                  // this tier's larger 30px dimension font before they'd
-                  // start crowding a narrower piece's own edges. Which axis
-                  // (w or h) supplies the "run" room vs. the "stack" room
-                  // flips with the piece's own shape, so gate on long/thin
-                  // rather than raw w/h - see isVertical below.
+                  // the added "L:"/"W:" labels, plus the now-bigger 20px
+                  // Fabric/Color-Laminate tag, need a touch more room at
+                  // this tier's font sizes before they'd start crowding a
+                  // narrower piece's own edges. Which axis (w or h) supplies
+                  // the "run" room vs. the "stack" room flips with the
+                  // piece's own shape, so gate on long/thin rather than raw
+                  // w/h - see isVertical below.
                   const longDim = Math.max(p.w, p.h);
                   const thinDim = Math.min(p.w, p.h);
                   const isVertical = p.h > p.w;
-                  const canFitFull = longDim >= 340 && thinDim >= 160;
+                  const canFitFull = longDim >= 380 && thinDim >= 170;
                   const canFitTwoLines = thinDim >= 70 && longDim >= 90;
                   const canFitOneLine = thinDim >= 34 && longDim >= 60;
                   const shortCategory = p.materialCategory === 'Color/Laminate' ? 'Color' : 'Fabric';
@@ -181,7 +182,7 @@ export const PrintableCuttingList: React.FC<PrintableCuttingListProps> = ({ cutL
                               from. */}
                           <text {...textPos(-8)} textAnchor="middle" fontSize="24" fontWeight="bold" fill="#0f172a">
                             {p.partName}
-                            <tspan fontSize="16" fontWeight="600" fill="#7c3aed">
+                            <tspan fontSize="20" fontWeight="700" fill="#7c3aed">
                               {' '}· {p.materialCategory}
                             </tspan>
                           </text>
@@ -197,7 +198,7 @@ export const PrintableCuttingList: React.FC<PrintableCuttingListProps> = ({ cutL
                         <>
                           <text {...textPos(-15)} textAnchor="middle" fontSize="14" fontWeight="bold" fill="#0f172a">
                             {p.partName}
-                            <tspan fontSize="11" fontWeight="600" fill="#7c3aed">
+                            <tspan fontSize="14" fontWeight="700" fill="#7c3aed">
                               {' '}· {shortCategory}
                             </tspan>
                           </text>

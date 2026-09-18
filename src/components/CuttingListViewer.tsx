@@ -916,8 +916,8 @@ export const CuttingListViewer: React.FC<CuttingListViewerProps> = ({
 
                   {/* 3. Nested Cut Parts */}
                   {activeVisualSheet.parts.map((p) => {
-                    // Labels always need ~280 units to run the full text and
-                    // ~180 to stack 3 lines - but which physical axis (w or
+                    // Labels always need ~300 units to run the full text and
+                    // ~190 to stack 3 lines - but which physical axis (w or
                     // h) plays which role flips with the piece's own shape:
                     // a piece taller than it is wide (e.g. a 100x458mm
                     // skirting batten standing on end) needs its text
@@ -926,7 +926,7 @@ export const CuttingListViewer: React.FC<CuttingListViewerProps> = ({
                     const longDim = Math.max(p.w, p.h);
                     const thinDim = Math.min(p.w, p.h);
                     const isVertical = p.h > p.w;
-                    const isSmall = longDim < 280 || thinDim < 180;
+                    const isSmall = longDim < 300 || thinDim < 190;
                     const canFitTwoLines = thinDim >= 70 && longDim >= 90;
                     const canFitOneLine = thinDim >= 34 && longDim >= 60;
                     const isSelected = selectedPartDetail?.partId === p.partId;
@@ -1019,7 +1019,7 @@ export const CuttingListViewer: React.FC<CuttingListViewerProps> = ({
                           >
                             {p.partName}
                             {!isSmall && (
-                              <tspan fill="#bae6fd" fontSize="20" fontWeight="700">
+                              <tspan fill="#bae6fd" fontSize="26" fontWeight="700">
                                 {' '}· {p.materialCategory}
                               </tspan>
                             )}
