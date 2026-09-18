@@ -7,6 +7,7 @@ export type UnitCategory =
   | 'loft'
   | 'sitting_box'
   | 'expo'
+  | 'dummy'
   | 'dressing_unit'
   | 'profile_door'
   | 'shelves'
@@ -55,7 +56,7 @@ export interface CutListPart {
   room: string;
   itemName: string;
   wall: WallType;
-  partName: 'Left Gable' | 'Right Gable' | 'Top Deck' | 'Bottom Deck' | 'Back Panel' | 'Internal Shelf' | 'Shutter' | 'Drawer Front' | 'Drawer Side' | 'Drawer Bottom' | 'Pelmet/Skirting';
+  partName: 'Left Gable' | 'Right Gable' | 'Top Deck' | 'Bottom Deck' | 'Back Panel' | 'Internal Shelf' | 'Shutter' | 'Drawer Front' | 'Drawer Side' | 'Drawer Bottom' | 'Pelmet/Skirting' | 'Expo/Dummy Panel';
   lengthMm: number;
   widthMm: number;
   thicknessMm: number;

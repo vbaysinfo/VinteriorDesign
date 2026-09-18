@@ -22,6 +22,11 @@ export const SAW_KERF_MM = 4;
 // units with no factory box. Full Modular always fabricates a full carcass,
 // so blank depths fall back to factory-standard defaults per category.
 export function getEffectiveDepthMm(item: ModularItem, effectiveProjectType: ProjectType): number {
+  // Expo/Dummy pieces are flat 2D panels per the factory's own rule - no
+  // depth at all, under either Semi or Full Modular, regardless of the
+  // fallback depths every other category gets when Full Modular assumes a
+  // real factory box.
+  if (item.category === 'expo' || item.category === 'dummy') return 0;
   let d = item.depthMm;
   if (d === 0) {
     if (effectiveProjectType === 'full') {
@@ -129,6 +134,7 @@ const PART_COLORS: Record<string, string> = {
   'Drawer Side': '#f43f5e', // rose
   'Drawer Bottom': '#6366f1', // indigo
   'Pelmet/Skirting': '#14b8a6', // teal (skirting plinth & pelmet)
+  'Expo/Dummy Panel': '#eab308', // yellow (flat exposed/filler panel)
 };
 
 // Converts ft to mm with standard factory rounding
@@ -169,6 +175,44 @@ export function generateCutListForItem(item: ModularItem, globalProjectType: Pro
 
   const w = item.widthMm;
   const h = item.heightMm;
+
+  // EXPO ("exposed/visible") and DUMMY ("dummy/filler/cover") pieces are
+  // both flat 2D panels per the factory's own rule: Length x Width only,
+  // no Depth/Thickness used in the calculation at all. They skip every
+  // section below (shutters, drawers, carcass box, internal shelves,
+  // skirting) entirely - there's no box to build - and just cut one flat
+  // panel in the item's own selected color, since the panel itself IS the
+  // visible/exposed face.
+  if (item.category === 'expo' || item.category === 'dummy') {
+    parts.push({
+      id: `${item.id}-panel`,
+      itemId: item.id,
+      room: item.room,
+      itemName: item.description,
+      wall: item.wall,
+      partName: 'Expo/Dummy Panel',
+      lengthMm: h,
+      widthMm: w,
+      thicknessMm: 18,
+      qty: 1,
+      material: `${getCoreMaterialLabel(item)} (${getFinishLabel(item)})`,
+      materialCategory: 'Color/Laminate',
+      edgeL1: true,
+      edgeL2: true,
+      edgeW1: true,
+      edgeW2: true,
+      edgeThicknessMm: 2.0,
+      grainDirection: 'any',
+      canRotate: true,
+      notes: 'Expo/Dummy panel - flat 2D piece, Length x Width only (no depth used)',
+      areaSqMt: Number(((h * w) / 1_000_000).toFixed(3)),
+    });
+    const copies = Math.max(1, Math.round(item.quantity || 1));
+    return copies > 1
+      ? parts.map((p) => ({ ...p, qty: p.qty * copies, areaSqMt: Number((p.areaSqMt * copies).toFixed(3)) }))
+      : parts;
+  }
+
   // If semi-modular and depth is 0, it's civil shutter frame
   // If full-modular and depth was 0, default to factory standard depth (e.g. 560mm for wardrobe, 320mm for loft/overhead)
   const d = getEffectiveDepthMm(item, pType);
@@ -418,10 +462,11 @@ export function generateCutListForItem(item: ModularItem, globalProjectType: Pro
   // count, which used to keep drawing a phantom Internal Shelf part even
   // after the user zeroed the shelf count out. This fallback only matters
   // if shelfCount is ever missing entirely (every real construction site -
-  // Excel upload, sample dataset, new-row default - already sets it): an
-  // Expo/Shelves unit defaults to 0, not a guessed count, since nothing
-  // upstream actually specified a shelf count for it.
-  const shelfCount = item.shelfCount ?? (item.category === 'shelves' || item.category === 'expo' ? 0 : 2);
+  // Excel upload, sample dataset, new-row default - already sets it): a
+  // Shelves unit defaults to 0, not a guessed count, since nothing
+  // upstream actually specified a shelf count for it. (Expo/Dummy never
+  // reach here at all - they returned as a flat panel above.)
+  const shelfCount = item.shelfCount ?? (item.category === 'shelves' ? 0 : 2);
   if (shelfCount > 0) {
     const shelfWidth = Math.max(100, w - 36);
     const shelfDepth = d > 0 ? d - 30 : 350;
@@ -437,13 +482,11 @@ export function generateCutListForItem(item: ModularItem, globalProjectType: Pro
       thicknessMm: 18,
       qty: shelfCount,
       // A closed wardrobe's shelves sit hidden behind its doors (generic
-      // Fabric liner), but an open "expo"/"shelves" display unit has no
-      // door at all - its shelves ARE the visible face, so they carry the
+      // Fabric liner), but an open "shelves" display unit has no door at
+      // all - its shelves ARE the visible face, so they carry the
       // customer's actual color like a shutter would.
-      material: `${getCoreMaterialLabel(item)} (${
-        item.category === 'expo' || item.category === 'shelves' ? getFinishLabel(item) : 'Fabric'
-      })`,
-      materialCategory: item.category === 'expo' || item.category === 'shelves' ? 'Color/Laminate' : 'Fabric',
+      material: `${getCoreMaterialLabel(item)} (${item.category === 'shelves' ? getFinishLabel(item) : 'Fabric'})`,
+      materialCategory: item.category === 'shelves' ? 'Color/Laminate' : 'Fabric',
       edgeL1: true,
       edgeL2: false,
       edgeW1: false,

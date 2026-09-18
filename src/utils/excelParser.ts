@@ -5,6 +5,10 @@ import { ftToMm, recalculateItemMetrics } from './calculator';
 // Helper to determine category from description
 export function categorizeDescription(desc: string): UnitCategory {
   const lower = desc.toLowerCase();
+  // Checked before 'panel'/'shutter'/'shelf' below so "Dummy Panel" or
+  // "Dummy Shutter" is recognized as the flat filler piece it actually is,
+  // not mistaken for a real paneled/shuttered cabinet.
+  if (lower.includes('dummy')) return 'dummy';
   if (lower.includes('tandem') || lower.includes('tandom')) return 'tandem_box';
   if (lower.includes('loft') && lower.includes('kitchen')) return 'kitchen_loft';
   if (lower.includes('loft')) return 'loft';
@@ -143,6 +147,16 @@ export async function parseExcelFile(file: File): Promise<ModularItem[]> {
             else if (raw.includes('semi')) projectTypeOverride = 'semi';
           }
 
+          // EXPO ("exposed/visible") and DUMMY ("dummy/filler/cover") are
+          // both flat 2D panels per the factory's own rule - Length x
+          // Width only, no Depth/Thickness in the calculation at all - so
+          // any Depth value present in the sheet for one of these rows is
+          // ignored outright rather than pushing the item into a Volume
+          // basis or a "boxed" carcass calculation it was never meant to
+          // have.
+          const isFlatPanel = category === 'expo' || category === 'dummy';
+          const effectiveDFt = isFlatPanel ? 0 : dFt;
+
           // Defaults
           const item: ModularItem = {
             id: `item-${Date.now()}-${index}`,
@@ -153,22 +167,25 @@ export async function parseExcelFile(file: File): Promise<ModularItem[]> {
             category,
             widthFt: wFt,
             heightFt: hFt,
-            depthFt: dFt,
+            depthFt: effectiveDFt,
             widthMm: ftToMm(wFt),
             heightMm: ftToMm(hFt),
-            depthMm: dFt > 0 ? ftToMm(dFt) : 0,
-            calcBasis: dFt > 0 ? 'Volume (Cu.ft)' : 'Area (Sq.ft)',
+            depthMm: effectiveDFt > 0 ? ftToMm(effectiveDFt) : 0,
+            calcBasis: effectiveDFt > 0 ? 'Volume (Cu.ft)' : 'Area (Sq.ft)',
             areaSqFt: Number((wFt * hFt).toFixed(2)),
-            volumeCuFt: dFt > 0 ? Number((wFt * hFt * dFt).toFixed(2)) : 0,
+            volumeCuFt: effectiveDFt > 0 ? Number((wFt * hFt * effectiveDFt).toFixed(2)) : 0,
             projectType: projectTypeOverride,
-            shutterCount: wFt > 6 ? 4 : wFt > 3 ? 2 : 1,
-            drawerCount: category === 'tandem_box' ? 3 : category === 'sitting_box' ? 2 : 0,
+            // A flat panel has no doors or drawers of its own - it IS the
+            // visible face - so it never gets the generic width-based
+            // shutter guess or a drawer count.
+            shutterCount: isFlatPanel ? 0 : wFt > 6 ? 4 : wFt > 3 ? 2 : 1,
+            drawerCount: isFlatPanel ? 0 : category === 'tandem_box' ? 3 : category === 'sitting_box' ? 2 : 0,
             // Not read from any Excel column - there isn't one for this.
-            // An Expo/Shelves unit defaults to 0 (no assumed shelves)
-            // rather than guessing a count the uploaded sheet never
-            // specified; set a real value per item in the Item Inspector
-            // after upload if it actually needs shelves.
-            shelfCount: category === 'expo' || category === 'shelves' ? 0 : 2,
+            // An Expo/Shelves/Dummy unit defaults to 0 (no assumed
+            // shelves) rather than guessing a count the uploaded sheet
+            // never specified; set a real value per item in the Item
+            // Inspector after upload if it actually needs shelves.
+            shelfCount: category === 'expo' || category === 'shelves' || category === 'dummy' ? 0 : 2,
             finishType: desc.toLowerCase().includes('glass') || desc.toLowerCase().includes('profile') ? 'Profile Glass' : 'Laminate',
             coreMaterial: currentRoom.toLowerCase().includes('kitchen') ? 'BWP Marine Ply' : 'BWR Commercial Ply',
             quantity,

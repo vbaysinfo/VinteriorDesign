@@ -314,6 +314,12 @@ export const Isometric3DViewer: React.FC<Isometric3DViewerProps> = ({
         return 350;
       case 'partition':
         return 150;
+      case 'expo':
+      case 'dummy':
+        // Flat 2D panel per the factory's own rule (Length x Width only,
+        // no real depth) - just enough depth to render as a thin visible
+        // panel in 3D, not a deep box.
+        return 18;
       default:
         return 550;
     }
