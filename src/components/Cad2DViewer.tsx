@@ -927,8 +927,25 @@ export const Cad2DViewer: React.FC<Cad2DViewerProps> = ({
                   const badgeSubLine = `${showRoomInLabels ? `${pos.item.room} • ` : ''}${pos.w} × ${pos.h}${
                     pos.item.depthMm > 0 ? ` × ${pos.item.depthMm}mm` : ''
                   }`;
-                  const estBadgeW = Math.max(badgeTitleLine.length * 6.4, badgeSubLine.length * 5.4) * fontScale + 20;
+                  // Font size is decided FIRST, from fontScale alone, so the
+                  // default text is always full-size on any normal-width
+                  // cabinet - not derived back out of however wide the badge
+                  // happened to end up (that circular approach was quietly
+                  // shrinking every badge, since a badge sized just big
+                  // enough for its own text at a modest guess then re-capped
+                  // the font to that same modest width). The badge is then
+                  // sized to fit text at this full size, and only a cabinet
+                  // too narrow to hold that at all scales the font back down.
+                  const TITLE_CHAR_W = 0.56; // bold sans-serif average advance, as a fraction of font size
+                  const SUB_CHAR_W = 0.5;
+                  const nominalTitleFont = 26 * fontScale;
+                  const nominalSubFont = 20 * fontScale;
+                  const estBadgeW =
+                    Math.max(badgeTitleLine.length * TITLE_CHAR_W * nominalTitleFont, badgeSubLine.length * SUB_CHAR_W * nominalSubFont) + 20;
                   const badgeW = Math.min(pos.w - 12, Math.max(90, estBadgeW));
+                  const fontShrink = Math.min(1, (badgeW - 16) / (estBadgeW - 20));
+                  const badgeTitleFontSize = Math.round(nominalTitleFont * fontShrink);
+                  const badgeSubFontSize = Math.round(nominalSubFont * fontShrink);
                   const badgeH = Math.min(pos.h - 10, Math.round(66 * fontScale));
                   const badgeX = pos.x + (pos.w - badgeW) / 2;
                   const badgeY = itemY + (pos.h > 350 ? 20 : (pos.h - badgeH) / 2);
@@ -1197,7 +1214,7 @@ export const Cad2DViewer: React.FC<Cad2DViewerProps> = ({
                             x={badgeX + badgeW / 2}
                             y={badgeY + Math.round(28 * fontScale)}
                             fill={themeStyles.text}
-                            fontSize={Math.round(Math.min(badgeW / 11, 30 * fontScale))}
+                            fontSize={badgeTitleFontSize}
                             fontWeight="bold"
                             textAnchor="middle"
                           >
@@ -1207,7 +1224,7 @@ export const Cad2DViewer: React.FC<Cad2DViewerProps> = ({
                             x={badgeX + badgeW / 2}
                             y={badgeY + Math.round(54 * fontScale)}
                             fill={themeStyles.dimLine}
-                            fontSize={Math.round(Math.min(badgeW / 12, 24 * fontScale))}
+                            fontSize={badgeSubFontSize}
                             fontWeight="600"
                             textAnchor="middle"
                           >
