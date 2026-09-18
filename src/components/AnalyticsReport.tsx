@@ -485,7 +485,7 @@ export const AnalyticsReport: React.FC<AnalyticsReportProps> = ({ items, cutList
       <div className="flex items-start gap-2 text-sm text-slate-500 bg-slate-50 border border-slate-200 rounded-lg p-4">
         <Info className="w-3.5 h-3.5 mt-0.5 shrink-0 text-slate-400" />
         <span>
-          <strong>Total Sq.ft</strong> at the top sums every item's Width × Height in feet (its elevation/opening area, e.g. a
+          <strong>Total Sq.ft</strong> at the top sums every item's Width × Length in feet (its elevation/opening area, e.g. a
           wardrobe's 8×7ft face) - it does not, and isn't meant to, match the <strong>panel material</strong> figures in the
           Used/Waste charts above. Building that wardrobe's actual carcass needs a Left Gable, Right Gable, Top Deck, Bottom
           Deck, Back Panel, Shelves, and Shutters - each its own separate 18mm/6mm sheet panel with its own area - so the real

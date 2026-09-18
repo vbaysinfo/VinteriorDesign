@@ -59,7 +59,7 @@ export const RoomBoxSchedule: React.FC<RoomBoxScheduleProps> = ({ items, selecte
               Room-Wise Box Schedule
             </h2>
             <p className="text-xs text-slate-500 mt-0.5">
-              Which units get a factory carcass box, and its Width × Height × Depth — compared for Semi Modular vs Full Modular.
+              Which units get a factory carcass box, and its Width × Length × Depth — compared for Semi Modular vs Full Modular.
             </p>
           </div>
         </div>

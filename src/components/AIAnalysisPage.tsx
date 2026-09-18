@@ -133,7 +133,7 @@ export const AIAnalysisPage: React.FC<AIAnalysisPageProps> = ({ items, cutList, 
                 <th className="text-right py-2.5 px-3">Items</th>
                 <th className="text-right py-2.5 px-3">Area (sq.ft)</th>
                 <th className="text-left py-2.5 px-3">Width Range</th>
-                <th className="text-left py-2.5 px-3">Height Range</th>
+                <th className="text-left py-2.5 px-3">Length Range</th>
                 <th className="text-right py-2.5 px-3">Shutters</th>
                 <th className="text-right py-2.5 px-3">Drawers</th>
                 <th className="text-right py-2.5 px-3">Shelves</th>
@@ -173,7 +173,7 @@ export const AIAnalysisPage: React.FC<AIAnalysisPageProps> = ({ items, cutList, 
                   <th className="text-left py-2.5 px-3">Wall</th>
                   <th className="text-right py-2.5 px-3">Cabinets</th>
                   <th className="text-right py-2.5 px-3">Total Width</th>
-                  <th className="text-left py-2.5 px-4">Height Range</th>
+                  <th className="text-left py-2.5 px-4">Length Range</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">

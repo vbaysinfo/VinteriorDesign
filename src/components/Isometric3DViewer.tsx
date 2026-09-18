@@ -1024,12 +1024,12 @@ export const Isometric3DViewer: React.FC<Isometric3DViewerProps> = ({
         color: styleConfig.dimColor,
       });
 
-      // 2. Height dimension along left edge
+      // 2. Length (vertical) dimension along left edge
       const hA = projectPoint({ x: x - 60, y, z: z + d });
       const hB = projectPoint({ x: x - 60, y: y + h, z: z + d });
       callouts.push({
         id: `dim-h-${item.id}`,
-        label: `H: ${h}mm`,
+        label: `L: ${h}mm`,
         p1: hA,
         p2: hB,
         textPos: { u: (hA.u + hB.u) / 2 - 18, v: (hA.v + hB.v) / 2, depth: (hA.depth + hB.depth) / 2 },
@@ -1434,7 +1434,7 @@ export const Isometric3DViewer: React.FC<Isometric3DViewerProps> = ({
                 <strong className="text-white text-xs">{selectedItem.widthMm} mm</strong>
               </div>
               <div className="bg-slate-800/80 p-1.5 rounded text-center">
-                <span className="text-slate-400 block text-[10px] uppercase font-semibold">Height</span>
+                <span className="text-slate-400 block text-[10px] uppercase font-semibold">Length</span>
                 <strong className="text-white text-xs">{selectedItem.heightMm} mm</strong>
               </div>
               <div className="bg-slate-800/80 p-1.5 rounded text-center">

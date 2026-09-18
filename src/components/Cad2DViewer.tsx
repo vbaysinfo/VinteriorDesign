@@ -898,8 +898,8 @@ export const Cad2DViewer: React.FC<Cad2DViewerProps> = ({
                     const { shutterWidthOverrides, ...rest } = pos.item;
                     onUpdateItem(rest);
                   };
-                  // Height and Depth aren't per-shutter properties - all doors
-                  // in one row share the carcass's own height/depth - so these
+                  // Length and Depth aren't per-shutter properties - all doors
+                  // in one row share the carcass's own length/depth - so these
                   // just edit the item itself, same as the Structural
                   // Dimensions fields in the Item Inspector Drawer.
                   const handleShutterHeightChange = (newHeightMm: number) => {
@@ -1133,13 +1133,13 @@ export const Cad2DViewer: React.FC<Cad2DViewerProps> = ({
                                   />
                                 </div>
                                 <div className="flex flex-col items-center gap-0.5">
-                                  <span className="text-[0.8em] opacity-70">Height</span>
+                                  <span className="text-[0.8em] opacity-70">Length</span>
                                   <NumberField
                                     min={0}
                                     value={pos.item.heightMm}
                                     onCommit={handleShutterHeightChange}
                                     disabled={!onUpdateItem}
-                                    title="Shared by every door in this row, same as the item's own Height field"
+                                    title="Shared by every door in this row, same as the item's own Length field"
                                     className={fieldClass}
                                     style={fieldStyle}
                                   />

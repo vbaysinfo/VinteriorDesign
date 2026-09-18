@@ -95,7 +95,7 @@ export const ItemInspectorDrawer: React.FC<ItemInspectorDrawerProps> = ({
               <span className="text-slate-500 text-[10px] block mt-0.5">({item.widthFt} ft)</span>
             </div>
             <div className="p-2 bg-white rounded-lg border border-slate-200">
-              <span className="text-slate-400 text-[10px] block mb-0.5">HEIGHT (mm)</span>
+              <span className="text-slate-400 text-[10px] block mb-0.5">LENGTH (mm)</span>
               <NumberField
                 min={0}
                 value={item.heightMm}
@@ -130,7 +130,7 @@ export const ItemInspectorDrawer: React.FC<ItemInspectorDrawerProps> = ({
             CAD drawing are clickable too, but hitting the exact pixel for
             one door in a zoomed/panned SVG is fiddly, so every door is also
             listed here as a plain editable row. Width is genuinely
-            per-door (see redistributeShutterWidths); Height and Depth are
+            per-door (see redistributeShutterWidths); Length and Depth are
             physically one shared carcass property across a single row of
             hinged doors, so they mirror the same Structural Dimensions
             fields above - editing either from any door row updates every
@@ -165,7 +165,7 @@ export const ItemInspectorDrawer: React.FC<ItemInspectorDrawerProps> = ({
                       <tr className="text-slate-400 uppercase text-[10px] tracking-wide">
                         <th className="text-left pb-1 font-bold">Door</th>
                         <th className="text-center pb-1 font-bold">Width (mm)</th>
-                        <th className="text-center pb-1 font-bold">Height (mm)</th>
+                        <th className="text-center pb-1 font-bold">Length (mm)</th>
                         <th className="text-center pb-1 font-bold">Depth (mm)</th>
                       </tr>
                     </thead>
@@ -209,7 +209,7 @@ export const ItemInspectorDrawer: React.FC<ItemInspectorDrawerProps> = ({
                 </div>
                 <p className="text-[10px] text-slate-400">
                   Width is per-door - widening one door narrows the others so they always add up to the item's total
-                  width. Height and Depth are one shared carcass dimension across the whole row of doors, same as the
+                  width. Length and Depth are one shared carcass dimension across the whole row of doors, same as the
                   Structural Dimensions card above - editing it here changes it there too.
                 </p>
               </div>
