@@ -306,6 +306,73 @@ export interface CostBreakdown {
   semiSavingsVsFull?: number;
 }
 
+// A single "up to this shutter height, this many hinges" step. Rules are
+// read in ascending maxHeightMm order; the first one a shutter's own
+// height fits under wins. The last rule should carry a very large
+// maxHeightMm so every taller shutter still resolves to a hinge count
+// instead of falling through unhandled.
+export interface HingeRule {
+  maxHeightMm: number;
+  hinges: number;
+}
+
+export type BoxJoiningSystem = 'confirmat' | 'minifix_dowel' | 'screw_bracket';
+export type BackPanelFixing = 'staples' | 'screws';
+
+// Factory-configurable hardware quantity rules - separate from FactoryRates
+// (which prices hardware, not counts it). Admin-editable via the Hardware
+// Rules panel; calculateHardwareBOM and calculateMaterialUsage both read
+// from the same rules object so the detailed BOM and the aggregate
+// hardware totals never disagree with each other.
+export interface HardwareRules {
+  hingeRules: HingeRule[];
+  handlesPerShutter: number;
+  handlesPerDrawer: number;
+  shelfPinsPerShelf: number;
+  boxJoiningSystem: BoxJoiningSystem;
+  minifixSetsPerBox: number;
+  dowelsPerBox: number;
+  confirmatScrewsPerBox: number;
+  bracketsPerBox: number;
+  bracketScrewsPerBracket: number;
+  backPanelFixing: BackPanelFixing;
+  backPanelFixingSpacingMm: number;
+  skirtingClipSpacingMm: number;
+}
+
+// Where a value in the hardware engine came from - a permanent factory
+// default, a one-off project override, or something the AI derived from a
+// factory rule. Never invent a hardware line without one of these.
+export type HardwareSource = 'Factory Rule' | 'Project Rule' | 'AI Calculation';
+
+// One calculated hardware requirement for one component. Several of these
+// aggregate (by hardwareCode + unit) into the Purchase BOM.
+export interface HardwareBOMLine {
+  projectId: string;
+  moduleId: string;
+  moduleName: string;
+  room: string;
+  componentId: string;
+  componentType: string;
+  hardwareCode: string;
+  hardwareName: string;
+  brand?: string;
+  model?: string;
+  specification?: string;
+  unit: string;
+  quantity: number;
+  calculationRule: string;
+  source: HardwareSource;
+  remarks?: string;
+}
+
+export interface AggregatedHardwareLine {
+  hardwareCode: string;
+  hardwareName: string;
+  unit: string;
+  totalQuantity: number;
+}
+
 export interface FactoryRates {
   plywood18mmPerSqFt: number; // e.g. ₹95 / sqft (approx $1.20)
   plywood9mmPerSqFt: number;  // e.g. ₹55 / sqft

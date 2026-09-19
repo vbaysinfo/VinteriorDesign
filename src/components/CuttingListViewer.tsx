@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
-import { CutListPart, MaterialBreakdown, ProjectType, SheetLayout } from '../types';
-import { generateSheetNestingLayouts, calculateMaterialUsage, SHEET_LENGTH_MM, SHEET_WIDTH_MM } from '../utils/calculator';
+import { CutListPart, MaterialBreakdown, ProjectType, SheetLayout, HardwareBOMLine } from '../types';
+import { generateSheetNestingLayouts, calculateMaterialUsage, aggregateHardwareBOM, SHEET_LENGTH_MM, SHEET_WIDTH_MM } from '../utils/calculator';
 import {
   Layers,
   Box,
@@ -30,6 +30,7 @@ import { PartEditModal } from './PartEditModal';
 interface CuttingListViewerProps {
   cutList: CutListPart[];
   materials: MaterialBreakdown;
+  hardwareBOM: HardwareBOMLine[];
   projectType: ProjectType;
   selectedRoom: string;
   onUpdatePart?: (partId: string, updates: Partial<CutListPart>) => void;
@@ -39,6 +40,7 @@ interface CuttingListViewerProps {
 export const CuttingListViewer: React.FC<CuttingListViewerProps> = ({
   cutList,
   materials: globalMaterials,
+  hardwareBOM,
   projectType,
   selectedRoom,
   onUpdatePart,
@@ -62,6 +64,16 @@ export const CuttingListViewer: React.FC<CuttingListViewerProps> = ({
     () => (selectedRoom === 'ALL' ? globalMaterials : calculateMaterialUsage(roomCutList)),
     [selectedRoom, globalMaterials, roomCutList]
   );
+
+  // Same re-scoping as `materials` above, but for the detailed, rule-driven
+  // Hardware BOM - this is what the hardware export below actually uses,
+  // not a separate set of ad hoc formulas.
+  const scopedHardwareBOM = useMemo(
+    () => (selectedRoom === 'ALL' ? hardwareBOM : hardwareBOM.filter((l) => l.room === selectedRoom)),
+    [selectedRoom, hardwareBOM]
+  );
+  const purchaseBOM = useMemo(() => aggregateHardwareBOM(scopedHardwareBOM), [scopedHardwareBOM]);
+  const skirtingClipCount = purchaseBOM.find((p) => p.hardwareCode === 'SKT-CLP')?.totalQuantity ?? 0;
 
   // Sub-tabs: 'sheets_visual' | 'parts_table' | 'waste_analytics' | 'hardware_schedule'
   const [activeSubTab, setActiveSubTab] = useState<
@@ -208,58 +220,19 @@ export const CuttingListViewer: React.FC<CuttingListViewerProps> = ({
     XLSX.writeFile(wb, `${selectedRoom}_Material_Yield_and_Waste_Audit.xlsx`);
   };
 
-  // Export Hardware & Edge Banding Schedule to Excel
+  // Export Hardware & Edge Banding Schedule to Excel. The hardware rows
+  // come straight from the same rule-driven Purchase BOM shown on the
+  // Hardware BOM tab - not a separate set of ad hoc formulas - so this
+  // export and that tab can never disagree with each other.
   const handleExportHardware = () => {
     const hardwareData = [
-      {
-        'Hardware Category': 'Hinges',
-        Description: '3D Clip-on Soft-Close Concealed Hinges (Full/Half Overlay)',
-        Unit: 'Pieces',
-        Quantity: materials.totalHingesPieces,
-        Pairs: materials.softCloseHingesPairs,
-      },
-      {
-        'Hardware Category': 'Drawer Systems',
-        Description: 'Tandem Soft-Close Box Channels (35kg / 50kg)',
-        Unit: 'Sets',
-        Quantity: materials.tandemBoxChannels,
+      ...purchaseBOM.map((p) => ({
+        'Hardware Category': p.hardwareName,
+        Description: p.hardwareCode,
+        Unit: p.unit,
+        Quantity: p.totalQuantity,
         Pairs: '-',
-      },
-      {
-        'Hardware Category': 'Drawer Runners',
-        Description: 'Telescopic Ball-Bearing Soft-Close Runners (450mm/500mm)',
-        Unit: 'Pairs',
-        Quantity: materials.drawerChannels,
-        Pairs: materials.drawerChannels,
-      },
-      {
-        'Hardware Category': 'Handles & Pulls',
-        Description: 'Cabinet & Drawer Handles / Concealed Profile Pulls',
-        Unit: 'Pieces',
-        Quantity: materials.handles,
-        Pairs: '-',
-      },
-      {
-        'Hardware Category': 'Shelf Fittings',
-        Description: 'Metal Shelf Studs with Anti-Vibration Rubber Rings',
-        Unit: 'Pieces',
-        Quantity: materials.shelfSupports,
-        Pairs: '-',
-      },
-      {
-        'Hardware Category': 'Fasteners',
-        Description: 'Minifix Cam + Bolt + Wood Dowel Knock-Down Sets',
-        Unit: 'Sets',
-        Quantity: materials.fastenersMinifixCount,
-        Pairs: '-',
-      },
-      {
-        'Hardware Category': 'Plinth / Skirting',
-        Description: '100mm Heavy-Duty Plinth Support Brackets & Leveling Feet',
-        Unit: 'Sets',
-        Quantity: Math.max(4, materials.skirtingPiecesCount * 2),
-        Pairs: '-',
-      },
+      })),
       {
         'Hardware Category': 'Edge Banding',
         Description: '2.0mm PVC Edge Band Tape (Shutters & Facias)',
@@ -1741,7 +1714,7 @@ export const CuttingListViewer: React.FC<CuttingListViewerProps> = ({
                   </td>
                   <td className="py-3 px-3 text-center font-mono">Sets</td>
                   <td className="py-3 px-3 text-center font-mono font-bold text-teal-800 bg-teal-100/50 text-sm">
-                    {Math.max(4, materials.skirtingPiecesCount * 2)} sets
+                    {Math.max(4, skirtingClipCount)} sets
                   </td>
                   <td className="py-3 px-4 text-slate-500">
                     Supports 100mm plinth runners and allows floor-level adjustment against uneven tiles

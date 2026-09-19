@@ -1,13 +1,20 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { ModularItem, ProjectInfo, ProjectType, FactoryRates, CutListPart } from './types';
+import { ModularItem, ProjectInfo, ProjectType, FactoryRates, CutListPart, HardwareRules } from './types';
 import { INITIAL_ITEMS, DEFAULT_PROJECT_INFO, DEFAULT_FACTORY_RATES } from './data/initialData';
-import { generateAllCutLists, calculateMaterialUsage, calculateProjectCost } from './utils/calculator';
+import {
+  generateAllCutLists,
+  calculateMaterialUsage,
+  calculateProjectCost,
+  calculateHardwareBOM,
+  DEFAULT_HARDWARE_RULES,
+} from './utils/calculator';
 import { generateBOMProposalPDF } from './utils/pdfGenerator';
 import { Header } from './components/Header';
 import { Cad2DViewer } from './components/Cad2DViewer';
 import { SpreadsheetEditor } from './components/SpreadsheetEditor';
 import { CuttingListViewer } from './components/CuttingListViewer';
 import { PricingReport } from './components/PricingReport';
+import { HardwareBOMReport } from './components/HardwareBOMReport';
 import { RoomBoxSchedule } from './components/RoomBoxSchedule';
 import { AnalyticsReport } from './components/AnalyticsReport';
 import { AIAnalysisPage } from './components/AIAnalysisPage';
@@ -15,7 +22,7 @@ import { ItemInspectorDrawer } from './components/ItemInspectorDrawer';
 import { ProjectSettingsModal } from './components/ProjectSettingsModal';
 import { PrintableCadLayout } from './components/PrintableCadLayout';
 import { PrintableCuttingList } from './components/PrintableCuttingList';
-import { Layers, FileSpreadsheet, Scissors, Calculator, Info, UploadCloud, Maximize2, Minimize2, Boxes, BarChart3, Sparkles } from 'lucide-react';
+import { Layers, FileSpreadsheet, Scissors, Calculator, Info, UploadCloud, Maximize2, Minimize2, Boxes, BarChart3, Sparkles, Wrench } from 'lucide-react';
 
 export default function App() {
   const [projectInfo, setProjectInfo] = useState<ProjectInfo>(DEFAULT_PROJECT_INFO);
@@ -25,10 +32,15 @@ export default function App() {
   // header (onResetSampleData) to bring in INITIAL_ITEMS on demand.
   const [items, setItems] = useState<ModularItem[]>([]);
   const [selectedRoom, setSelectedRoom] = useState<string>('ALL');
-  const [activeTab, setActiveTab] = useState<'cad_layout' | 'spreadsheet' | 'cut_list' | 'box_schedule' | 'analytics' | 'ai_analysis' | 'pricing_bom'>('cad_layout');
+  const [activeTab, setActiveTab] = useState<'cad_layout' | 'spreadsheet' | 'cut_list' | 'box_schedule' | 'analytics' | 'ai_analysis' | 'pricing_bom' | 'hardware_bom'>('cad_layout');
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [rates, setRates] = useState<FactoryRates>(DEFAULT_FACTORY_RATES);
+  // Factory-configurable hardware quantity rules (hinge counts, shelf pins,
+  // box joining system, etc.) - separate from `rates` above, which only
+  // prices hardware, not counts it. Defaults match the app's own prior
+  // hardcoded hardware behavior exactly.
+  const [hardwareRules, setHardwareRules] = useState<HardwareRules>(DEFAULT_HARDWARE_RULES);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   // Full width is the default layout for every tab, not just the CAD
   // canvas - "Standard" just narrows the content column for whoever
@@ -63,13 +75,21 @@ export default function App() {
 
   // Calculate Materials
   const materials = useMemo(() => {
-    return calculateMaterialUsage(cutList);
-  }, [cutList]);
+    return calculateMaterialUsage(cutList, hardwareRules);
+  }, [cutList, hardwareRules]);
 
   // Calculate Costs
   const costs = useMemo(() => {
     return calculateProjectCost(materials, items, rates);
   }, [materials, items, rates]);
+
+  // Detailed, per-component Hardware BOM - the authoritative source for
+  // the Hardware BOM report/export, always reflecting the live factory
+  // hardware rules (unlike `materials` above, which only keeps its own
+  // rough aggregate totals in sync).
+  const hardwareBOM = useMemo(() => {
+    return calculateHardwareBOM(cutList, hardwareRules, projectInfo.projectName);
+  }, [cutList, hardwareRules, projectInfo.projectName]);
 
   // Currently inspected item
   const inspectedItem = useMemo(() => {
@@ -303,6 +323,21 @@ export default function App() {
               <Calculator className="w-4 h-4 text-indigo-400" />
               <span>Pricing & BOM Proposal</span>
             </button>
+
+            <button
+              onClick={() => setActiveTab('hardware_bom')}
+              className={`px-3.5 py-2 rounded-lg text-xs font-bold flex items-center gap-2 transition ${
+                activeTab === 'hardware_bom'
+                  ? 'bg-slate-900 text-white shadow-xs'
+                  : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+              }`}
+            >
+              <Wrench className="w-4 h-4 text-orange-500" />
+              <span>Hardware BOM</span>
+              <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-200 text-slate-700 font-mono">
+                {hardwareBOM.length} lines
+              </span>
+            </button>
           </nav>
 
           {/* Right Controls: Full Width Toggle & Room Selector Dropdown */}
@@ -376,6 +411,7 @@ export default function App() {
             <CuttingListViewer
               cutList={cutList}
               materials={materials}
+              hardwareBOM={hardwareBOM}
               projectType={projectType}
               selectedRoom={selectedRoom}
               onUpdatePart={handleUpdatePart}
@@ -425,6 +461,15 @@ export default function App() {
               }
             />
           </div>
+        )}
+
+        {activeTab === 'hardware_bom' && (
+          <HardwareBOMReport
+            hardwareBOM={hardwareBOM}
+            hardwareRules={hardwareRules}
+            onUpdateRules={setHardwareRules}
+            selectedRoom={selectedRoom}
+          />
         )}
       </main>
 

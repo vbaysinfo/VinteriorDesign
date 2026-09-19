@@ -10,12 +10,56 @@ import {
   RoomSkirtingOptions,
   RoomBoxRow,
   WallType,
+  HardwareRules,
+  HingeRule,
+  HardwareBOMLine,
+  AggregatedHardwareLine,
 } from '../types';
 
 // Standard sheet dimensions in mm
 export const SHEET_LENGTH_MM = 2440;
 export const SHEET_WIDTH_MM = 1220;
 export const SAW_KERF_MM = 4;
+
+// Factory-configurable hardware quantity rules. These are defaults only -
+// the factory admin can edit every value from the Hardware Rules panel;
+// nothing here should be read as a permanent, un-overridable assumption.
+// The hinge thresholds and shelf-pin count match this app's own prior
+// hardcoded behavior exactly, so turning them into editable rules doesn't
+// shift any existing estimate until an admin actually changes one.
+export const DEFAULT_HARDWARE_RULES: HardwareRules = {
+  hingeRules: [
+    { maxHeightMm: 1500, hinges: 2 },
+    { maxHeightMm: 2100, hinges: 3 },
+    { maxHeightMm: Infinity, hinges: 4 },
+  ],
+  handlesPerShutter: 1,
+  handlesPerDrawer: 1,
+  shelfPinsPerShelf: 4,
+  boxJoiningSystem: 'minifix_dowel',
+  minifixSetsPerBox: 8, // 2 sets per corner x 4 corners (Top/Bottom x Left/Right)
+  dowelsPerBox: 8, // 1 dowel per minifix set
+  confirmatScrewsPerBox: 12,
+  bracketsPerBox: 8,
+  bracketScrewsPerBracket: 2,
+  backPanelFixing: 'staples',
+  backPanelFixingSpacingMm: 150,
+  skirtingClipSpacingMm: 400,
+};
+
+// Resolves how many hinges a shutter of a given height needs, from the
+// factory's own configured rule table - never a single hardcoded number
+// for every shutter. Rules are checked in ascending maxHeightMm order; the
+// first one the shutter's height fits under wins. A rule table with no
+// entry tall enough to cover a given shutter falls back to the tallest
+// configured rule rather than silently returning nothing.
+export function getHingeCountForHeight(heightMm: number, hingeRules: HingeRule[]): number {
+  const sorted = [...hingeRules].sort((a, b) => a.maxHeightMm - b.maxHeightMm);
+  for (const rule of sorted) {
+    if (heightMm <= rule.maxHeightMm) return rule.hinges;
+  }
+  return sorted[sorted.length - 1]?.hinges ?? 2;
+}
 
 // Resolve the working carcass depth for an item under a given project mode.
 // Semi Modular items left blank (depthMm 0) are civil-built shutter/frame
@@ -751,8 +795,12 @@ export function generateRoomBoxSummary(items: ModularItem[], forcedProjectType: 
   });
 }
 
-// Calculate material usage breakdown from items and cut list
-export function calculateMaterialUsage(cutList: CutListPart[]): MaterialBreakdown {
+// Calculate material usage breakdown from items and cut list. `rules`
+// defaults to the factory's standard hardware rules so every existing call
+// site keeps working unchanged; pass the live, admin-edited rules once a
+// caller has them so its hinge/shelf-pin counts stay in sync with the
+// detailed Hardware BOM below.
+export function calculateMaterialUsage(cutList: CutListPart[], rules: HardwareRules = DEFAULT_HARDWARE_RULES): MaterialBreakdown {
   // An empty cut list (Clear Project, or before anything's been uploaded)
   // must report zero everything. Every count below is built on
   // Math.max(1, ...) floors (never show "0 sheets" for a real, tiny job) -
@@ -817,6 +865,11 @@ export function calculateMaterialUsage(cutList: CutListPart[]): MaterialBreakdow
   let totalPieces = 0;
   let skirtingLinearMeters = 0;
   let skirtingPiecesCount = 0;
+  // Which items actually built a real carcass - a Left Gable only exists
+  // on an item with a full box, so its presence is the signal. Used below
+  // to price box-assembly fasteners per real box instead of guessing from
+  // sheet count.
+  const boxItemIds = new Set<string>();
   // Fabric and shutter color are two different material rules, each
   // calculated separately, both against the same standard 8x4ft/32 sq.ft
   // sheet (see effectiveAreaPerSheetSqMt below).
@@ -892,7 +945,7 @@ export function calculateMaterialUsage(cutList: CutListPart[]): MaterialBreakdow
 
     // Hardware deduction
     if (part.partName === 'Shutter') {
-      const hingesNeeded = part.lengthMm > 2100 ? 4 : part.lengthMm > 1500 ? 3 : 2;
+      const hingesNeeded = getHingeCountForHeight(part.lengthMm, rules.hingeRules);
       softCloseHingesPairs += (hingesNeeded / 2) * part.qty;
       handles += part.qty;
     } else if (part.partName === 'Drawer Front') {
@@ -903,7 +956,9 @@ export function calculateMaterialUsage(cutList: CutListPart[]): MaterialBreakdow
         drawerChannels += part.qty;
       }
     } else if (part.partName === 'Internal Shelf') {
-      shelfSupports += part.qty * 4;
+      shelfSupports += part.qty * rules.shelfPinsPerShelf;
+    } else if (part.partName === 'Left Gable') {
+      boxItemIds.add(part.itemId);
     }
   }
 
@@ -953,6 +1008,16 @@ export function calculateMaterialUsage(cutList: CutListPart[]): MaterialBreakdow
   const roundedEdgeBand08mm = Math.round(edgeBand08mmMeters);
   const totalEdgeBand = roundedEdgeBand2mm + roundedEdgeBand08mm;
   const totalHingesPairs = Math.ceil(softCloseHingesPairs);
+  // Box assembly fasteners, priced per real box (one per item that
+  // actually built a carcass) and by whichever joining system the factory
+  // uses - not a guess derived from sheet count.
+  const boxCount = boxItemIds.size;
+  const fastenersMinifixCount =
+    rules.boxJoiningSystem === 'confirmat'
+      ? boxCount * rules.confirmatScrewsPerBox
+      : rules.boxJoiningSystem === 'screw_bracket'
+        ? boxCount * rules.bracketsPerBox
+        : boxCount * rules.minifixSetsPerBox;
 
   return {
     totalSheets,
@@ -984,7 +1049,7 @@ export function calculateMaterialUsage(cutList: CutListPart[]): MaterialBreakdow
     drawerChannels,
     handles,
     shelfSupports,
-    fastenersMinifixCount: (ply18mmSheets * 32),
+    fastenersMinifixCount,
     grossBoardAreaSqFt,
     netPartsAreaSqFt,
     overallUtilizationPercent,
@@ -996,6 +1061,197 @@ export function calculateMaterialUsage(cutList: CutListPart[]): MaterialBreakdow
     skirtingFromOffcutsMeters,
     skirtingPlinthHeightMm: 100,
   };
+}
+
+// Detailed, per-component hardware BOM - one line per hardware requirement
+// per actual cut part (or once per box for assembly hardware), driven
+// entirely by the factory's configured HardwareRules. This is the
+// authoritative source for the Hardware BOM export; calculateMaterialUsage
+// above only keeps its own rough aggregate totals (for the Pricing Report)
+// in sync with the same rules, not this level of per-component detail.
+export function calculateHardwareBOM(cutList: CutListPart[], rules: HardwareRules, projectId: string): HardwareBOMLine[] {
+  const lines: HardwareBOMLine[] = [];
+
+  const byItem = new Map<string, CutListPart[]>();
+  for (const part of cutList) {
+    if (!byItem.has(part.itemId)) byItem.set(part.itemId, []);
+    byItem.get(part.itemId)!.push(part);
+  }
+
+  for (const [itemId, parts] of byItem) {
+    const moduleName = parts[0]?.itemName ?? '';
+    const room = parts[0]?.room ?? '';
+    const push = (line: Omit<HardwareBOMLine, 'projectId' | 'moduleId' | 'moduleName' | 'room' | 'source'>) => {
+      lines.push({ projectId, moduleId: itemId, moduleName, room, source: 'Factory Rule', ...line });
+    };
+
+    for (const part of parts) {
+      if (part.partName === 'Shutter') {
+        const hinges = getHingeCountForHeight(part.lengthMm, rules.hingeRules);
+        push({
+          componentId: part.id,
+          componentType: 'Shutter',
+          hardwareCode: 'HNG-SC',
+          hardwareName: 'Soft-Close Hinge',
+          unit: 'Nos',
+          quantity: hinges * part.qty,
+          calculationRule: `${hinges} hinge(s) per shutter up to ${part.lengthMm}mm height`,
+        });
+        if (rules.handlesPerShutter > 0) {
+          push({
+            componentId: part.id,
+            componentType: 'Shutter',
+            hardwareCode: 'HDL-01',
+            hardwareName: 'Handle',
+            unit: 'Nos',
+            quantity: rules.handlesPerShutter * part.qty,
+            calculationRule: `${rules.handlesPerShutter} handle(s) per shutter`,
+          });
+        }
+      } else if (part.partName === 'Drawer Front') {
+        const isTandem = moduleName.toLowerCase().includes('tandom') || moduleName.toLowerCase().includes('tandem');
+        push({
+          componentId: part.id,
+          componentType: 'Drawer',
+          hardwareCode: isTandem ? 'CHN-TDM' : 'CHN-SC',
+          hardwareName: isTandem ? 'Tandem Box Channel Set' : 'Soft-Close Drawer Channel',
+          unit: 'Pair',
+          quantity: part.qty,
+          calculationRule: '1 pair per drawer',
+        });
+        if (rules.handlesPerDrawer > 0) {
+          push({
+            componentId: part.id,
+            componentType: 'Drawer',
+            hardwareCode: 'HDL-01',
+            hardwareName: 'Handle',
+            unit: 'Nos',
+            quantity: rules.handlesPerDrawer * part.qty,
+            calculationRule: `${rules.handlesPerDrawer} handle(s) per drawer`,
+          });
+        }
+      } else if (part.partName === 'Internal Shelf') {
+        push({
+          componentId: part.id,
+          componentType: 'Shelf',
+          hardwareCode: 'SHF-PIN',
+          hardwareName: 'Shelf Support Pin',
+          unit: 'Nos',
+          quantity: rules.shelfPinsPerShelf * part.qty,
+          calculationRule: `${rules.shelfPinsPerShelf} pin(s) per shelf`,
+        });
+      } else if (part.partName === 'Back Panel') {
+        const perimeterMm = 2 * (part.lengthMm + part.widthMm);
+        const fixingsPerPanel = Math.max(4, Math.ceil(perimeterMm / rules.backPanelFixingSpacingMm));
+        push({
+          componentId: part.id,
+          componentType: 'Back Panel',
+          hardwareCode: rules.backPanelFixing === 'staples' ? 'BKP-STP' : 'BKP-SCR',
+          hardwareName: rules.backPanelFixing === 'staples' ? 'Back Panel Staple' : 'Back Panel Screw',
+          unit: 'Nos',
+          quantity: fixingsPerPanel * part.qty,
+          calculationRule: `1 per ${rules.backPanelFixingSpacingMm}mm of back panel perimeter`,
+        });
+      } else if (part.partName === 'Pelmet/Skirting' && part.backMaterialCategory === 'Color/Laminate') {
+        // Only the customer-facing skirting run (the visible kickplate) is
+        // clipped on - the hidden structural batten behind it is fixed
+        // directly into the carcass. Skirting parts only exist here at all
+        // when the customer actually selected skirting (see generateCutListForItem -
+        // a Loft, for one, never generates any), so nothing further to gate.
+        const runLengthMm = part.lengthMm * part.qty;
+        const clips = Math.max(1, Math.ceil(runLengthMm / rules.skirtingClipSpacingMm));
+        push({
+          componentId: part.id,
+          componentType: 'Skirting',
+          hardwareCode: 'SKT-CLP',
+          hardwareName: 'Skirting Clip',
+          unit: 'Nos',
+          quantity: clips,
+          calculationRule: `1 per ${rules.skirtingClipSpacingMm}mm of skirting run`,
+        });
+      }
+    }
+
+    // Box assembly hardware applies once per box (per item that actually
+    // built a real carcass), not once per panel - a Left Gable only exists
+    // on an item that generated a full box, so its presence is the signal.
+    const hasBox = parts.some((p) => p.partName === 'Left Gable');
+    if (hasBox) {
+      if (rules.boxJoiningSystem === 'minifix_dowel') {
+        push({
+          componentId: `${itemId}-box`,
+          componentType: 'Box Assembly',
+          hardwareCode: 'MFX-SET',
+          hardwareName: 'Minifix Fitting Set',
+          unit: 'Set',
+          quantity: rules.minifixSetsPerBox,
+          calculationRule: `${rules.minifixSetsPerBox} set(s) per box (factory rule)`,
+        });
+        push({
+          componentId: `${itemId}-box`,
+          componentType: 'Box Assembly',
+          hardwareCode: 'DWL-08',
+          hardwareName: 'Wooden Dowel',
+          unit: 'Nos',
+          quantity: rules.dowelsPerBox,
+          calculationRule: `${rules.dowelsPerBox} dowel(s) per box (factory rule)`,
+        });
+      } else if (rules.boxJoiningSystem === 'confirmat') {
+        push({
+          componentId: `${itemId}-box`,
+          componentType: 'Box Assembly',
+          hardwareCode: 'CNF-SCR',
+          hardwareName: 'Confirmat Screw',
+          unit: 'Nos',
+          quantity: rules.confirmatScrewsPerBox,
+          calculationRule: `${rules.confirmatScrewsPerBox} screw(s) per box (factory rule)`,
+        });
+      } else if (rules.boxJoiningSystem === 'screw_bracket') {
+        push({
+          componentId: `${itemId}-box`,
+          componentType: 'Box Assembly',
+          hardwareCode: 'BRK-L',
+          hardwareName: 'L-Bracket',
+          unit: 'Nos',
+          quantity: rules.bracketsPerBox,
+          calculationRule: `${rules.bracketsPerBox} bracket(s) per box (factory rule)`,
+        });
+        push({
+          componentId: `${itemId}-box`,
+          componentType: 'Box Assembly',
+          hardwareCode: 'BRK-SCR',
+          hardwareName: 'Bracket Screw',
+          unit: 'Nos',
+          quantity: rules.bracketsPerBox * rules.bracketScrewsPerBracket,
+          calculationRule: `${rules.bracketScrewsPerBracket} screw(s) per bracket`,
+        });
+      }
+    }
+  }
+
+  return lines;
+}
+
+// Aggregates identical hardware (same code + unit) across every component
+// into one purchase line, per the factory rule that a Purchase BOM must
+// never show the same hardware as separate line items.
+export function aggregateHardwareBOM(lines: HardwareBOMLine[]): AggregatedHardwareLine[] {
+  const map = new Map<string, AggregatedHardwareLine>();
+  for (const line of lines) {
+    const key = `${line.hardwareCode}__${line.unit}`;
+    const existing = map.get(key);
+    if (existing) {
+      existing.totalQuantity += line.quantity;
+    } else {
+      map.set(key, {
+        hardwareCode: line.hardwareCode,
+        hardwareName: line.hardwareName,
+        unit: line.unit,
+        totalQuantity: line.quantity,
+      });
+    }
+  }
+  return Array.from(map.values()).sort((a, b) => a.hardwareName.localeCompare(b.hardwareName));
 }
 
 // 2D Guillotine / Strip Nesting Algorithm for 2440 x 1220 mm Standard Boards
