@@ -145,6 +145,12 @@ export interface UsableOffcut {
   areaSqMt: number;
   isUsable: boolean;
   recommendedUse: string; // e.g. "Skirting Runner", "Internal Shelf", "Drawer Side", "Dust/Scrap"
+  // Which sheet this offcut sits on, and that sheet's own material/color and
+  // thickness - so an offcut can be listed on its own (a leftover inventory
+  // row) without needing its parent SheetLayout for context.
+  sheetId: string;
+  materialName: string;
+  thicknessMm: number;
 }
 
 export interface SheetLayout {
@@ -172,9 +178,36 @@ export interface SheetLayout {
     rotated: boolean;
     color: string;
     grain: 'length' | 'width' | 'any';
+    // True when this piece was cut from a rectangle freed up by an earlier
+    // piece on this sheet (leftover material reused), false when it's the
+    // first piece placed on this sheet (starting from virgin board).
+    reusedOffcut: boolean;
   }>;
   offcuts: UsableOffcut[];
   primaryRipCuts?: number[];
+}
+
+// One still-available (unconsumed) usable offcut, flattened out of every
+// sheet's own offcuts list - the material reuse system's actual leftover
+// inventory register: Length x Width, Material, and where it lives.
+export interface LeftoverInventoryRow {
+  id: string;
+  sheetId: string;
+  materialName: string;
+  thicknessMm: number;
+  lengthMm: number;
+  widthMm: number;
+  areaSqFt: number;
+  recommendedUse: string;
+}
+
+export interface MaterialReuseSummary {
+  leftoverInventory: LeftoverInventoryRow[];
+  reusedPiecesCount: number;
+  freshPiecesCount: number;
+  totalUsableLeftoverAreaSqFt: number;
+  totalScrapAreaSqFt: number;
+  scrapPercent: number;
 }
 
 // Per-item factory carcass box breakdown, computed independently under

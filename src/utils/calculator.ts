@@ -14,6 +14,8 @@ import {
   HingeRule,
   HardwareBOMLine,
   AggregatedHardwareLine,
+  LeftoverInventoryRow,
+  MaterialReuseSummary,
 } from '../types';
 
 // Standard sheet dimensions in mm
@@ -1364,6 +1366,11 @@ export function generateSheetNestingLayouts(cutList: CutListPart[]): {
       y: number;
       w: number;
       h: number;
+      // True only for a sheet's original, untouched full-size rectangle -
+      // false for anything produced by splitting after a piece was placed.
+      // Landing on a non-virgin rect means this piece is reusing material a
+      // previous piece freed up, not cutting into new board.
+      isVirgin: boolean;
     }
     interface WorkingSheet {
       sheetIndex: number;
@@ -1387,12 +1394,12 @@ export function generateSheetNestingLayouts(cutList: CutListPart[]): {
       const rightW = rect.w - usedW - SAW_KERF_MM;
       const bottomH = rect.h - usedH - SAW_KERF_MM;
       const optA: FreeRect[] = [
-        { x: rect.x, y: rect.y + usedH + SAW_KERF_MM, w: rect.w, h: bottomH },
-        { x: rect.x + usedW + SAW_KERF_MM, y: rect.y, w: rightW, h: usedH },
+        { x: rect.x, y: rect.y + usedH + SAW_KERF_MM, w: rect.w, h: bottomH, isVirgin: false },
+        { x: rect.x + usedW + SAW_KERF_MM, y: rect.y, w: rightW, h: usedH, isVirgin: false },
       ];
       const optB: FreeRect[] = [
-        { x: rect.x + usedW + SAW_KERF_MM, y: rect.y, w: rightW, h: rect.h },
-        { x: rect.x, y: rect.y + usedH + SAW_KERF_MM, w: usedW, h: bottomH },
+        { x: rect.x + usedW + SAW_KERF_MM, y: rect.y, w: rightW, h: rect.h, isVirgin: false },
+        { x: rect.x, y: rect.y + usedH + SAW_KERF_MM, w: usedW, h: bottomH, isVirgin: false },
       ];
       const largest = (opts: FreeRect[]) => Math.max(...opts.map((r) => Math.max(0, r.w) * Math.max(0, r.h)));
       const chosen = largest(optA) >= largest(optB) ? optA : optB;
@@ -1434,7 +1441,7 @@ export function generateSheetNestingLayouts(cutList: CutListPart[]): {
     const openNewSheet = (): WorkingSheet => {
       const sheet: WorkingSheet = {
         sheetIndex: sheets.length + 1,
-        freeRects: [{ x: 0, y: 0, w: SHEET_LENGTH_MM, h: SHEET_WIDTH_MM }],
+        freeRects: [{ x: 0, y: 0, w: SHEET_LENGTH_MM, h: SHEET_WIDTH_MM, isVirgin: true }],
         parts: [],
         usedArea: 0,
         ripCutYs: new Set(),
@@ -1466,6 +1473,7 @@ export function generateSheetNestingLayouts(cutList: CutListPart[]): {
 
       const { sheet, rectIdx, w, h, rotated } = placement;
       const rect = sheet.freeRects[rectIdx];
+      const reusedOffcut = !rect.isVirgin;
       sheet.freeRects.splice(rectIdx, 1);
       splitFreeRect(rect, w, h).forEach((r) => {
         sheet.freeRects.push(r);
@@ -1485,6 +1493,7 @@ export function generateSheetNestingLayouts(cutList: CutListPart[]): {
         rotated,
         color: unit.color,
         grain: unit.grain,
+        reusedOffcut,
       });
       sheet.usedArea += (w * h) / 1_000_000;
 
@@ -1520,6 +1529,9 @@ export function generateSheetNestingLayouts(cutList: CutListPart[]): {
                 ? '100mm Skirting Runner / Plinth Support'
                 : 'Internal Shelf / Drawer Side'
               : 'Saw Kerf & Trimmer Scrap',
+            sheetId,
+            materialName: group.name,
+            thicknessMm: group.thickness,
           };
         });
 
@@ -1554,6 +1566,60 @@ export function generateSheetNestingLayouts(cutList: CutListPart[]): {
   }
 
   return { layouts, updatedCutList };
+}
+
+// Material reuse summary - the leftover inventory that's still available
+// once nesting is done (every usable offcut already had a chance to be
+// claimed by a later piece in generateSheetNestingLayouts above, so
+// whatever remains here genuinely wasn't reusable within this project),
+// plus how many pieces actually got cut from reused leftover space versus
+// virgin board. This is the "no usable material waste" rule made visible -
+// the nesting algorithm already prioritizes reuse over a new sheet on its
+// own; this just reports what it did.
+export function summarizeMaterialReuse(layouts: SheetLayout[]): MaterialReuseSummary {
+  const leftoverInventory: LeftoverInventoryRow[] = [];
+  let reusedPiecesCount = 0;
+  let freshPiecesCount = 0;
+  let totalUsableLeftoverAreaSqMt = 0;
+  let totalScrapAreaSqMt = 0;
+
+  for (const sheet of layouts) {
+    for (const part of sheet.parts) {
+      if (part.reusedOffcut) reusedPiecesCount++;
+      else freshPiecesCount++;
+    }
+    totalScrapAreaSqMt += sheet.scrapAreaSqMt;
+    for (const offcut of sheet.offcuts) {
+      if (!offcut.isUsable) continue;
+      totalUsableLeftoverAreaSqMt += offcut.areaSqMt;
+      leftoverInventory.push({
+        id: offcut.id,
+        sheetId: offcut.sheetId,
+        materialName: offcut.materialName,
+        thicknessMm: offcut.thicknessMm,
+        lengthMm: Math.max(offcut.w, offcut.h),
+        widthMm: Math.min(offcut.w, offcut.h),
+        areaSqFt: Number((offcut.areaSqMt * 10.7639).toFixed(2)),
+        recommendedUse: offcut.recommendedUse,
+      });
+    }
+  }
+
+  const totalUsableLeftoverAreaSqFt = Number((totalUsableLeftoverAreaSqMt * 10.7639).toFixed(1));
+  const totalScrapAreaSqFt = Number((totalScrapAreaSqMt * 10.7639).toFixed(1));
+  const totalSheetAreaSqFt = layouts.length * ((SHEET_LENGTH_MM * SHEET_WIDTH_MM) / 1_000_000) * 10.7639;
+  const scrapPercent = totalSheetAreaSqFt > 0 ? Number(((totalScrapAreaSqFt / totalSheetAreaSqFt) * 100).toFixed(1)) : 0;
+
+  leftoverInventory.sort((a, b) => b.areaSqFt - a.areaSqFt);
+
+  return {
+    leftoverInventory,
+    reusedPiecesCount,
+    freshPiecesCount,
+    totalUsableLeftoverAreaSqFt,
+    totalScrapAreaSqFt,
+    scrapPercent,
+  };
 }
 
 // Calculate comprehensive cost breakdown
