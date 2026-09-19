@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
-import { ModularItem, CutListPart, ProjectType } from '../types';
+import { ModularItem, CutListPart, ProjectType, HardwareRules } from '../types';
 import { runAIAnalysis, Finding, FindingSeverity, QualityCheckResult } from '../utils/aiAnalysis';
+import { answerProjectQuestion, AskAIAnswer } from '../utils/askAI';
 import {
   Sparkles,
   FileSpreadsheet,
@@ -15,12 +16,15 @@ import {
   CheckCircle2,
   XCircle,
   MinusCircle,
+  MessageCircle,
 } from 'lucide-react';
 
 interface AIAnalysisPageProps {
   items: ModularItem[];
   cutList: CutListPart[];
   projectType: ProjectType;
+  hardwareRules: HardwareRules;
+  projectName: string;
 }
 
 const SectionHeading: React.FC<{ icon: React.ReactNode; step: number; title: string; subtitle?: string }> = ({
@@ -54,9 +58,17 @@ const QUALITY_STYLES: Record<QualityCheckResult['status'], { badge: string; icon
 const scoreTone = (score: number) =>
   score >= 85 ? 'text-emerald-600' : score >= 60 ? 'text-amber-600' : 'text-red-600';
 
-export const AIAnalysisPage: React.FC<AIAnalysisPageProps> = ({ items, cutList, projectType }) => {
+export const AIAnalysisPage: React.FC<AIAnalysisPageProps> = ({
+  items,
+  cutList,
+  projectType,
+  hardwareRules,
+  projectName,
+}) => {
   const result = useMemo(() => runAIAnalysis(items, cutList, projectType), [items, cutList, projectType]);
   const [severityFilter, setSeverityFilter] = useState<'all' | FindingSeverity>('all');
+  const [askInput, setAskInput] = useState('');
+  const [askAnswer, setAskAnswer] = useState<AskAIAnswer | null>(null);
 
   if (items.length === 0) {
     return (
@@ -120,6 +132,57 @@ export const AIAnalysisPage: React.FC<AIAnalysisPageProps> = ({ items, cutList, 
             <div className="text-xs mt-1 opacity-80">passed clean</div>
           </div>
         </div>
+      </div>
+
+      {/* Ask AI - a deterministic query engine over this project's own
+          computed data, not a live model call (this app has no backend to
+          make one from). Recognizes a fixed set of topics and always
+          answers with real, reproducible numbers. */}
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+        <div className="flex items-center gap-2 mb-1">
+          <MessageCircle className="w-5 h-5 text-cyan-600" />
+          <h3 className="text-base font-black text-slate-900 uppercase tracking-wide">Ask AI</h3>
+        </div>
+        <p className="text-xs text-slate-500 mb-3">
+          Ask about sheets, hardware, laminate/fabric, sizes, rooms, or a Semi vs Full Modular comparison - answered
+          from this project's own data, not a guess.
+        </p>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            setAskAnswer(answerProjectQuestion(askInput, items, cutList, projectType, hardwareRules, projectName));
+          }}
+          className="flex gap-2"
+        >
+          <input
+            type="text"
+            value={askInput}
+            onChange={(e) => setAskInput(e.target.value)}
+            placeholder='e.g. "How many sheets for MBR?" or "Compare sheets semi vs full"'
+            className="flex-1 px-3.5 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-hidden focus:ring-1 focus:ring-cyan-500"
+          />
+          <button
+            type="submit"
+            className="px-4 py-2.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-sm font-semibold shrink-0"
+          >
+            Ask
+          </button>
+        </form>
+        {askAnswer && (
+          <div className="mt-4 space-y-3">
+            <div className="text-xs font-semibold text-slate-500">{askAnswer.summary}</div>
+            {askAnswer.sections.map((section, i) => (
+              <div key={i} className="bg-slate-50 border border-slate-200 rounded-lg p-3.5">
+                <div className="text-xs font-bold text-slate-700 mb-1.5">{section.title}</div>
+                <ul className="space-y-1 text-xs text-slate-600 font-mono">
+                  {section.rows.map((row, j) => (
+                    <li key={j}>{row}</li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* 1. Excel -> Room Understanding */}

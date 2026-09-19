@@ -453,7 +453,13 @@ export default function App() {
             data, no external AI call) */}
         {activeTab === 'ai_analysis' && (
           <div className="space-y-4">
-            <AIAnalysisPage items={items} cutList={cutList} projectType={projectType} />
+            <AIAnalysisPage
+              items={items}
+              cutList={cutList}
+              projectType={projectType}
+              hardwareRules={hardwareRules}
+              projectName={projectInfo.projectName}
+            />
           </div>
         )}
 
