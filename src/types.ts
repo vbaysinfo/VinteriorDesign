@@ -2,6 +2,23 @@ export type ProjectType = 'semi' | 'full';
 
 export type WallType = 'front' | 'left' | 'right' | 'back';
 
+// The closed set of cut-part types a modular item can generate. Shared
+// between ModularItem's per-part material override map and CutListPart's
+// own partName field so the two can never drift apart.
+export type CutListPartName =
+  | 'Left Gable'
+  | 'Right Gable'
+  | 'Top Deck'
+  | 'Bottom Deck'
+  | 'Back Panel'
+  | 'Internal Shelf'
+  | 'Shutter'
+  | 'Drawer Front'
+  | 'Drawer Side'
+  | 'Drawer Bottom'
+  | 'Pelmet/Skirting'
+  | 'Expo/Dummy Panel';
+
 export type UnitCategory = 
   | 'wardrobe_shutter'
   | 'loft'
@@ -55,6 +72,13 @@ export interface ModularItem {
   // fabric quantity for those surfaces. Never applies to the shutter,
   // which is Color/Finish on Width x Height only, calculated separately.
   fabricBothSides?: boolean;
+  // Manual per-part material override, set by clicking a specific panel
+  // in the 3D isometric view and picking Fabric or Color/Laminate there.
+  // Keyed by part TYPE (partName), not by the individual generated part's
+  // id, so picking a material for e.g. "Shutter" applies to every door of
+  // this item, not just the one clicked. Takes precedence over the
+  // automatic BOX/SHUTTER material rule in generateCutListForItem.
+  materialOverrides?: Partial<Record<CutListPartName, 'Fabric' | 'Color/Laminate'>>;
 }
 
 export interface CutListPart {
@@ -63,7 +87,7 @@ export interface CutListPart {
   room: string;
   itemName: string;
   wall: WallType;
-  partName: 'Left Gable' | 'Right Gable' | 'Top Deck' | 'Bottom Deck' | 'Back Panel' | 'Internal Shelf' | 'Shutter' | 'Drawer Front' | 'Drawer Side' | 'Drawer Bottom' | 'Pelmet/Skirting' | 'Expo/Dummy Panel';
+  partName: CutListPartName;
   lengthMm: number;
   widthMm: number;
   thicknessMm: number;

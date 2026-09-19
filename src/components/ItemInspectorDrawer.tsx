@@ -310,25 +310,72 @@ export const ItemInspectorDrawer: React.FC<ItemInspectorDrawerProps> = ({
             </h4>
           </div>
 
-          <div className="border border-slate-200 rounded-xl overflow-hidden divide-y divide-slate-100 max-h-60 overflow-y-auto">
-            {cutListParts.map((part) => (
-              <div key={part.id} className="p-2.5 flex items-center justify-between hover:bg-slate-50">
-                <div>
-                  <span className="font-semibold text-slate-900 block">{part.partName}</span>
-                  <span className="text-[10px] text-slate-500 font-mono">
-                    {part.lengthMm} × {part.widthMm} × {part.thicknessMm}mm • {part.material}
-                  </span>
+          <div className="border border-slate-200 rounded-xl overflow-hidden divide-y divide-slate-100 max-h-72 overflow-y-auto">
+            {cutListParts.map((part) => {
+              const override = item.materialOverrides?.[part.partName];
+              const setOverride = (material: 'Fabric' | 'Color/Laminate') =>
+                onUpdateItem({
+                  ...item,
+                  materialOverrides: { ...item.materialOverrides, [part.partName]: material },
+                });
+              return (
+                <div key={part.id} className="p-2.5 hover:bg-slate-50">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="font-semibold text-slate-900 block">{part.partName}</span>
+                      <span className="text-[10px] text-slate-500 font-mono">
+                        {part.lengthMm} × {part.widthMm} × {part.thicknessMm}mm • {part.material}
+                      </span>
+                    </div>
+                    <div className="text-right">
+                      <span className="px-2 py-0.5 rounded bg-slate-100 font-mono font-bold text-slate-800">
+                        Qty: {part.qty}
+                      </span>
+                      <span className="block text-[10px] text-slate-400 mt-0.5">
+                        {part.areaSqMt} m²
+                      </span>
+                    </div>
+                  </div>
+                  {/* Per-piece material picker - same choice as clicking this
+                      part in the 3D isometric view, but always reachable
+                      here regardless of camera angle/occlusion. */}
+                  <div className="flex items-center gap-1.5 mt-1.5">
+                    <button
+                      onClick={() => setOverride('Fabric')}
+                      className={`px-2 py-0.5 rounded text-[10px] font-semibold border transition ${
+                        part.backMaterialCategory === 'Fabric'
+                          ? 'bg-emerald-600 border-emerald-500 text-white'
+                          : 'bg-white border-slate-200 text-slate-500 hover:border-emerald-400'
+                      }`}
+                    >
+                      Fabric
+                    </button>
+                    <button
+                      onClick={() => setOverride('Color/Laminate')}
+                      className={`px-2 py-0.5 rounded text-[10px] font-semibold border transition ${
+                        part.backMaterialCategory === 'Color/Laminate'
+                          ? 'bg-fuchsia-600 border-fuchsia-500 text-white'
+                          : 'bg-white border-slate-200 text-slate-500 hover:border-fuchsia-400'
+                      }`}
+                    >
+                      Laminate
+                    </button>
+                    {override && (
+                      <button
+                        onClick={() => {
+                          const rest = { ...item.materialOverrides };
+                          delete rest[part.partName];
+                          onUpdateItem({ ...item, materialOverrides: rest });
+                        }}
+                        className="text-[10px] text-slate-400 hover:text-slate-700 underline ml-auto"
+                      >
+                        Reset to auto
+                      </button>
+                    )}
+                  </div>
                 </div>
-                <div className="text-right">
-                  <span className="px-2 py-0.5 rounded bg-slate-100 font-mono font-bold text-slate-800">
-                    Qty: {part.qty}
-                  </span>
-                  <span className="block text-[10px] text-slate-400 mt-0.5">
-                    {part.areaSqMt} m²
-                  </span>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </div>

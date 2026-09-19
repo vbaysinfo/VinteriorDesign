@@ -321,6 +321,7 @@ export const Cad2DViewer: React.FC<Cad2DViewerProps> = ({
         projectType={projectType}
         selectedItemId={selectedItemId}
         onSelectItem={onSelectItem}
+        onUpdateItem={onUpdateItem}
         activeWall={activeWall}
         onSelectWall={setActiveWall}
         onSwitchViewMode={setViewMode}

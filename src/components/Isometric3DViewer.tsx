@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { ModularItem, WallType, ProjectType } from '../types';
+import { ModularItem, WallType, ProjectType, CutListPartName } from '../types';
+import { generateCutListForItem } from '../utils/calculator';
 import {
   RotateCcw,
   ZoomIn,
@@ -28,6 +29,7 @@ interface Isometric3DViewerProps {
   projectType: ProjectType;
   selectedItemId?: string;
   onSelectItem?: (item: ModularItem) => void;
+  onUpdateItem?: (updated: ModularItem) => void;
   activeWall: WallType | 'all';
   onSelectWall?: (wall: WallType | 'all') => void;
   onSwitchViewMode?: (mode: 'elevation' | 'floor_plan' | 'isometric_3d') => void;
@@ -70,12 +72,42 @@ interface PolyFace {
   shutterIndex?: number;
 }
 
+// The 3D render gives each drawn face its own descriptive label (e.g.
+// "Shutter 2 Facia", "Internal Shelf 1") for the hover tooltip, which is
+// finer-grained than the cut list's own part types. This maps a rendered
+// face back to the CutListPartName it represents, so clicking any piece
+// can look up (and override) that part's real material - returns null for
+// purely decorative/hardware faces (handles, bevels, countertop edge,
+// floor grid) that have no material of their own to assign.
+function mapRenderFaceToCutListPartName(renderPartName: string): CutListPartName | null {
+  switch (renderPartName) {
+    case 'Top Deck':
+      return 'Top Deck';
+    case 'Left Gable':
+      return 'Left Gable';
+    case 'Right Gable':
+      return 'Right Gable';
+    case 'Bottom Deck':
+      return 'Bottom Deck';
+    case 'Back Panel':
+      return 'Back Panel';
+    case 'Plinth Skirting':
+      return 'Pelmet/Skirting';
+    default:
+      if (renderPartName.startsWith('Internal Shelf')) return 'Internal Shelf';
+      if (renderPartName.startsWith('Shutter') && renderPartName.endsWith('Facia')) return 'Shutter';
+      if (renderPartName.startsWith('Drawer') && renderPartName.endsWith('Facia')) return 'Drawer Front';
+      return null;
+  }
+}
+
 export const Isometric3DViewer: React.FC<Isometric3DViewerProps> = ({
   items,
   selectedRoom,
   projectType,
   selectedItemId,
   onSelectItem,
+  onUpdateItem,
   activeWall,
   onSelectWall,
   onSwitchViewMode,
@@ -105,6 +137,11 @@ export const Isometric3DViewer: React.FC<Isometric3DViewerProps> = ({
   // multi-door wardrobe can highlight just that one shutter instead of the
   // whole cabinet's doors lighting up as one indistinguishable amber block.
   const [selectedShutterIndex, setSelectedShutterIndex] = useState<number | null>(null);
+  // Which specific PART TYPE of the selected item was last clicked (Left
+  // Gable, Shutter, Back Panel, ...) - drives the Fabric/Color-Laminate
+  // material picker in the floating info card, so any piece can be
+  // selected and assigned, not just the shutter door.
+  const [selectedPartName, setSelectedPartName] = useState<CutListPartName | null>(null);
   // Tracks which item id our OWN click last selected, so the reset effect
   // below can tell "selectedItemId changed because we clicked a door of a
   // different item" (keep the new shutter index) apart from "selectedItemId
@@ -114,6 +151,7 @@ export const Isometric3DViewer: React.FC<Isometric3DViewerProps> = ({
   useEffect(() => {
     if (selectedItemId !== lastClickItemIdRef.current) {
       setSelectedShutterIndex(null);
+      setSelectedPartName(null);
     }
   }, [selectedItemId]);
 
@@ -1120,6 +1158,30 @@ export const Isometric3DViewer: React.FC<Isometric3DViewerProps> = ({
     return items.find((i) => i.id === selectedItemId);
   }, [items, selectedItemId]);
 
+  // The actual generated part for the clicked piece, so the info card can
+  // show its real current material (automatic rule, or a prior override)
+  // rather than guessing from the part type alone.
+  const selectedPart = useMemo(() => {
+    if (!selectedItem || !selectedPartName) return undefined;
+    const partsForItem = generateCutListForItem(selectedItem, projectType);
+    return partsForItem.find((p) => p.partName === selectedPartName);
+  }, [selectedItem, selectedPartName, projectType]);
+
+  const handleSetPartMaterial = (material: 'Fabric' | 'Color/Laminate') => {
+    if (!selectedItem || !selectedPartName || !onUpdateItem) return;
+    onUpdateItem({
+      ...selectedItem,
+      materialOverrides: { ...selectedItem.materialOverrides, [selectedPartName]: material },
+    });
+  };
+
+  const handleResetPartMaterial = () => {
+    if (!selectedItem || !selectedPartName || !onUpdateItem) return;
+    const rest = { ...selectedItem.materialOverrides };
+    delete rest[selectedPartName];
+    onUpdateItem({ ...selectedItem, materialOverrides: rest });
+  };
+
   // Export 3D View as SVG
   const handleExportSvg = () => {
     if (!svgContainerRef.current) return;
@@ -1480,9 +1542,13 @@ export const Isometric3DViewer: React.FC<Isometric3DViewerProps> = ({
           <span>Click & Drag to Orbit • Shift+Drag to Pan • Scroll to Zoom</span>
         </div>
 
-        {/* Selected Module Info Floating Card */}
+        {/* Selected Module Info Floating Card. Anchored top-LEFT, below the
+            orbit-instructions badge - the ItemInspectorDrawer opens on the
+            right edge of the whole page whenever an item is selected here,
+            which would otherwise sit on top of this card (and its material
+            picker buttons) if it were on the right instead. */}
         {selectedItem && (
-          <div className="absolute top-3 right-3 z-10 bg-slate-900/95 backdrop-blur-md p-4 rounded-xl border-2 border-amber-500/60 shadow-2xl text-sm text-white max-w-sm space-y-2">
+          <div className="absolute top-14 left-3 z-10 bg-slate-900/95 backdrop-blur-md p-4 rounded-xl border-2 border-amber-500/60 shadow-2xl text-sm text-white max-w-sm space-y-2">
             <div className="flex items-center justify-between gap-2 border-b border-slate-700 pb-2">
               <span className="font-bold text-amber-400 text-sm">
                 #{selectedItem.sNo} {selectedItem.description}
@@ -1509,6 +1575,55 @@ export const Isometric3DViewer: React.FC<Isometric3DViewerProps> = ({
               <span className="font-medium">{selectedItem.coreMaterial}</span>
               <span className="text-emerald-400 font-bold">{selectedItem.finishType}</span>
             </div>
+
+            {/* Per-piece material picker - lets ANY clicked part (gable,
+                deck, back panel, shutter, ...) be assigned Fabric or
+                Color/Laminate, not just the shutter. */}
+            {selectedPartName && selectedPart && (
+              <div className="pt-1.5 border-t border-slate-800 space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold text-cyan-300 uppercase tracking-wide">
+                    {selectedPartName}
+                  </span>
+                  {selectedItem.materialOverrides?.[selectedPartName] && (
+                    <button
+                      onClick={handleResetPartMaterial}
+                      className="text-[10px] text-slate-400 hover:text-white underline"
+                      title="Go back to the automatic BOX/SHUTTER material rule"
+                    >
+                      Reset to auto
+                    </button>
+                  )}
+                </div>
+                <div className="grid grid-cols-2 gap-1.5">
+                  <button
+                    onClick={() => handleSetPartMaterial('Fabric')}
+                    className={`px-2 py-1.5 rounded-lg text-xs font-semibold transition border ${
+                      selectedPart.backMaterialCategory === 'Fabric'
+                        ? 'bg-emerald-600 border-emerald-400 text-white'
+                        : 'bg-slate-800 border-slate-700 text-slate-300 hover:border-emerald-500'
+                    }`}
+                  >
+                    Fabric
+                  </button>
+                  <button
+                    onClick={() => handleSetPartMaterial('Color/Laminate')}
+                    className={`px-2 py-1.5 rounded-lg text-xs font-semibold transition border ${
+                      selectedPart.backMaterialCategory === 'Color/Laminate'
+                        ? 'bg-fuchsia-600 border-fuchsia-400 text-white'
+                        : 'bg-slate-800 border-slate-700 text-slate-300 hover:border-fuchsia-500'
+                    }`}
+                  >
+                    Laminate
+                  </button>
+                </div>
+                <div className="text-[10px] text-slate-500">
+                  {selectedItem.materialOverrides?.[selectedPartName]
+                    ? 'Manually set - overrides the automatic rule'
+                    : 'Automatic (BOX = Fabric, SHUTTER = Laminate)'}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -1557,6 +1672,7 @@ export const Isometric3DViewer: React.FC<Isometric3DViewerProps> = ({
                         lastClickItemIdRef.current = itm.id;
                         onSelectItem(itm);
                         setSelectedShutterIndex(poly.shutterIndex ?? null);
+                        setSelectedPartName(mapRenderFaceToCutListPartName(poly.partName));
                       }
                     }
                   }}
