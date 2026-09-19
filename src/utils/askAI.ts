@@ -73,6 +73,11 @@ export function answerProjectQuestion(
   const matchedRoom = roomNames.find((r) => r && q.includes(r.toLowerCase())) || null;
 
   // --- Category/keyword scope ---
+  // "drawer" is deliberately not a category keyword here - it's an
+  // item-level count (item.drawerCount), not something that shows up in a
+  // category name or description, so it gets its own topic below instead
+  // of trying to scope items by a "drawer" substring match that would
+  // rarely find anything.
   const KEYWORD_MATCHERS: { keyword: string; label: string }[] = [
     { keyword: 'shelves', label: 'Shelves' },
     { keyword: 'shelf', label: 'Shelves' },
@@ -90,7 +95,6 @@ export function answerProjectQuestion(
     { keyword: 'sitting box', label: 'Sitting Box' },
     { keyword: 'skirting', label: 'Skirting' },
     { keyword: 'back panel', label: 'Back Panel' },
-    { keyword: 'drawer', label: 'Drawer' },
     { keyword: 'shutter', label: 'Shutter' },
   ];
   const keywordMatch = KEYWORD_MATCHERS.find((k) => q.includes(k.keyword));
@@ -201,15 +205,52 @@ export function answerProjectQuestion(
     });
   }
 
+  // --- Topic: DRAWERS - a count on the item itself (item.drawerCount), not
+  // a "drawer" keyword in the description, so a general item/category
+  // keyword match wouldn't find these on its own. ---
+  if (/\bdrawer/.test(q)) {
+    matched = true;
+    const withDrawers = scopedItems.filter((i) => i.drawerCount > 0);
+    const totalDrawers = withDrawers.reduce((s, i) => s + i.drawerCount, 0);
+    sections.push({
+      title: `Drawers${label}`,
+      rows:
+        withDrawers.length > 0
+          ? [
+              `Total: ${totalDrawers} drawer(s) across ${withDrawers.length} item(s)`,
+              ...withDrawers.map((i) => `${i.description} (${i.room}): ${i.drawerCount} drawer(s)`),
+            ]
+          : ['No drawers in this scope.'],
+    });
+  }
+
+  // --- Topic: AREA / VOLUME ---
+  if (/(total area|sq\.?\s?ft|square feet|area|volume|cu\.?\s?ft)/.test(q)) {
+    matched = true;
+    const qtyOf = (i: ModularItem) => Math.max(1, Math.round(i.quantity || 1));
+    const totalAreaSqFt = scopedItems.reduce((s, i) => s + i.areaSqFt * qtyOf(i), 0);
+    const totalVolumeCuFt = scopedItems.reduce((s, i) => s + i.volumeCuFt * qtyOf(i), 0);
+    sections.push({
+      title: `Area & Volume${label}`,
+      rows: [
+        `Total Area: ${totalAreaSqFt.toFixed(1)} sq.ft`,
+        `Total Volume: ${totalVolumeCuFt.toFixed(1)} cu.ft`,
+        `Across ${scopedItems.length} item(s)`,
+      ],
+    });
+  }
+
   // --- Topic: DIMENSIONS / SIZE (also the fallback for a category/room match with no other topic) ---
   const wantsDimensions = /(size|dimension|height|width|depth|length)/.test(q);
   if (wantsDimensions || ((matchedRoom || matchedKeyword) && !matched)) {
     matched = true;
+    const wantsCount = /how many/.test(q);
     const rows = scopedItems.slice(0, 30).map((i) => {
       const depth = i.depthMm > 0 ? ` × D:${i.depthMm}mm` : ' (Frame/Shutter, no depth)';
       return `${i.description} (${i.room}): W:${i.widthMm}mm × H:${i.heightMm}mm${depth}`;
     });
     if (scopedItems.length > 30) rows.push(`...and ${scopedItems.length - 30} more`);
+    if (wantsCount) rows.unshift(`Count: ${scopedItems.length}`);
     sections.push({
       title: `Sizes${label}`,
       rows: rows.length ? rows : ['No matching items found.'],
