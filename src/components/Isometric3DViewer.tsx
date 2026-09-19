@@ -1182,6 +1182,14 @@ export const Isometric3DViewer: React.FC<Isometric3DViewerProps> = ({
     onUpdateItem({ ...selectedItem, materialOverrides: rest });
   };
 
+  const handleSetPartBothSides = (value: boolean) => {
+    if (!selectedItem || !selectedPartName || !onUpdateItem) return;
+    onUpdateItem({
+      ...selectedItem,
+      fabricBothSidesOverrides: { ...selectedItem.fabricBothSidesOverrides, [selectedPartName]: value },
+    });
+  };
+
   // Export 3D View as SVG
   const handleExportSvg = () => {
     if (!svgContainerRef.current) return;
@@ -1622,6 +1630,20 @@ export const Isometric3DViewer: React.FC<Isometric3DViewerProps> = ({
                     ? 'Manually set - overrides the automatic rule'
                     : 'Automatic (BOX = Fabric, SHUTTER = Laminate)'}
                 </div>
+                {/* Both sides only means anything on a Fabric-backed piece -
+                    a Color/Laminate shutter-type piece has no fabric face
+                    to double at all. */}
+                {selectedPart.backMaterialCategory === 'Fabric' && (
+                  <label className="flex items-center gap-1.5 text-[11px] text-slate-300 font-medium cursor-pointer pt-0.5">
+                    <input
+                      type="checkbox"
+                      checked={!!selectedPart.fabricBothSides}
+                      onChange={(e) => handleSetPartBothSides(e.target.checked)}
+                      className="w-3.5 h-3.5 accent-cyan-500"
+                    />
+                    Fabric both sides of this piece
+                  </label>
+                )}
               </div>
             )}
           </div>

@@ -79,6 +79,12 @@ export interface ModularItem {
   // this item, not just the one clicked. Takes precedence over the
   // automatic BOX/SHUTTER material rule in generateCutListForItem.
   materialOverrides?: Partial<Record<CutListPartName, 'Fabric' | 'Color/Laminate'>>;
+  // Per-piece override of fabricBothSides above - e.g. only the Back Panel
+  // needs both faces fabric-laminated while the Gables stay single-sided.
+  // Only meaningful for a part currently backed by Fabric (a box surface,
+  // or one manually pinned to Fabric via materialOverrides); a missing
+  // entry falls back to the item-wide fabricBothSides checkbox.
+  fabricBothSidesOverrides?: Partial<Record<CutListPartName, boolean>>;
 }
 
 export interface CutListPart {

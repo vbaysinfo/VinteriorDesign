@@ -171,27 +171,33 @@ export function recalculateItemMetrics(item: ModularItem): ModularItem {
 }
 
 // A user can manually pin a specific part TYPE (e.g. "Shutter" or "Left
-// Gable") to Fabric or Color/Laminate by clicking it in the 3D isometric
-// view - see ModularItem.materialOverrides. That choice overrides the
-// automatic BOX/SHUTTER material rule applied above, uniformly on both
-// faces (front and back), for every generated part of that type on this
-// item (e.g. every door of a multi-door wardrobe's Shutter parts).
-function applyMaterialOverrides(parts: CutListPart[], item: ModularItem): void {
-  if (!item.materialOverrides) return;
+// Gable") to Fabric or Color/Laminate, and separately pin its own
+// both-sides selection, by clicking it in the 3D isometric view or in the
+// Item Inspector's cut list - see ModularItem.materialOverrides and
+// fabricBothSidesOverrides. Both take precedence over the item-wide
+// automatic BOX/SHUTTER material rule and fabricBothSides checkbox, and
+// apply uniformly to every generated part of that type on this item (e.g.
+// every door of a multi-door wardrobe's Shutter parts).
+function finalizeParts(parts: CutListPart[], item: ModularItem): void {
   const coreLabel = getCoreMaterialLabel(item);
   for (const part of parts) {
-    const override = item.materialOverrides[part.partName];
-    if (override) {
-      part.materialCategory = override;
-      part.backMaterialCategory = override;
-      // A part newly pinned to Fabric still honors the item's own
-      // both-sides selection; a part pinned to Color/Laminate never
-      // doubles, same as any other shutter-type part.
-      part.fabricBothSides = override === 'Fabric' ? item.fabricBothSides ?? false : undefined;
+    const materialOverride = item.materialOverrides?.[part.partName];
+    if (materialOverride) {
+      part.materialCategory = materialOverride;
+      part.backMaterialCategory = materialOverride;
       // Keep the displayed material label in sync with the override,
       // instead of leaving it showing whichever material the automatic
       // rule would have picked.
-      part.material = override === 'Fabric' ? `${coreLabel} (Fabric)` : `${coreLabel} (${getFinishLabel(item)})`;
+      part.material =
+        materialOverride === 'Fabric' ? `${coreLabel} (Fabric)` : `${coreLabel} (${getFinishLabel(item)})`;
+    }
+    // Both-sides only ever means anything on a Fabric-backed box part - a
+    // shutter-type part (Color/Laminate) never has a fabric face to double.
+    if (part.backMaterialCategory === 'Fabric') {
+      const bothSidesOverride = item.fabricBothSidesOverrides?.[part.partName];
+      part.fabricBothSides = bothSidesOverride !== undefined ? bothSidesOverride : item.fabricBothSides ?? false;
+    } else {
+      part.fabricBothSides = undefined;
     }
   }
 }
@@ -238,7 +244,7 @@ export function generateCutListForItem(item: ModularItem, globalProjectType: Pro
       notes: 'Expo/Dummy panel - flat 2D piece, Length x Width only (no depth used)',
       areaSqMt: Number(((h * w) / 1_000_000).toFixed(3)),
     });
-    applyMaterialOverrides(parts, item);
+    finalizeParts(parts, item);
     const copies = Math.max(1, Math.round(item.quantity || 1));
     return copies > 1
       ? parts.map((p) => ({ ...p, qty: p.qty * copies, areaSqMt: Number((p.areaSqMt * copies).toFixed(3)) }))
@@ -687,7 +693,7 @@ export function generateCutListForItem(item: ModularItem, globalProjectType: Pro
     });
   }
 
-  applyMaterialOverrides(parts, item);
+  finalizeParts(parts, item);
 
   // Scale every part by how many identical copies of this item are needed.
   const copies = Math.max(1, Math.round(item.quantity || 1));

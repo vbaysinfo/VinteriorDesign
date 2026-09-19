@@ -318,6 +318,12 @@ export const ItemInspectorDrawer: React.FC<ItemInspectorDrawerProps> = ({
                   ...item,
                   materialOverrides: { ...item.materialOverrides, [part.partName]: material },
                 });
+              const bothSidesOverride = item.fabricBothSidesOverrides?.[part.partName];
+              const setBothSides = (value: boolean) =>
+                onUpdateItem({
+                  ...item,
+                  fabricBothSidesOverrides: { ...item.fabricBothSidesOverrides, [part.partName]: value },
+                });
               return (
                 <div key={part.id} className="p-2.5 hover:bg-slate-50">
                   <div className="flex items-center justify-between">
@@ -360,6 +366,32 @@ export const ItemInspectorDrawer: React.FC<ItemInspectorDrawerProps> = ({
                     >
                       Laminate
                     </button>
+                    {/* Both sides only means anything on a Fabric-backed
+                        piece - a Color/Laminate shutter-type piece has no
+                        fabric face to double at all. */}
+                    {part.backMaterialCategory === 'Fabric' && (
+                      <label className="flex items-center gap-1 text-[10px] text-slate-600 font-medium cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={!!part.fabricBothSides}
+                          onChange={(e) => setBothSides(e.target.checked)}
+                          className="w-3 h-3 accent-cyan-600"
+                        />
+                        Both sides
+                        {bothSidesOverride !== undefined && (
+                          <button
+                            onClick={() => {
+                              const rest = { ...item.fabricBothSidesOverrides };
+                              delete rest[part.partName];
+                              onUpdateItem({ ...item, fabricBothSidesOverrides: rest });
+                            }}
+                            className="text-slate-400 hover:text-slate-700 underline"
+                          >
+                            (reset)
+                          </button>
+                        )}
+                      </label>
+                    )}
                     {override && (
                       <button
                         onClick={() => {
