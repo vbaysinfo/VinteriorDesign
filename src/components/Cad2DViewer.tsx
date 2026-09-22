@@ -3,6 +3,7 @@ import { ModularItem, WallType, ProjectType } from '../types';
 import { Layers, ZoomIn, ZoomOut, Maximize2, Minimize2, Download, Eye, Grid, Box, Sliders, Type, RotateCcw, Move } from 'lucide-react';
 import { Isometric3DViewer } from './Isometric3DViewer';
 import { getShutterLayout, redistributeShutterWidths, mmToFt, recalculateItemMetrics } from '../utils/calculator';
+import { exportSvgAsDxf } from '../utils/dxfExport';
 import { NumberField } from './NumberField';
 
 interface Cad2DViewerProps {
@@ -293,6 +294,13 @@ export const Cad2DViewer: React.FC<Cad2DViewerProps> = ({
     document.body.removeChild(link);
   };
 
+  // Download DXF - the same on-screen drawing, converted from its own SVG
+  // geometry so it always matches exactly what Export SVG produces.
+  const handleExportDxf = () => {
+    if (!svgRef.current) return;
+    exportSvgAsDxf(svgRef.current, `${selectedRoom}_${activeWall}_CAD_Layout.dxf`);
+  };
+
   // Fresh project with nothing uploaded yet: show a guided empty state
   // instead of a blank/confusing drawing canvas with no walls or units.
   if (items.length === 0) {
@@ -513,6 +521,14 @@ export const Cad2DViewer: React.FC<Cad2DViewerProps> = ({
           >
             <Download className="w-3.5 h-3.5" />
             <span>Export SVG</span>
+          </button>
+          <button
+            onClick={handleExportDxf}
+            className="p-1.5 bg-amber-700 text-white rounded-lg hover:bg-amber-600 text-xs flex items-center gap-1.5 px-3"
+            title="AutoCAD-compatible DXF (millimeter units)"
+          >
+            <Download className="w-3.5 h-3.5" />
+            <span>Export DXF</span>
           </button>
         </div>
       </div>
