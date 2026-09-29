@@ -11,6 +11,7 @@ import {
   getShutterLayout,
   hasShutterDoors,
   isDepthRequiredButMissing,
+  resolveEffectiveProjectType,
 } from './calculator';
 
 export type FindingSeverity = 'critical' | 'warning' | 'info';
@@ -269,7 +270,7 @@ function detectErrors(items: ModularItem[], projectType: ProjectType): Finding[]
         push({ severity: 'info', category: 'Inconsistent Data', room: item.room, itemName: label, message: `${label} has ${item.shutterWidthOverrides.length} saved per-shutter width override(s) but currently needs ${count} shutter(s) - the overrides are being ignored until they match.` });
       }
     }
-    if (isDepthRequiredButMissing(item, item.projectType || projectType)) {
+    if (isDepthRequiredButMissing(item, resolveEffectiveProjectType(item, projectType))) {
       push({ severity: 'warning', category: 'Depth Required', room: item.room, itemName: label, message: `${label} is Full Modular but has no depth entered - no factory box (gables, decks, back panel) is being fabricated for it until you enter a real depth.` });
     }
   });

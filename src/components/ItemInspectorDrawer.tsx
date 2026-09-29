@@ -8,6 +8,7 @@ import {
   hasShutterDoors,
   redistributeShutterWidths,
   isDepthRequiredButMissing,
+  resolveEffectiveProjectType,
 } from '../utils/calculator';
 import { X, Box, Layers, Scissors, Check, Sliders, DoorOpen } from 'lucide-react';
 import { NumberField } from './NumberField';
@@ -32,7 +33,7 @@ export const ItemInspectorDrawer: React.FC<ItemInspectorDrawerProps> = ({
   if (!item) return null;
 
   const cutListParts = generateCutListForItem(item, projectType);
-  const effectiveType = item.projectType || projectType;
+  const effectiveType = resolveEffectiveProjectType(item, projectType);
   const depthMissing = isDepthRequiredButMissing(item, effectiveType);
 
   // Editing width/height/depth here always goes through the ft fields
@@ -141,19 +142,24 @@ export const ItemInspectorDrawer: React.FC<ItemInspectorDrawerProps> = ({
             <span>Total: <strong>{item.calcBasis === 'Area (Sq.ft)' ? `${item.areaSqFt} Sq.ft` : `${item.volumeCuFt} Cu.ft`}</strong></span>
           </div>
 
-          {/* Per-item construction type override. The project-wide Semi/Full
-              Modular toggle applies to every item by default (Inherit);
-              picking Semi or Full here pins THIS item to that mode
-              regardless of the project toggle, so a single project can mix
-              civil-built (Frame+Shutter) and factory-built (full box) items
-              side by side - e.g. wardrobes built full modular while lofts
-              above them stay semi modular. */}
+          {/* Per-item construction type override. With no override
+              (Inherit), a real Depth entered above makes this item Full
+              Modular automatically, regardless of the project-wide toggle -
+              matching the Excel Format Editor's own Depth column
+              convention. Picking Semi or Full here instead pins THIS item
+              to that mode no matter what Depth says or what the project
+              toggle is, so a single project can mix civil-built
+              (Frame+Shutter) and factory-built (full box) items side by
+              side - e.g. wardrobes built full modular while lofts above
+              them stay semi modular. See resolveEffectiveProjectType(). */}
           <div className="flex items-center justify-between pt-2 border-t border-slate-200">
             <span className="text-[11px] font-semibold text-slate-600">
               Construction Type
               {!item.projectType && (
                 <span className="text-slate-400 font-normal">
-                  {' '}(inherits {projectType === 'semi' ? 'Semi' : 'Full'} Modular)
+                  {' '}
+                  (inherits {effectiveType === 'full' ? 'Full' : 'Semi'} Modular
+                  {item.depthMm > 0 ? ' - Depth entered' : ` - project default`})
                 </span>
               )}
             </span>

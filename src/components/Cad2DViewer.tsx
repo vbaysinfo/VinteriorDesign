@@ -2,7 +2,7 @@ import React, { useState, useMemo, useRef } from 'react';
 import { ModularItem, WallType, ProjectType } from '../types';
 import { Layers, ZoomIn, ZoomOut, Maximize2, Minimize2, Download, Eye, Grid, Box, Sliders, Type, RotateCcw, Move } from 'lucide-react';
 import { Isometric3DViewer } from './Isometric3DViewer';
-import { getShutterLayout, redistributeShutterWidths, mmToFt, recalculateItemMetrics } from '../utils/calculator';
+import { getShutterLayout, redistributeShutterWidths, mmToFt, recalculateItemMetrics, resolveEffectiveProjectType } from '../utils/calculator';
 import { exportSvgAsDxf } from '../utils/dxfExport';
 import { NumberField } from './NumberField';
 
@@ -895,13 +895,16 @@ export const Cad2DViewer: React.FC<Cad2DViewerProps> = ({
                     }
                   }
                   // Same construction-method rule as the real cut list
-                  // (calculator.ts): the two methods are never mixed - a
-                  // Full Modular box's shutter is 20mm shorter than the
-                  // carcass to clear the top/bottom decks, while a Semi
-                  // Modular civil-built frame's shutter is always full
-                  // height, regardless of any depth value on the row.
-                  const shutterPType = pos.item.projectType || projectType;
-                  const shutterIsBoxUnit = shutterPType === 'full';
+                  // (calculator.ts canBuildBox): the two methods are never
+                  // mixed - a real factory box's shutter is 20mm shorter
+                  // than the carcass to clear the top/bottom decks, while a
+                  // Semi Modular civil-built frame's shutter is always full
+                  // height. A box only actually gets built once there's
+                  // both Full Modular AND a real Depth on the row - Full
+                  // Modular with Depth still blank stays full height too,
+                  // same as the real cut list.
+                  const shutterPType = resolveEffectiveProjectType(pos.item, projectType);
+                  const shutterIsBoxUnit = shutterPType === 'full' && pos.item.depthMm > 0;
                   const isShutterSelected = (sIdx: number) =>
                     selectedShutter?.itemId === pos.item.id && selectedShutter.index === sIdx;
                   const selectedShutterIndex =

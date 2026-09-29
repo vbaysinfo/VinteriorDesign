@@ -64,6 +64,26 @@ export function getHingeCountForHeight(heightMm: number, hingeRules: HingeRule[]
   return sorted[sorted.length - 1]?.hinges ?? 2;
 }
 
+// Resolves an item's REAL effective construction type - the one function
+// every calculation (cut list, box schedule, cost estimate, AI analysis)
+// reads, instead of each duplicating this precedence inline. Order:
+// 1. An explicit per-item Type Override (the Excel grid's "Type Override"
+//    column, or the Item Inspector's Construction Type selector) always
+//    wins - Semi or Full - regardless of the row's Depth or the
+//    project-wide toggle.
+// 2. Otherwise, a real Depth entered on the row (> 0) means this item IS
+//    Full Modular - matching the Excel Format Editor's own Depth column
+//    convention ("full modular only, 0=Frame/Shutter"): filling in a
+//    Depth is how a row gets built as Full Modular, regardless of what
+//    the project-wide toggle happens to be set to.
+// 3. Otherwise (no override, no depth), the item follows the project-wide
+//    Semi/Full Modular default.
+export function resolveEffectiveProjectType(item: ModularItem, globalProjectType: ProjectType): ProjectType {
+  if (item.projectType) return item.projectType;
+  if (item.depthMm > 0) return 'full';
+  return globalProjectType;
+}
+
 // Resolve the working carcass depth for an item under a given project mode.
 // Semi Modular items left blank (depthMm 0) are civil-built shutter/frame
 // units with no factory box. Full Modular always fabricates a full carcass -
@@ -255,7 +275,7 @@ function finalizeParts(parts: CutListPart[], item: ModularItem): void {
 // Generate real-time cut list parts for an item
 export function generateCutListForItem(item: ModularItem, globalProjectType: ProjectType): CutListPart[] {
   const parts: CutListPart[] = [];
-  const pType = item.projectType || globalProjectType;
+  const pType = resolveEffectiveProjectType(item, globalProjectType);
 
   const w = item.widthMm;
   const h = item.heightMm;
@@ -812,14 +832,14 @@ export function generateRoomBoxSummary(items: ModularItem[], forcedProjectType: 
 }
 
 // Same box breakdown as generateRoomBoxSummary, but evaluated per item's own
-// REAL effective construction type - item.projectType when the row carries
-// its own override, else the project-wide default - exactly like the actual
-// cut list generation does. This is what a mixed project (some items pinned
-// Full while the rest stay Semi) actually builds, as opposed to the two
-// all-or-nothing hypotheticals generateRoomBoxSummary compares.
+// REAL effective construction type (see resolveEffectiveProjectType) -
+// exactly like the actual cut list generation does. This is what a mixed
+// project (some items pinned Full, some inferred Full from a real Depth,
+// the rest following the project default) actually builds, as opposed to
+// the two all-or-nothing hypotheticals generateRoomBoxSummary compares.
 export function generateActualRoomBoxSummary(items: ModularItem[], globalProjectType: ProjectType): RoomBoxRow[] {
   return items.map((item) => {
-    const effectiveType = item.projectType || globalProjectType;
+    const effectiveType = resolveEffectiveProjectType(item, globalProjectType);
     const depthMm = getEffectiveDepthMm(item, effectiveType);
     const hasBox = depthMm > 0;
     const boxCount = hasBox ? 1 : 0;
@@ -850,12 +870,10 @@ export function generateActualRoomBoxSummary(items: ModularItem[], globalProject
 // board/hardware/labor BOM costing below. Each item is priced at its own
 // elevation face area (widthFt x heightFt - the same areaSqFt every item
 // already carries, unaffected by depth) times whichever rate matches its
-// own real effective construction type: Full Modular (a real Depth is on
-// the row) uses fullRatePerSqFt, Semi Modular (Depth blank) uses
-// semiRatePerSqFt - exactly the same per-item override resolution
-// (item.projectType || globalProjectType) the cut list and Room Box
-// Schedule use, so a mixed project is priced item-by-item, not as one
-// project-wide rate.
+// own real effective construction type (see resolveEffectiveProjectType):
+// Full Modular uses fullRatePerSqFt, Semi Modular uses semiRatePerSqFt -
+// the same resolution the cut list and Room Box Schedule use, so a mixed
+// project is priced item-by-item, not as one project-wide rate.
 export function calculateQuickAreaEstimate(
   items: ModularItem[],
   globalProjectType: ProjectType,
@@ -868,7 +886,7 @@ export function calculateQuickAreaEstimate(
   let fullItemCount = 0;
 
   items.forEach((item) => {
-    const effectiveType = item.projectType || globalProjectType;
+    const effectiveType = resolveEffectiveProjectType(item, globalProjectType);
     const qty = Math.max(1, Math.round(item.quantity || 1));
     const area = item.areaSqFt * qty;
     if (effectiveType === 'full') {

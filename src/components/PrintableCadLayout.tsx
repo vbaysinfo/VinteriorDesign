@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { ModularItem, WallType, ProjectType } from '../types';
-import { getShutterLayout, hasShutterDoors, getEffectiveDepthMm } from '../utils/calculator';
+import { getShutterLayout, hasShutterDoors, getEffectiveDepthMm, resolveEffectiveProjectType } from '../utils/calculator';
 
 interface PrintableCadLayoutProps {
   items: ModularItem[];
@@ -113,7 +113,7 @@ export const PrintableCadLayout: React.FC<PrintableCadLayoutProps> = ({ items, p
                             const boxY = floorLineY - h;
                             x += w + ITEM_GAP_MM * scaleX;
 
-                            const pType = item.projectType || projectType;
+                            const pType = resolveEffectiveProjectType(item, projectType);
                             const isBoxUnit = getEffectiveDepthMm(item, pType) > 0;
                             const doorHeight = isBoxUnit ? item.heightMm - 20 : item.heightMm;
                             const doorHeightPx = isBoxUnit ? h - 20 * scaleX : h;
@@ -206,7 +206,7 @@ export const PrintableCadLayout: React.FC<PrintableCadLayoutProps> = ({ items, p
               </thead>
               <tbody>
                 {roomItems.map((item) => {
-                  const pType = item.projectType || projectType;
+                  const pType = resolveEffectiveProjectType(item, projectType);
                   const isBoxUnit = getEffectiveDepthMm(item, pType) > 0;
                   const doorHeight = isBoxUnit ? item.heightMm - 20 : item.heightMm;
                   const showsShutters = hasShutterDoors(item) && item.drawerCount === 0;

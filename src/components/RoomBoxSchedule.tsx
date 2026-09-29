@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { ModularItem, ProjectType, RoomBoxRow } from '../types';
-import { generateRoomBoxSummary, generateActualRoomBoxSummary } from '../utils/calculator';
+import { generateRoomBoxSummary, generateActualRoomBoxSummary, resolveEffectiveProjectType } from '../utils/calculator';
 import { Box, Boxes, Info, ArrowRight, CheckCircle2, XCircle, Layers, AlertTriangle } from 'lucide-react';
 
 interface RoomBoxScheduleProps {
@@ -9,6 +9,13 @@ interface RoomBoxScheduleProps {
   projectType: ProjectType;
 }
 
+// Why a row's effective type differs from the plain project-wide toggle,
+// if it does - 'override' = an explicit per-item Type Override dropdown
+// value, 'depth' = no override but a real Depth is entered (Depth alone
+// implies Full Modular - see resolveEffectiveProjectType), 'default' = it
+// simply follows the project-wide toggle.
+type EffectiveTypeReason = 'override' | 'depth' | 'default';
+
 interface MergedRow {
   itemId: string;
   room: string;
@@ -16,6 +23,7 @@ interface MergedRow {
   itemName: string;
   category: string;
   isOverridden: boolean;
+  reason: EffectiveTypeReason;
   effectiveType: ProjectType;
   semi: RoomBoxRow;
   full: RoomBoxRow;
@@ -34,18 +42,23 @@ export const RoomBoxSchedule: React.FC<RoomBoxScheduleProps> = ({ items, selecte
   const actualRows = useMemo(() => generateActualRoomBoxSummary(items, projectType), [items, projectType]);
 
   const merged: MergedRow[] = useMemo(() => {
-    return items.map((item, idx) => ({
-      itemId: item.id,
-      room: item.room,
-      wall: item.wall,
-      itemName: item.description,
-      category: item.category,
-      isOverridden: !!item.projectType && item.projectType !== projectType,
-      effectiveType: item.projectType || projectType,
-      semi: semiRows[idx],
-      full: fullRows[idx],
-      actual: actualRows[idx],
-    }));
+    return items.map((item, idx) => {
+      const effectiveType = resolveEffectiveProjectType(item, projectType);
+      const reason: EffectiveTypeReason = item.projectType ? 'override' : item.depthMm > 0 ? 'depth' : 'default';
+      return {
+        itemId: item.id,
+        room: item.room,
+        wall: item.wall,
+        itemName: item.description,
+        category: item.category,
+        isOverridden: effectiveType !== projectType,
+        reason,
+        effectiveType,
+        semi: semiRows[idx],
+        full: fullRows[idx],
+        actual: actualRows[idx],
+      };
+    });
   }, [items, semiRows, fullRows, actualRows, projectType]);
 
   const filtered = selectedRoom === 'ALL' ? merged : merged.filter((r) => r.room === selectedRoom);
@@ -91,8 +104,8 @@ export const RoomBoxSchedule: React.FC<RoomBoxScheduleProps> = ({ items, selecte
             <div className="text-2xl font-black text-cyan-900 mt-1">{totalActualBoxed}</div>
             <div className="text-[11px] text-cyan-700 mt-0.5">
               {isMixed
-                ? `${overriddenCount} unit(s) pinned to a different type than the project default`
-                : `Project-wide default: ${projectType === 'full' ? 'Full' : 'Semi'} Modular, no per-item overrides`}
+                ? `${overriddenCount} unit(s) differ from the project default (override, or Depth entered)`
+                : `Project-wide default: ${projectType === 'full' ? 'Full' : 'Semi'} Modular, no overrides or depth-only units`}
             </div>
           </div>
           <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
@@ -112,11 +125,12 @@ export const RoomBoxSchedule: React.FC<RoomBoxScheduleProps> = ({ items, selecte
           <span>
             Each boxed unit is fabricated as <strong>one continuous carcass</strong> (one pair of gables, one top/bottom deck, one back
             panel) spanning its full width — matching exactly what the Cutting List tab cuts, so shutters are sized off that same full
-            width and close flush with no overlap or gap. Semi Modular skips the box for civil-built shutter/frame units (depth left
-            blank). Full Modular needs a <strong>real Depth entered</strong> to fabricate a box — a Full Modular row left blank builds
-            nothing at all (flagged below) rather than assuming a standard factory depth for you. If a unit is wider than your factory's
-            practical single-box handling/transport limit, that's a fabrication decision your team makes on-site — splitting it here
-            would need separate gables and re-sized shutters per box, which this schedule does not (yet) generate.
+            width and close flush with no overlap or gap. <strong>Entering a real Depth on a row makes it Full Modular</strong> and
+            fabricates its box automatically, whatever the project-wide toggle is set to (a "Full" Type Override forces it even with
+            Depth blank, but then needs a real Depth typed in before a box actually builds - flagged below). Leaving Depth blank keeps a
+            unit Semi Modular (civil-built shutter/frame, no box), following the project-wide toggle. If a unit is wider than your
+            factory's practical single-box handling/transport limit, that's a fabrication decision your team makes on-site — splitting it
+            here would need separate gables and re-sized shutters per box, which this schedule does not (yet) generate.
           </span>
         </div>
 
@@ -187,11 +201,15 @@ export const RoomBoxSchedule: React.FC<RoomBoxScheduleProps> = ({ items, selecte
                             <div className="flex items-center gap-1.5">
                               <span
                                 className={`text-[9px] font-bold px-1.5 py-0.2 rounded uppercase ${
-                                  row.isOverridden ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'
+                                  row.reason === 'override'
+                                    ? 'bg-amber-100 text-amber-700'
+                                    : row.reason === 'depth'
+                                    ? 'bg-cyan-100 text-cyan-700'
+                                    : 'bg-slate-100 text-slate-500'
                                 }`}
                               >
                                 {row.effectiveType === 'full' ? 'Full' : 'Semi'}
-                                {row.isOverridden ? ' (override)' : ''}
+                                {row.reason === 'override' ? ' (override)' : row.reason === 'depth' ? ' (depth entered)' : ''}
                               </span>
                             </div>
                             {row.actual.hasBox ? (

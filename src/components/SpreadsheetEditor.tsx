@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { ModularItem, CutListPart, WallType, ProjectType } from '../types';
-import { ftToMm, mmToFt, recalculateItemMetrics, isDepthRequiredButMissing } from '../utils/calculator';
+import { ftToMm, mmToFt, recalculateItemMetrics, isDepthRequiredButMissing, resolveEffectiveProjectType } from '../utils/calculator';
 import { exportCutListFactoryFormat } from '../utils/excelParser';
 import { Plus, Trash2, Copy, Search, Filter, ArrowUpDown, FileSpreadsheet, Download } from 'lucide-react';
 import { NumberField } from './NumberField';
@@ -265,7 +265,7 @@ export const SpreadsheetEditor: React.FC<SpreadsheetEditorProps> = ({
           <tbody className="divide-y divide-slate-200 bg-white font-mono text-[11px]">
             {filteredItems.map((item, index) => {
               const isSelected = selectedItemId === item.id;
-              const depthMissing = isDepthRequiredButMissing(item, item.projectType || projectType);
+              const depthMissing = isDepthRequiredButMissing(item, resolveEffectiveProjectType(item, projectType));
               return (
                 <tr
                   key={item.id}
