@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { ModularItem, MaterialBreakdown, CostBreakdown, FactoryRates, ProjectType, ProjectInfo } from '../types';
-import { IndianRupee, DollarSign, Calculator, Settings, CheckCircle2, TrendingDown, ArrowRight, ShieldCheck, FileText } from 'lucide-react';
+import { IndianRupee, DollarSign, Calculator, Settings, CheckCircle2, TrendingDown, ArrowRight, ShieldCheck, FileText, Ruler } from 'lucide-react';
 import { NumberField } from './NumberField';
+import { calculateQuickAreaEstimate } from '../utils/calculator';
 
 interface PricingReportProps {
   items: ModularItem[];
@@ -28,6 +29,11 @@ export const PricingReport: React.FC<PricingReportProps> = ({
 }) => {
   const [showRatesEditor, setShowRatesEditor] = useState(false);
   const currency = projectInfo.currency;
+
+  const quickEstimate = useMemo(
+    () => calculateQuickAreaEstimate(items, projectType, rates.quickSemiRatePerSqFt, rates.quickFullRatePerSqFt),
+    [items, projectType, rates.quickSemiRatePerSqFt, rates.quickFullRatePerSqFt]
+  );
 
   // Calculate approximate full modular cost if currently semi, or semi if currently full
   const comparisonMultiplier = projectType === 'semi' ? 1.34 : 0.75;
@@ -64,6 +70,74 @@ export const PricingReport: React.FC<PricingReportProps> = ({
 
   return (
     <div className="space-y-6">
+      {/* Quick Project Cost Estimate - a simple flat per-sq.ft quotation,
+          separate from the detailed BOM costing below. Every item is priced
+          automatically using its own real effective construction type
+          (Full Modular = a real Depth is entered on that row, Semi Modular
+          = Depth left blank) - so a mixed project prices each item at the
+          rate that actually matches how it's being built, not one
+          project-wide rate. */}
+      <div className="bg-white rounded-xl border border-cyan-200 shadow-sm p-6">
+        <div className="flex items-center gap-2 mb-1">
+          <Ruler className="w-5 h-5 text-cyan-600" />
+          <h2 className="text-lg font-bold text-slate-900">Quick Project Cost Estimate (Per Sq.Ft)</h2>
+        </div>
+        <p className="text-xs text-slate-500 mb-5">
+          Enter your own quotation rate for each construction type. <strong>Full Modular</strong> = a real Depth is entered on that item
+          (its own override, or the project-wide default); <strong>Semi Modular</strong> = Depth left blank. Every item is automatically
+          priced at its own area (Width × Length, same regardless of depth) × the matching rate below - a mixed project prices each item
+          correctly, not the whole project at one rate.
+        </p>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="p-4 rounded-xl bg-amber-50 border border-amber-200">
+            <label className="block text-xs font-bold text-amber-800 uppercase tracking-wide mb-1.5">
+              Semi Modular Rate ({currency} / sq.ft)
+            </label>
+            <NumberField
+              decimal
+              value={rates.quickSemiRatePerSqFt}
+              onCommit={(num) => onUpdateRates({ ...rates, quickSemiRatePerSqFt: num })}
+              className="w-full px-3 py-2 border border-amber-300 rounded-lg text-amber-900 font-bold text-lg bg-white focus:ring-1 focus:ring-amber-500"
+            />
+            <div className="mt-2.5 text-[11px] text-amber-800">
+              {quickEstimate.semiAreaSqFt.toLocaleString()} sq.ft across {quickEstimate.semiItemCount} item(s)
+            </div>
+            <div className="text-xl font-mono font-extrabold text-amber-900 mt-1">
+              {currency} {quickEstimate.semiCost.toLocaleString()}
+            </div>
+          </div>
+
+          <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200">
+            <label className="block text-xs font-bold text-emerald-800 uppercase tracking-wide mb-1.5">
+              Full Modular Rate ({currency} / sq.ft)
+            </label>
+            <NumberField
+              decimal
+              value={rates.quickFullRatePerSqFt}
+              onCommit={(num) => onUpdateRates({ ...rates, quickFullRatePerSqFt: num })}
+              className="w-full px-3 py-2 border border-emerald-300 rounded-lg text-emerald-900 font-bold text-lg bg-white focus:ring-1 focus:ring-emerald-500"
+            />
+            <div className="mt-2.5 text-[11px] text-emerald-800">
+              {quickEstimate.fullAreaSqFt.toLocaleString()} sq.ft across {quickEstimate.fullItemCount} item(s)
+            </div>
+            <div className="text-xl font-mono font-extrabold text-emerald-900 mt-1">
+              {currency} {quickEstimate.fullCost.toLocaleString()}
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-4 flex items-center justify-between p-4 rounded-xl bg-slate-900 text-white">
+          <div>
+            <div className="text-xs uppercase font-medium text-slate-400">Quick Estimate Total</div>
+            <div className="text-[11px] text-slate-400 mt-0.5">{quickEstimate.totalAreaSqFt.toLocaleString()} sq.ft total</div>
+          </div>
+          <div className="text-2xl font-extrabold text-cyan-400 font-mono">
+            {currency} {quickEstimate.totalCost.toLocaleString()}
+          </div>
+        </div>
+      </div>
+
       {/* Top Banner & Quick Actions */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
         <div className="flex flex-wrap items-center justify-between gap-4 pb-6 border-b border-slate-200">

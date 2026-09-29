@@ -16,6 +16,7 @@ import {
   AggregatedHardwareLine,
   LeftoverInventoryRow,
   MaterialReuseSummary,
+  QuickAreaEstimate,
 } from '../types';
 
 // Standard sheet dimensions in mm
@@ -843,6 +844,57 @@ export function generateActualRoomBoxSummary(items: ModularItem[], globalProject
       volumeCuFtPerBox: Number((mmToFt(boxWidthMm) * mmToFt(heightMm) * mmToFt(depthMm)).toFixed(2)),
     };
   });
+}
+
+// Quick flat per-sq.ft project cost estimate - independent of the detailed
+// board/hardware/labor BOM costing below. Each item is priced at its own
+// elevation face area (widthFt x heightFt - the same areaSqFt every item
+// already carries, unaffected by depth) times whichever rate matches its
+// own real effective construction type: Full Modular (a real Depth is on
+// the row) uses fullRatePerSqFt, Semi Modular (Depth blank) uses
+// semiRatePerSqFt - exactly the same per-item override resolution
+// (item.projectType || globalProjectType) the cut list and Room Box
+// Schedule use, so a mixed project is priced item-by-item, not as one
+// project-wide rate.
+export function calculateQuickAreaEstimate(
+  items: ModularItem[],
+  globalProjectType: ProjectType,
+  semiRatePerSqFt: number,
+  fullRatePerSqFt: number
+): QuickAreaEstimate {
+  let semiAreaSqFt = 0;
+  let semiItemCount = 0;
+  let fullAreaSqFt = 0;
+  let fullItemCount = 0;
+
+  items.forEach((item) => {
+    const effectiveType = item.projectType || globalProjectType;
+    const qty = Math.max(1, Math.round(item.quantity || 1));
+    const area = item.areaSqFt * qty;
+    if (effectiveType === 'full') {
+      fullAreaSqFt += area;
+      fullItemCount += qty;
+    } else {
+      semiAreaSqFt += area;
+      semiItemCount += qty;
+    }
+  });
+
+  semiAreaSqFt = Number(semiAreaSqFt.toFixed(2));
+  fullAreaSqFt = Number(fullAreaSqFt.toFixed(2));
+  const semiCost = Math.round(semiAreaSqFt * semiRatePerSqFt);
+  const fullCost = Math.round(fullAreaSqFt * fullRatePerSqFt);
+
+  return {
+    semiAreaSqFt,
+    semiItemCount,
+    semiCost,
+    fullAreaSqFt,
+    fullItemCount,
+    fullCost,
+    totalAreaSqFt: Number((semiAreaSqFt + fullAreaSqFt).toFixed(2)),
+    totalCost: semiCost + fullCost,
+  };
 }
 
 // Calculate material usage breakdown from items and cut list. `rules`

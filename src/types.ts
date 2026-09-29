@@ -424,6 +424,28 @@ export interface FactoryRates {
   packingTransportLumpSum: number; // e.g. ₹4500
   taxPercent: number;            // e.g. 18% GST
   profitMarginPercent: number;   // e.g. 15%
+  // Quick flat per-sq.ft quotation rates - a separate, simpler estimate
+  // from the detailed BOM costing above (board/hardware/labor rates).
+  // Applied per item using its own elevation face area (widthFt x
+  // heightFt, same as areaSqFt - unaffected by depth), bucketed by each
+  // item's real effective construction type: Full Modular = a real Depth
+  // is entered (item.projectType override or the project-wide default),
+  // Semi Modular = Depth left blank. 0 = not yet configured by the user.
+  quickSemiRatePerSqFt: number;
+  quickFullRatePerSqFt: number;
+}
+
+// Result of the quick per-sq.ft estimate - every item bucketed by its own
+// real effective construction type and priced at that bucket's flat rate.
+export interface QuickAreaEstimate {
+  semiAreaSqFt: number;
+  semiItemCount: number;
+  semiCost: number;
+  fullAreaSqFt: number;
+  fullItemCount: number;
+  fullCost: number;
+  totalAreaSqFt: number;
+  totalCost: number;
 }
 
 export interface ProjectInfo {

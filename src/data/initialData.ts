@@ -28,6 +28,8 @@ export const DEFAULT_FACTORY_RATES: FactoryRates = {
   packingTransportLumpSum: 5500,// Factory crate packing & logistics
   taxPercent: 18,               // Standard GST
   profitMarginPercent: 18,      // Factory overhead & profit margin
+  quickSemiRatePerSqFt: 0,      // Unset until the user enters their own quotation rate
+  quickFullRatePerSqFt: 0,      // Unset until the user enters their own quotation rate
 };
 
 // Raw items matching exactly the uploaded user spreadsheet in image.png
