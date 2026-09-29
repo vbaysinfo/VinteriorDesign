@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { ModularItem, CutListPart, WallType, ProjectType } from '../types';
-import { ftToMm, mmToFt, recalculateItemMetrics } from '../utils/calculator';
+import { ftToMm, mmToFt, recalculateItemMetrics, isDepthRequiredButMissing } from '../utils/calculator';
 import { exportCutListFactoryFormat } from '../utils/excelParser';
 import { Plus, Trash2, Copy, Search, Filter, ArrowUpDown, FileSpreadsheet, Download } from 'lucide-react';
 import { NumberField } from './NumberField';
@@ -265,6 +265,7 @@ export const SpreadsheetEditor: React.FC<SpreadsheetEditorProps> = ({
           <tbody className="divide-y divide-slate-200 bg-white font-mono text-[11px]">
             {filteredItems.map((item, index) => {
               const isSelected = selectedItemId === item.id;
+              const depthMissing = isDepthRequiredButMissing(item, item.projectType || projectType);
               return (
                 <tr
                   key={item.id}
@@ -332,15 +333,26 @@ export const SpreadsheetEditor: React.FC<SpreadsheetEditorProps> = ({
                     />
                   </td>
 
-                  {/* Depth ft (customizable for boxes, 0 for frames in semi-modular) */}
-                  <td className="py-1.5 px-2 border-r border-slate-200 text-center bg-cyan-50/30" onClick={(e) => e.stopPropagation()}>
+                  {/* Depth ft (customizable for boxes, 0 for frames in semi-modular).
+                      Red-flagged when this row is Full Modular but Depth is
+                      still blank - no box gets fabricated for it until a real
+                      value is entered (see isDepthRequiredButMissing). */}
+                  <td
+                    className={`py-1.5 px-2 border-r border-slate-200 text-center ${depthMissing ? 'bg-red-50' : 'bg-cyan-50/30'}`}
+                    onClick={(e) => e.stopPropagation()}
+                    title={depthMissing ? 'Full Modular needs a real Depth - no box will be built until you enter one' : undefined}
+                  >
                     <NumberField
                       decimal
                       zeroAsEmpty
-                      placeholder="0 (Frame)"
+                      placeholder={depthMissing ? 'Required!' : '0 (Frame)'}
                       value={item.depthFt}
                       onCommit={(num) => handleCellChange(item.id, 'depthFt', num)}
-                      className="w-full text-center bg-transparent text-blue-700 font-bold placeholder:font-normal placeholder:text-slate-400 focus:bg-white focus:ring-1 focus:ring-cyan-500 rounded"
+                      className={`w-full text-center font-bold placeholder:font-normal rounded focus:bg-white focus:ring-1 ${
+                        depthMissing
+                          ? 'bg-transparent text-red-700 placeholder:text-red-500 focus:ring-red-400'
+                          : 'bg-transparent text-blue-700 placeholder:text-slate-400 focus:ring-cyan-500'
+                      }`}
                     />
                   </td>
 

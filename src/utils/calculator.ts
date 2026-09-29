@@ -65,29 +65,32 @@ export function getHingeCountForHeight(heightMm: number, hingeRules: HingeRule[]
 
 // Resolve the working carcass depth for an item under a given project mode.
 // Semi Modular items left blank (depthMm 0) are civil-built shutter/frame
-// units with no factory box. Full Modular always fabricates a full carcass,
-// so blank depths fall back to factory-standard defaults per category.
+// units with no factory box. Full Modular always fabricates a full carcass -
+// but only once a real depth is on the row. A blank depth is NEVER assumed
+// (no silent category default): it returns 0, same as Semi Modular, so no
+// box gets fabricated for that item until a real number is entered. Use
+// isDepthRequiredButMissing() below to detect and flag that blocked state
+// in the UI, rather than reading a 0 return here as "this item has no box
+// by design."
 export function getEffectiveDepthMm(item: ModularItem, effectiveProjectType: ProjectType): number {
   // Expo/Dummy pieces are flat 2D panels per the factory's own rule - no
-  // depth at all, under either Semi or Full Modular, regardless of the
-  // fallback depths every other category gets when Full Modular assumes a
-  // real factory box.
+  // depth at all, under either Semi or Full Modular.
   if (item.category === 'expo' || item.category === 'dummy') return 0;
   // The two construction methods are never mixed: Semi Modular is Frame +
   // Shutter with no factory-built box at all, so it never has an
   // "effective" fabrication depth - regardless of any depth value that
-  // happens to be present on the row. Only Full Modular ever fabricates a
-  // real depth (the row's own value, or a category fallback below).
+  // happens to be present on the row.
   if (effectiveProjectType !== 'full') return 0;
-  let d = item.depthMm;
-  if (d === 0) {
-    if (item.category === 'wardrobe_shutter' || item.category === 'single_wardrobe') d = 560;
-    else if (item.category === 'kitchen_base' || item.category === 'tandem_box') d = 560;
-    else if (item.category === 'kitchen_overhead' || item.category === 'loft' || item.category === 'kitchen_loft') d = 330;
-    else if (item.category === 'sitting_box') d = 488;
-    else d = 350;
-  }
-  return d;
+  return item.depthMm;
+}
+
+// True when an item needs a real Depth entered before it can be fabricated -
+// it's effectively Full Modular (a real box is expected) but the row's
+// Depth is still blank. Shelves-category units are exempt (their shelfDepth
+// fallback is unrelated to box fabrication - see generateCutListForItem).
+export function isDepthRequiredButMissing(item: ModularItem, effectiveProjectType: ProjectType): boolean {
+  if (item.category === 'expo' || item.category === 'dummy' || item.category === 'shelves') return false;
+  return effectiveProjectType === 'full' && item.depthMm === 0;
 }
 
 // Free-text material override for the exported/display material label.
@@ -297,20 +300,27 @@ export function generateCutListForItem(item: ModularItem, globalProjectType: Pro
       : parts;
   }
 
-  // If semi-modular and depth is 0, it's civil shutter frame
-  // If full-modular and depth was 0, default to factory standard depth (e.g. 560mm for wardrobe, 320mm for loft/overhead)
+  // If semi-modular and depth is 0, it's civil shutter frame.
+  // If full-modular and depth is 0, no depth is assumed - see canBuildBox
+  // below, which blocks all box fabrication until a real depth is entered.
   const d = getEffectiveDepthMm(item, pType);
 
   const isFullModular = pType === 'full';
+  // A real factory box only gets fabricated once a real depth is on the
+  // row - Full Modular with Depth left blank builds NOTHING (same as Semi)
+  // rather than silently assuming a category-standard depth. See
+  // isDepthRequiredButMissing() for flagging that blocked state in the UI.
+  const canBuildBox = isFullModular && d > 0;
 
   // 1. Shutter / Doors / Front Paneling
   if (hasShutterDoors(item)) {
     const { widths: shutterWidths } = getShutterLayout(item);
     // The two construction methods are never mixed: a Semi Modular item is
     // always Frame + Shutter, full height, regardless of any depth value
-    // that might happen to be present on the row - only Full Modular's
-    // real carcass box gives the shutter a 20mm inset to clear the gables.
-    const shutterHeight = isFullModular ? h - 20 : h;
+    // that might happen to be present on the row - only a real carcass box
+    // (Full Modular AND a real depth) gives the shutter a 20mm inset to
+    // clear the gables.
+    const shutterHeight = canBuildBox ? h - 20 : h;
 
     // Shutters usually share one even width, but a per-shutter override
     // (see getShutterLayout) can make them unequal - group by width so each
@@ -383,13 +393,13 @@ export function generateCutListForItem(item: ModularItem, globalProjectType: Pro
     });
 
     // Drawer internal box (sides & bottom) is a factory-built carcass
-    // component - it only exists for Full Modular. A Semi Modular item is
-    // Frame + Shutter only: the drawer front above still gets cut (it's
-    // the visible face, same as a shutter), but the sliding box behind it
-    // is civil/site work, not part of this construction method's own
-    // production calculation.
-    if (isFullModular) {
-      const drawerDepth = d > 0 ? d - 50 : 450;
+    // component - it only exists once there's a real box to build (Full
+    // Modular AND a real depth). A Semi Modular item, or a Full Modular one
+    // still missing its Depth, is Frame + Shutter only: the drawer front
+    // above still gets cut (it's the visible face, same as a shutter), but
+    // the sliding box behind it needs a real depth to size against.
+    if (canBuildBox) {
+      const drawerDepth = d - 50;
       // Left & Right Drawer sides
       parts.push({
         id: `${item.id}-drawer-sides`,
@@ -441,11 +451,12 @@ export function generateCutListForItem(item: ModularItem, globalProjectType: Pro
   }
 
   // 3. Carcass Panels: Left Gable, Right Gable, Top Deck, Bottom Deck, Back Panel
-  // Full Modular only - a Semi Modular item is Frame + Shutter, never a
-  // factory-built box, regardless of whether a depth value happens to be
-  // present on the row.
-  if (isFullModular) {
-    const carcassDepth = d > 0 ? d : 560;
+  // Needs a real box to build (Full Modular AND a real depth) - a Semi
+  // Modular item is Frame + Shutter, never a factory-built box; a Full
+  // Modular item with no Depth entered isn't fabricated either, rather than
+  // guessing a depth for it.
+  if (canBuildBox) {
+    const carcassDepth = d;
     
     // Left & Right Gables
     parts.push({
@@ -583,15 +594,16 @@ export function generateCutListForItem(item: ModularItem, globalProjectType: Pro
   // upstream actually specified a shelf count for it. (Expo/Dummy never
   // reach here at all - they returned as a flat panel above.)
   // Also never mixed: a closed unit's shelves are a hidden internal
-  // carcass component (Full Modular only, same as the drawer box above),
-  // but an open "shelves" display unit's shelves ARE the whole visible
-  // product - not something hidden inside a box - so they're cut
-  // regardless of construction method, the same way an Expo/Dummy panel
-  // is.
+  // carcass component (needs a real box to build, same as the drawer box
+  // above), but an open "shelves" display unit's shelves ARE the whole
+  // visible product - not something hidden inside a box, so they're cut
+  // regardless of construction method or depth, the same way an
+  // Expo/Dummy panel is (its own 350mm fallback is unrelated to box
+  // fabrication, so isDepthRequiredButMissing() exempts this category).
   const shelfCount = item.shelfCount ?? (item.category === 'shelves' ? 0 : 2);
-  if (shelfCount > 0 && (isFullModular || item.category === 'shelves')) {
+  if (shelfCount > 0 && (canBuildBox || item.category === 'shelves')) {
     const shelfWidth = Math.max(100, w - 36);
-    const shelfDepth = d > 0 ? d - 30 : 350;
+    const shelfDepth = item.category === 'shelves' ? (d > 0 ? d - 30 : 350) : d - 30;
     parts.push({
       id: `${item.id}-shelves`,
       itemId: item.id,
@@ -669,10 +681,10 @@ export function generateCutListForItem(item: ModularItem, globalProjectType: Pro
 
     // 5B. Cross Battens / Sub-Carcass Leveler Supports (Returns) - these
     // level and support a factory-built carcass box, so like the rest of
-    // the box's internal components they only exist for Full Modular;
-    // there's no carcass under Semi Modular for them to support.
-    if (isFullModular) {
-      const battenLength = Math.max(250, (d > 0 ? d : 560) - 50);
+    // the box's internal components they only exist once there's a real
+    // box to support (Full Modular AND a real depth).
+    if (canBuildBox) {
+      const battenLength = Math.max(250, d - 50);
       const battenQty = w > 1500 ? 3 : 2; // Left return, right return, + center stiffener if wide
       parts.push({
         id: `${item.id}-skirting-battens`,
@@ -785,6 +797,7 @@ export function generateRoomBoxSummary(items: ModularItem[], forcedProjectType: 
       itemName: item.description,
       category: item.category,
       hasBox,
+      depthMissing: isDepthRequiredButMissing(item, forcedProjectType),
       boxCount,
       boxWidthMm,
       heightMm,
@@ -819,6 +832,7 @@ export function generateActualRoomBoxSummary(items: ModularItem[], globalProject
       itemName: item.description,
       category: item.category,
       hasBox,
+      depthMissing: isDepthRequiredButMissing(item, effectiveType),
       boxCount,
       boxWidthMm,
       heightMm,

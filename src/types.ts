@@ -220,6 +220,7 @@ export interface RoomBoxRow {
   itemName: string;
   category: UnitCategory;
   hasBox: boolean; // false = civil-built shutter/frame only, no factory carcass box
+  depthMissing: boolean; // true = this row IS meant to be boxed (Full Modular) but Depth is blank, so no box was built
   boxCount: number; // number of physical carcass boxes this item is split into
   boxWidthMm: number; // width of each individual box (item width split evenly across boxCount)
   heightMm: number;

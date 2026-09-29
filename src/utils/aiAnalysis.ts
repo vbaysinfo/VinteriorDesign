@@ -10,7 +10,7 @@ import {
   generateSheetNestingLayouts,
   getShutterLayout,
   hasShutterDoors,
-  getEffectiveDepthMm,
+  isDepthRequiredButMissing,
 } from './calculator';
 
 export type FindingSeverity = 'critical' | 'warning' | 'info';
@@ -269,8 +269,8 @@ function detectErrors(items: ModularItem[], projectType: ProjectType): Finding[]
         push({ severity: 'info', category: 'Inconsistent Data', room: item.room, itemName: label, message: `${label} has ${item.shutterWidthOverrides.length} saved per-shutter width override(s) but currently needs ${count} shutter(s) - the overrides are being ignored until they match.` });
       }
     }
-    if (item.depthMm === 0 && projectType === 'full' && getEffectiveDepthMm(item, 'full') > 0) {
-      push({ severity: 'info', category: 'Inconsistent Data', room: item.room, itemName: label, message: `${label} has no depth entered - Full Modular is defaulting it to ${getEffectiveDepthMm(item, 'full')}mm for this category; enter a real depth if that's not correct.` });
+    if (isDepthRequiredButMissing(item, item.projectType || projectType)) {
+      push({ severity: 'warning', category: 'Depth Required', room: item.room, itemName: label, message: `${label} is Full Modular but has no depth entered - no factory box (gables, decks, back panel) is being fabricated for it until you enter a real depth.` });
     }
   });
 

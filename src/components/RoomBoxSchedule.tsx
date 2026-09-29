@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { ModularItem, ProjectType, RoomBoxRow } from '../types';
 import { generateRoomBoxSummary, generateActualRoomBoxSummary } from '../utils/calculator';
-import { Box, Boxes, Info, ArrowRight, CheckCircle2, XCircle, Layers } from 'lucide-react';
+import { Box, Boxes, Info, ArrowRight, CheckCircle2, XCircle, Layers, AlertTriangle } from 'lucide-react';
 
 interface RoomBoxScheduleProps {
   items: ModularItem[];
@@ -58,6 +58,7 @@ export const RoomBoxSchedule: React.FC<RoomBoxScheduleProps> = ({ items, selecte
   const totalItems = filtered.length;
   const overriddenCount = filtered.filter((r) => r.isOverridden).length;
   const isMixed = overriddenCount > 0;
+  const depthMissingRows = filtered.filter((r) => r.actual.depthMissing);
 
   return (
     <div className="space-y-5">
@@ -112,11 +113,23 @@ export const RoomBoxSchedule: React.FC<RoomBoxScheduleProps> = ({ items, selecte
             Each boxed unit is fabricated as <strong>one continuous carcass</strong> (one pair of gables, one top/bottom deck, one back
             panel) spanning its full width — matching exactly what the Cutting List tab cuts, so shutters are sized off that same full
             width and close flush with no overlap or gap. Semi Modular skips the box for civil-built shutter/frame units (depth left
-            blank); Full Modular fabricates a box for every unit, defaulting depth by category when left blank. If a unit is wider than
-            your factory's practical single-box handling/transport limit, that's a fabrication decision your team makes on-site — splitting
-            it here would need separate gables and re-sized shutters per box, which this schedule does not (yet) generate.
+            blank). Full Modular needs a <strong>real Depth entered</strong> to fabricate a box — a Full Modular row left blank builds
+            nothing at all (flagged below) rather than assuming a standard factory depth for you. If a unit is wider than your factory's
+            practical single-box handling/transport limit, that's a fabrication decision your team makes on-site — splitting it here
+            would need separate gables and re-sized shutters per box, which this schedule does not (yet) generate.
           </span>
         </div>
+
+        {depthMissingRows.length > 0 && (
+          <div className="mt-3 flex items-start gap-2 text-[11px] text-red-800 bg-red-50 border border-red-200 rounded-lg p-3">
+            <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0 text-red-500" />
+            <span>
+              <strong>{depthMissingRows.length} unit(s) need a Depth entered</strong> — {depthMissingRows.map((r) => r.itemName).join(', ')}.
+              {' '}These are set to Full Modular but Depth is blank, so <strong>no box is being fabricated for them</strong> until you type
+              a real depth in the Excel Format Editor or the Item Inspector.
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Per-Room Tables */}
@@ -165,6 +178,8 @@ export const RoomBoxSchedule: React.FC<RoomBoxScheduleProps> = ({ items, selecte
                         <div className="flex items-start gap-1.5">
                           {row.actual.hasBox ? (
                             <CheckCircle2 className="w-3.5 h-3.5 mt-0.5 text-cyan-600 shrink-0" />
+                          ) : row.actual.depthMissing ? (
+                            <AlertTriangle className="w-3.5 h-3.5 mt-0.5 text-red-500 shrink-0" />
                           ) : (
                             <XCircle className="w-3.5 h-3.5 mt-0.5 text-slate-400 shrink-0" />
                           )}
@@ -184,6 +199,8 @@ export const RoomBoxSchedule: React.FC<RoomBoxScheduleProps> = ({ items, selecte
                                 <div className="font-mono font-semibold text-slate-800 mt-0.5">{fmtDim(row.actual)}</div>
                                 <div className="text-[10px] text-slate-400">{fmtDimFt(row.actual)}</div>
                               </>
+                            ) : row.actual.depthMissing ? (
+                              <span className="text-[11px] italic font-semibold text-red-700">Depth required — no box built</span>
                             ) : (
                               <span className="text-[11px] italic text-slate-400">No box — civil-built shutter/frame</span>
                             )}
@@ -214,6 +231,11 @@ export const RoomBoxSchedule: React.FC<RoomBoxScheduleProps> = ({ items, selecte
                               <div className="font-mono font-semibold text-slate-800">{fmtDim(row.full)}</div>
                               <div className="text-[10px] text-slate-400">{fmtDimFt(row.full)}</div>
                             </div>
+                          </div>
+                        ) : row.full.depthMissing ? (
+                          <div className="flex items-center gap-1.5 text-red-600">
+                            <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                            <span className="text-[11px] italic font-semibold">Depth required — no box built</span>
                           </div>
                         ) : (
                           <div className="flex items-center gap-1.5 text-slate-400">

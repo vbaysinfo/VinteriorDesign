@@ -7,6 +7,7 @@ import {
   getShutterLayout,
   hasShutterDoors,
   redistributeShutterWidths,
+  isDepthRequiredButMissing,
 } from '../utils/calculator';
 import { X, Box, Layers, Scissors, Check, Sliders, DoorOpen } from 'lucide-react';
 import { NumberField } from './NumberField';
@@ -31,6 +32,8 @@ export const ItemInspectorDrawer: React.FC<ItemInspectorDrawerProps> = ({
   if (!item) return null;
 
   const cutListParts = generateCutListForItem(item, projectType);
+  const effectiveType = item.projectType || projectType;
+  const depthMissing = isDepthRequiredButMissing(item, effectiveType);
 
   // Editing width/height/depth here always goes through the ft fields
   // (recalculateItemMetrics derives mm from ft), matching the same
@@ -104,21 +107,34 @@ export const ItemInspectorDrawer: React.FC<ItemInspectorDrawerProps> = ({
               />
               <span className="text-slate-500 text-[10px] block mt-0.5">({item.heightFt} ft)</span>
             </div>
-            <div className="p-2 bg-white rounded-lg border border-slate-200">
+            <div className={`p-2 bg-white rounded-lg border ${depthMissing ? 'border-red-400 ring-1 ring-red-200' : 'border-slate-200'}`}>
               <span className="text-slate-400 text-[10px] block mb-0.5">DEPTH (mm)</span>
               <NumberField
                 min={0}
                 zeroAsEmpty
-                placeholder="0 (Frame)"
+                placeholder={depthMissing ? 'Required!' : '0 (Frame)'}
                 value={item.depthMm}
                 onCommit={(num) => handleDimensionChange('depthMm', num)}
-                className="w-full text-center bg-slate-50 border border-slate-200 rounded font-mono font-bold text-sm text-slate-900 py-1 placeholder:font-normal placeholder:text-slate-400 focus:bg-white focus:ring-1 focus:ring-cyan-500"
+                className={`w-full text-center rounded font-mono font-bold text-sm py-1 placeholder:font-normal focus:bg-white focus:ring-1 ${
+                  depthMissing
+                    ? 'bg-red-50 text-red-900 placeholder:text-red-400 focus:ring-red-400'
+                    : 'bg-slate-50 border border-slate-200 text-slate-900 placeholder:text-slate-400 focus:ring-cyan-500'
+                }`}
               />
-              <span className="text-slate-500 text-[10px] block mt-0.5">
-                {item.depthFt > 0 ? `(${item.depthFt} ft)` : 'Civil niche'}
+              <span className={`text-[10px] block mt-0.5 ${depthMissing ? 'font-semibold text-red-600' : 'text-slate-500'}`}>
+                {item.depthFt > 0 ? `(${item.depthFt} ft)` : depthMissing ? 'No box until entered' : 'Civil niche'}
               </span>
             </div>
           </div>
+
+          {depthMissing && (
+            <div className="flex items-start gap-1.5 text-[11px] text-red-700 bg-red-50 border border-red-200 rounded-lg px-2.5 py-2">
+              <span>
+                ⚠ This item is {effectiveType === 'full' && item.projectType ? 'pinned to' : 'set to'} <strong>Full Modular</strong> but
+                Depth is blank — no factory box (gables, decks, back panel) will be fabricated for it until you enter a real depth here.
+              </span>
+            </div>
+          )}
 
           <div className="flex items-center justify-between text-[11px] pt-1 text-slate-600">
             <span>Calculation Basis: <strong>{item.calcBasis}</strong></span>
@@ -232,10 +248,14 @@ export const ItemInspectorDrawer: React.FC<ItemInspectorDrawerProps> = ({
                             <NumberField
                               min={0}
                               zeroAsEmpty
-                              placeholder="0 (Frame)"
+                              placeholder={depthMissing ? 'Required!' : '0 (Frame)'}
                               value={item.depthMm}
                               onCommit={(num) => handleDimensionChange('depthMm', num)}
-                              className="w-full text-center bg-white border border-slate-200 rounded font-mono font-bold py-1 placeholder:font-normal placeholder:text-slate-400 focus:ring-1 focus:ring-cyan-500"
+                              className={`w-full text-center rounded font-mono font-bold py-1 placeholder:font-normal focus:ring-1 ${
+                                depthMissing
+                                  ? 'bg-red-50 border border-red-400 text-red-900 placeholder:text-red-400 focus:ring-red-400'
+                                  : 'bg-white border border-slate-200 placeholder:text-slate-400 focus:ring-cyan-500'
+                              }`}
                             />
                           </td>
                         </tr>
