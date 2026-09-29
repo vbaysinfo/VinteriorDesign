@@ -456,7 +456,7 @@ export default function App() {
         {/* Tab 4: Room-Wise Box Schedule (Semi vs Full comparison) */}
         {activeTab === 'box_schedule' && (
           <div className="space-y-4">
-            <RoomBoxSchedule items={items} selectedRoom={selectedRoom} />
+            <RoomBoxSchedule items={items} selectedRoom={selectedRoom} projectType={projectType} />
           </div>
         )}
 

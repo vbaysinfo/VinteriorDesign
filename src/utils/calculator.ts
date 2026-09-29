@@ -797,6 +797,40 @@ export function generateRoomBoxSummary(items: ModularItem[], forcedProjectType: 
   });
 }
 
+// Same box breakdown as generateRoomBoxSummary, but evaluated per item's own
+// REAL effective construction type - item.projectType when the row carries
+// its own override, else the project-wide default - exactly like the actual
+// cut list generation does. This is what a mixed project (some items pinned
+// Full while the rest stay Semi) actually builds, as opposed to the two
+// all-or-nothing hypotheticals generateRoomBoxSummary compares.
+export function generateActualRoomBoxSummary(items: ModularItem[], globalProjectType: ProjectType): RoomBoxRow[] {
+  return items.map((item) => {
+    const effectiveType = item.projectType || globalProjectType;
+    const depthMm = getEffectiveDepthMm(item, effectiveType);
+    const hasBox = depthMm > 0;
+    const boxCount = hasBox ? 1 : 0;
+    const boxWidthMm = item.widthMm;
+    const heightMm = item.heightMm;
+
+    return {
+      itemId: item.id,
+      room: item.room,
+      wall: item.wall,
+      itemName: item.description,
+      category: item.category,
+      hasBox,
+      boxCount,
+      boxWidthMm,
+      heightMm,
+      depthMm,
+      boxWidthFt: mmToFt(boxWidthMm),
+      heightFt: mmToFt(heightMm),
+      depthFt: mmToFt(depthMm),
+      volumeCuFtPerBox: Number((mmToFt(boxWidthMm) * mmToFt(heightMm) * mmToFt(depthMm)).toFixed(2)),
+    };
+  });
+}
+
 // Calculate material usage breakdown from items and cut list. `rules`
 // defaults to the factory's standard hardware rules so every existing call
 // site keeps working unchanged; pass the live, admin-edited rules once a
