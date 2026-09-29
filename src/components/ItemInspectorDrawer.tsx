@@ -124,6 +124,42 @@ export const ItemInspectorDrawer: React.FC<ItemInspectorDrawerProps> = ({
             <span>Calculation Basis: <strong>{item.calcBasis}</strong></span>
             <span>Total: <strong>{item.calcBasis === 'Area (Sq.ft)' ? `${item.areaSqFt} Sq.ft` : `${item.volumeCuFt} Cu.ft`}</strong></span>
           </div>
+
+          {/* Per-item construction type override. The project-wide Semi/Full
+              Modular toggle applies to every item by default (Inherit);
+              picking Semi or Full here pins THIS item to that mode
+              regardless of the project toggle, so a single project can mix
+              civil-built (Frame+Shutter) and factory-built (full box) items
+              side by side - e.g. wardrobes built full modular while lofts
+              above them stay semi modular. */}
+          <div className="flex items-center justify-between pt-2 border-t border-slate-200">
+            <span className="text-[11px] font-semibold text-slate-600">
+              Construction Type
+              {!item.projectType && (
+                <span className="text-slate-400 font-normal">
+                  {' '}(inherits {projectType === 'semi' ? 'Semi' : 'Full'} Modular)
+                </span>
+              )}
+            </span>
+            <select
+              value={item.projectType ?? ''}
+              onChange={(e) =>
+                onUpdateItem({
+                  ...item,
+                  projectType: e.target.value === '' ? undefined : (e.target.value as ProjectType),
+                })
+              }
+              className={`text-[11px] font-bold rounded-lg px-2.5 py-1 border ${
+                item.projectType
+                  ? 'bg-amber-50 border-amber-300 text-amber-800'
+                  : 'bg-white border-slate-300 text-slate-700'
+              }`}
+            >
+              <option value="">Inherit (project default)</option>
+              <option value="semi">Semi Modular</option>
+              <option value="full">Full Modular</option>
+            </select>
+          </div>
         </div>
 
         {/* Per-Shutter Dimension Editor - the individual dividers in the 2D
