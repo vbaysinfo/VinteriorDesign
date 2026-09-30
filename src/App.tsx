@@ -24,7 +24,7 @@ import { ItemInspectorDrawer } from './components/ItemInspectorDrawer';
 import { ProjectSettingsModal } from './components/ProjectSettingsModal';
 import { PrintableCadLayout } from './components/PrintableCadLayout';
 import { PrintableCuttingList } from './components/PrintableCuttingList';
-import { Layers, FileSpreadsheet, Scissors, Calculator, Info, UploadCloud, Maximize2, Minimize2, Boxes, BarChart3, Sparkles, Wrench, Recycle, ChefHat } from 'lucide-react';
+import { Info, UploadCloud, Maximize2, Minimize2 } from 'lucide-react';
 
 export default function App() {
   const [projectInfo, setProjectInfo] = useState<ProjectInfo>(DEFAULT_PROJECT_INFO);
@@ -239,137 +239,112 @@ export default function App() {
           <nav className="flex items-center gap-1.5 overflow-x-auto">
             <button
               onClick={() => setActiveTab('cad_layout')}
-              className={`px-3.5 py-2 rounded-lg text-xs font-bold flex items-center gap-2 transition ${
+              className={`px-3.5 py-2 rounded-lg text-xs font-bold transition ${
                 activeTab === 'cad_layout'
                   ? 'bg-slate-900 text-white shadow-xs'
                   : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
               }`}
             >
-              <Layers className="w-4 h-4 text-cyan-400" />
-              <span>CAD 2D / 3D Layout</span>
-              <span className="text-[10px] px-1.5 py-0.2 rounded bg-cyan-500/20 text-cyan-700 font-mono font-bold">
-                2D • 3D
-              </span>
+              CAD 2D / 3D Layout
             </button>
 
             <button
               onClick={() => setActiveTab('spreadsheet')}
-              className={`px-3.5 py-2 rounded-lg text-xs font-bold flex items-center gap-2 transition ${
+              className={`px-3.5 py-2 rounded-lg text-xs font-bold transition ${
                 activeTab === 'spreadsheet'
                   ? 'bg-slate-900 text-white shadow-xs'
                   : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
               }`}
             >
-              <FileSpreadsheet className="w-4 h-4 text-emerald-500" />
-              <span>Excel Format Editor</span>
-              <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-200 text-slate-700 font-mono">
-                {items.length}
-              </span>
+              Excel Format Editor
             </button>
 
             <button
               onClick={() => setActiveTab('cut_list')}
-              className={`px-3.5 py-2 rounded-lg text-xs font-bold flex items-center gap-2 transition ${
+              className={`px-3.5 py-2 rounded-lg text-xs font-bold transition ${
                 activeTab === 'cut_list'
                   ? 'bg-slate-900 text-white shadow-xs'
                   : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
               }`}
             >
-              <Scissors className="w-4 h-4 text-amber-500" />
-              <span>Cutting List & Sheets</span>
-              <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-200 text-slate-700 font-mono">
-                {materials.totalSheets} Sheets • {materials.totalPieces} Pcs
-              </span>
+              Cutting List & Sheets
             </button>
 
             <button
               onClick={() => setActiveTab('box_schedule')}
-              className={`px-3.5 py-2 rounded-lg text-xs font-bold flex items-center gap-2 transition ${
+              className={`px-3.5 py-2 rounded-lg text-xs font-bold transition ${
                 activeTab === 'box_schedule'
                   ? 'bg-slate-900 text-white shadow-xs'
                   : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
               }`}
             >
-              <Boxes className="w-4 h-4 text-fuchsia-500" />
-              <span>Room Box Schedule</span>
-              <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-200 text-slate-700 font-mono">
-                Semi vs Full
-              </span>
+              Room Box Schedule
             </button>
 
             <button
               onClick={() => setActiveTab('analytics')}
-              className={`px-3.5 py-2 rounded-lg text-xs font-bold flex items-center gap-2 transition ${
+              className={`px-3.5 py-2 rounded-lg text-xs font-bold transition ${
                 activeTab === 'analytics'
                   ? 'bg-slate-900 text-white shadow-xs'
                   : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
               }`}
             >
-              <BarChart3 className="w-4 h-4 text-cyan-500" />
-              <span>Analytics Report</span>
+              Analytics Report
             </button>
 
             <button
               onClick={() => setActiveTab('ai_analysis')}
-              className={`px-3.5 py-2 rounded-lg text-xs font-bold flex items-center gap-2 transition ${
+              className={`px-3.5 py-2 rounded-lg text-xs font-bold transition ${
                 activeTab === 'ai_analysis'
                   ? 'bg-slate-900 text-white shadow-xs'
                   : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
               }`}
             >
-              <Sparkles className="w-4 h-4 text-violet-500" />
-              <span>AI Analysis</span>
+              AI Analysis
             </button>
 
             <button
               onClick={() => setActiveTab('pricing_bom')}
-              className={`px-3.5 py-2 rounded-lg text-xs font-bold flex items-center gap-2 transition ${
+              className={`px-3.5 py-2 rounded-lg text-xs font-bold transition ${
                 activeTab === 'pricing_bom'
                   ? 'bg-slate-900 text-white shadow-xs'
                   : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
               }`}
             >
-              <Calculator className="w-4 h-4 text-indigo-400" />
-              <span>Pricing & BOM Proposal</span>
+              Pricing & BOM Proposal
             </button>
 
             <button
               onClick={() => setActiveTab('hardware_bom')}
-              className={`px-3.5 py-2 rounded-lg text-xs font-bold flex items-center gap-2 transition ${
+              className={`px-3.5 py-2 rounded-lg text-xs font-bold transition ${
                 activeTab === 'hardware_bom'
                   ? 'bg-slate-900 text-white shadow-xs'
                   : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
               }`}
             >
-              <Wrench className="w-4 h-4 text-orange-500" />
-              <span>Hardware BOM</span>
-              <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-200 text-slate-700 font-mono">
-                {hardwareBOM.length} lines
-              </span>
+              Hardware BOM
             </button>
 
             <button
               onClick={() => setActiveTab('material_reuse')}
-              className={`px-3.5 py-2 rounded-lg text-xs font-bold flex items-center gap-2 transition ${
+              className={`px-3.5 py-2 rounded-lg text-xs font-bold transition ${
                 activeTab === 'material_reuse'
                   ? 'bg-slate-900 text-white shadow-xs'
                   : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
               }`}
             >
-              <Recycle className="w-4 h-4 text-emerald-500" />
-              <span>Material Reuse</span>
+              Material Reuse
             </button>
 
             <button
               onClick={() => setActiveTab('kitchen_configurator')}
-              className={`px-3.5 py-2 rounded-lg text-xs font-bold flex items-center gap-2 transition ${
+              className={`px-3.5 py-2 rounded-lg text-xs font-bold transition ${
                 activeTab === 'kitchen_configurator'
                   ? 'bg-slate-900 text-white shadow-xs'
                   : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
               }`}
             >
-              <ChefHat className="w-4 h-4 text-orange-500" />
-              <span>Kitchen Configurator</span>
+              Kitchen Configurator
             </button>
           </nav>
 
