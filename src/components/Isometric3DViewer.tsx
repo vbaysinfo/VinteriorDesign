@@ -975,9 +975,13 @@ export const Isometric3DViewer: React.FC<Isometric3DViewerProps> = ({
           }
         }
       } else if (shutterCount > 0) {
-        // Swing Shutters in 3D
+        // Swing Shutters in 3D - a sliding door never swings on a hinge, so
+        // it ignores the global door-open animation entirely and always
+        // renders flush/closed here, matching the 2D CAD elevation (which
+        // draws a sliding-direction arrow instead of a hinge swing arc).
+        const isSlidingDoor = item.doorType === 'sliding';
         const shutterW = (w - 6) / shutterCount;
-        const radOpen = (doorOpenPercent / 100) * (Math.PI / 2.5); // up to 72° swing
+        const radOpen = isSlidingDoor ? 0 : (doorOpenPercent / 100) * (Math.PI / 2.5); // up to 72° swing
         const sThick = 18;
 
         for (let sIdx = 0; sIdx < shutterCount; sIdx++) {

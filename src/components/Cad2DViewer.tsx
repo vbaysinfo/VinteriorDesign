@@ -1044,12 +1044,17 @@ export const Cad2DViewer: React.FC<Cad2DViewerProps> = ({
                           />
                         ))
                       ) : (
-                        // Shutters and Swing Dashed Arcs
+                        // Shutters, plus either hinge Swing Dashed Arcs or a
+                        // Sliding direction arrow depending on the item's
+                        // door type - a sliding panel never swings open, so
+                        // drawing the hinge arc on one would be a real
+                        // drafting error, not just a cosmetic choice.
                         Array.from({ length: sCount }).map((_, sIdx) => {
                           const sx = pos.x + shutterOffsets[sIdx];
                           const sw = shutterWidths[sIdx];
                           const isHingeLeft = sIdx % 2 === 0;
                           const shutterSelected = isShutterSelected(sIdx);
+                          const isSliding = pos.item.doorType === 'sliding';
                           return (
                             <g key={`shutter-${sIdx}`}>
                               {/* Real reveal gap between adjacent shutters (matches cut list exactly).
@@ -1090,8 +1095,8 @@ export const Cad2DViewer: React.FC<Cad2DViewerProps> = ({
                                 }}
                               />
 
-                              {/* Architectural Door Swing Dashed Lines */}
-                              {pos.h > 400 && pos.w > 200 && (
+                              {/* Architectural Door Swing Dashed Lines - hinged doors only */}
+                              {!isSliding && pos.h > 400 && pos.w > 200 && (
                                 <g opacity="0.35">
                                   {isHingeLeft ? (
                                     <polyline
@@ -1113,16 +1118,33 @@ export const Cad2DViewer: React.FC<Cad2DViewerProps> = ({
                                 </g>
                               )}
 
-                              {/* Shutter Vertical Handle */}
+                              {/* Sliding direction arrow (both ways, along a track) - sliding doors only */}
+                              {isSliding && pos.h > 300 && sw > 120 && (() => {
+                                const arrowY = itemY + pos.h / 2;
+                                const margin = Math.min(30, sw * 0.18);
+                                const x1 = sx + margin;
+                                const x2 = sx + sw - margin;
+                                const head = Math.min(14, (x2 - x1) * 0.15);
+                                return (
+                                  <g opacity="0.5" stroke={themeStyles.text} strokeWidth="1.5" fill="none">
+                                    <line x1={x1} y1={arrowY} x2={x2} y2={arrowY} strokeDasharray="6,4" />
+                                    <polyline points={`${x1 + head},${arrowY - head} ${x1},${arrowY} ${x1 + head},${arrowY + head}`} />
+                                    <polyline points={`${x2 - head},${arrowY - head} ${x2},${arrowY} ${x2 - head},${arrowY + head}`} />
+                                  </g>
+                                );
+                              })()}
+
+                              {/* Shutter Handle - a tall vertical pull for a hinged door, a short
+                                  recessed flush-pull groove along the overlap edge for sliding */}
                               {pos.item.category !== 'expo' && (
                                 <rect
                                   x={isHingeLeft ? sx + sw - 14 : sx + 10}
-                                  y={itemY + pos.h / 2 - 35}
-                                  width="5"
-                                  height="70"
+                                  y={itemY + pos.h / 2 - (isSliding ? 20 : 35)}
+                                  width={isSliding ? 4 : 5}
+                                  height={isSliding ? 40 : 70}
                                   rx="2"
                                   fill={themeStyles.text}
-                                  opacity="0.9"
+                                  opacity={isSliding ? 0.6 : 0.9}
                                 />
                               )}
                             </g>

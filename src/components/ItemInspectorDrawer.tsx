@@ -1,5 +1,5 @@
 import React from 'react';
-import { ModularItem, ProjectType, FactoryRates } from '../types';
+import { ModularItem, ProjectType, FactoryRates, DoorType } from '../types';
 import {
   generateCutListForItem,
   mmToFt,
@@ -9,6 +9,7 @@ import {
   redistributeShutterWidths,
   isDepthRequiredButMissing,
   resolveEffectiveProjectType,
+  getAutoShutterCount,
 } from '../utils/calculator';
 import { X, Box, Layers, Scissors, Check, Sliders, DoorOpen } from 'lucide-react';
 import { NumberField } from './NumberField';
@@ -53,6 +54,20 @@ export const ItemInspectorDrawer: React.FC<ItemInspectorDrawerProps> = ({
       updated.depthFt = num > 0 ? mmToFt(num) : 0;
     }
     onUpdateItem(recalculateItemMetrics(updated));
+  };
+
+  // Switching Door Type immediately recalculates the door/panel count from
+  // the item's current width (2 or 3 for Sliding, the 1/2/3/4 hinged ladder
+  // otherwise) - see getAutoShutterCount(). The user can still hand-edit the
+  // Shutters count afterward same as always; this only fires on an explicit
+  // door-type change, not on every width edit, so it never silently
+  // overwrites a count someone deliberately customized.
+  const handleDoorTypeChange = (doorType: DoorType) => {
+    onUpdateItem({
+      ...item,
+      doorType: doorType === 'hinged' ? undefined : doorType,
+      shutterCount: getAutoShutterCount(item.widthMm, doorType),
+    });
   };
 
   return (
@@ -314,6 +329,25 @@ export const ItemInspectorDrawer: React.FC<ItemInspectorDrawerProps> = ({
               </select>
             </div>
           </div>
+
+          {hasShutterDoors(item) && (
+            <div>
+              <label className="block text-slate-600 font-medium mb-1">Door Type</label>
+              <select
+                value={item.doorType === 'sliding' ? 'sliding' : 'hinged'}
+                onChange={(e) => handleDoorTypeChange(e.target.value as DoorType)}
+                className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 font-bold"
+              >
+                <option value="hinged">Hinged (Open/Close)</option>
+                <option value="sliding">Sliding</option>
+              </select>
+              <span className="text-[10px] text-slate-400 mt-0.5 block">
+                {item.doorType === 'sliding'
+                  ? 'Panel count auto-set from width (2 up to ~7ft, 3 beyond) - no hinge, track + rollers instead'
+                  : 'Panel count auto-set from width (1 to 4 doors) - swings open on hinges'}
+              </span>
+            </div>
+          )}
 
           <div className="grid grid-cols-3 gap-2">
             <div>

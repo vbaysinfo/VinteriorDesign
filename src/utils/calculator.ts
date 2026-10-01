@@ -17,6 +17,7 @@ import {
   LeftoverInventoryRow,
   MaterialReuseSummary,
   QuickAreaEstimate,
+  DoorType,
 } from '../types';
 
 // Standard sheet dimensions in mm
@@ -130,6 +131,25 @@ export function getFinishLabel(item: ModularItem): string {
   return item.laminateColorCode?.trim() ? `${item.finishType} - ${item.laminateColorCode.trim()}` : item.finishType;
 }
 
+// Auto-calculates a sensible door count from width alone, before any
+// explicit shutterCount is set - used when an item is first created
+// (Excel upload, Kitchen Configurator) and whenever the Item Inspector's
+// Door Type selector is switched, so picking Sliding immediately
+// recalculates the panel count instead of leaving a stale hinged-door
+// count in place.
+//
+// Hinged doors widen the ladder as the opening gets wider (1/2/3/4 doors).
+// Sliding doors are physically heavy track-mounted panels - a standard
+// residential track rarely supports more than 3 before needing a
+// different system entirely - so this only ever returns 2 or 3, per the
+// factory's own sliding-door convention, never the hinged ladder's 4.
+export function getAutoShutterCount(widthMm: number, doorType?: DoorType): number {
+  if (doorType === 'sliding') {
+    return widthMm > 2150 ? 3 : 2;
+  }
+  return widthMm > 1800 ? 4 : widthMm > 1000 ? 3 : widthMm > 500 ? 2 : 1;
+}
+
 // Single source of truth for how many shutters an item gets and how wide
 // each one is - used by the real cut list below, the interactive 2D CAD
 // elevation, and the printable layout, so all three always agree with each
@@ -143,7 +163,7 @@ export function getFinishLabel(item: ModularItem): string {
 // call sites that only care about the even-split case.
 export function getShutterLayout(item: ModularItem): { count: number; widths: number[]; shutterWidthMm: number; gapMm: number } {
   const w = item.widthMm;
-  const count = Math.max(1, item.shutterCount ?? (w > 1800 ? 4 : w > 1000 ? 3 : w > 500 ? 2 : 1));
+  const count = Math.max(1, item.shutterCount ?? getAutoShutterCount(w, item.doorType));
   const gapMm = count > 1 ? 3 : 0;
   // Floored, not rounded: see the note in generateCutListForItem - rounding
   // up even by 0.5mm compounds across every shutter sharing this one width.
@@ -370,6 +390,7 @@ export function generateCutListForItem(item: ModularItem, globalProjectType: Pro
         // No fabric on shutters - Color/Laminate only, per the factory's
         // own material rule.
         backMaterialCategory: 'Color/Laminate',
+        doorType: item.doorType,
         edgeL1: true,
         edgeL2: true,
         edgeW1: true,
@@ -1065,8 +1086,13 @@ export function calculateMaterialUsage(cutList: CutListPart[], rules: HardwareRu
 
     // Hardware deduction
     if (part.partName === 'Shutter') {
-      const hingesNeeded = getHingeCountForHeight(part.lengthMm, rules.hingeRules);
-      softCloseHingesPairs += (hingesNeeded / 2) * part.qty;
+      // A sliding panel never hinges - it rides on a track instead (see
+      // calculateHardwareBOM for the detailed track/roller lines). Still
+      // gets a handle/flush-pull either way.
+      if (part.doorType !== 'sliding') {
+        const hingesNeeded = getHingeCountForHeight(part.lengthMm, rules.hingeRules);
+        softCloseHingesPairs += (hingesNeeded / 2) * part.qty;
+      }
       handles += part.qty;
     } else if (part.partName === 'Drawer Front') {
       handles += part.qty;
@@ -1207,25 +1233,30 @@ export function calculateHardwareBOM(cutList: CutListPart[], rules: HardwareRule
 
     for (const part of parts) {
       if (part.partName === 'Shutter') {
-        const hinges = getHingeCountForHeight(part.lengthMm, rules.hingeRules);
-        push({
-          componentId: part.id,
-          componentType: 'Shutter',
-          hardwareCode: 'HNG-SC',
-          hardwareName: 'Soft-Close Hinge',
-          unit: 'Nos',
-          quantity: hinges * part.qty,
-          calculationRule: `${hinges} hinge(s) per shutter up to ${part.lengthMm}mm height`,
-        });
+        // A sliding panel rides on a track instead of hinging - its track
+        // and rollers are charged once per item below (after this loop),
+        // not per panel like a hinge would be.
+        if (part.doorType !== 'sliding') {
+          const hinges = getHingeCountForHeight(part.lengthMm, rules.hingeRules);
+          push({
+            componentId: part.id,
+            componentType: 'Shutter',
+            hardwareCode: 'HNG-SC',
+            hardwareName: 'Soft-Close Hinge',
+            unit: 'Nos',
+            quantity: hinges * part.qty,
+            calculationRule: `${hinges} hinge(s) per shutter up to ${part.lengthMm}mm height`,
+          });
+        }
         if (rules.handlesPerShutter > 0) {
           push({
             componentId: part.id,
             componentType: 'Shutter',
-            hardwareCode: 'HDL-01',
-            hardwareName: 'Handle',
+            hardwareCode: part.doorType === 'sliding' ? 'HDL-FLU' : 'HDL-01',
+            hardwareName: part.doorType === 'sliding' ? 'Flush Pull Handle' : 'Handle',
             unit: 'Nos',
             quantity: rules.handlesPerShutter * part.qty,
-            calculationRule: `${rules.handlesPerShutter} handle(s) per shutter`,
+            calculationRule: `${rules.handlesPerShutter} ${part.doorType === 'sliding' ? 'flush pull(s)' : 'handle(s)'} per shutter`,
           });
         }
       } else if (part.partName === 'Drawer Front') {
@@ -1290,6 +1321,33 @@ export function calculateHardwareBOM(cutList: CutListPart[], rules: HardwareRule
           calculationRule: `1 per ${rules.skirtingClipSpacingMm}mm of skirting run`,
         });
       }
+    }
+
+    // Sliding door track hardware applies once per opening (one top +
+    // bottom track set spans every panel sharing that track), not once per
+    // panel - only the rollers scale with how many panels actually ride on it.
+    const slidingPanelQty = parts
+      .filter((p) => p.partName === 'Shutter' && p.doorType === 'sliding')
+      .reduce((s, p) => s + p.qty, 0);
+    if (slidingPanelQty > 0) {
+      push({
+        componentId: `${itemId}-sliding-track`,
+        componentType: 'Sliding Door',
+        hardwareCode: 'SLD-TRK',
+        hardwareName: 'Sliding Door Track Set (Top + Bottom)',
+        unit: 'Set',
+        quantity: 1,
+        calculationRule: '1 track set per sliding-door opening, spanning its full width',
+      });
+      push({
+        componentId: `${itemId}-sliding-rollers`,
+        componentType: 'Sliding Door',
+        hardwareCode: 'SLD-ROL',
+        hardwareName: 'Sliding Door Roller',
+        unit: 'Nos',
+        quantity: slidingPanelQty * 2,
+        calculationRule: '2 roller(s) per sliding panel',
+      });
     }
 
     // Box assembly hardware applies once per box (per item that actually

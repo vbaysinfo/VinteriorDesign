@@ -1,5 +1,12 @@
 export type ProjectType = 'semi' | 'full';
 
+// How an item's doors open. 'hinged' (the default/undefined) swings open on
+// hinges, one door per shutter slot; 'sliding' rides on a track and never
+// swings - its own panel count is auto-calculated from width (2 panels up
+// to a standard track width, 3 beyond it), separately from the hinged
+// width ladder. See getAutoShutterCount() in calculator.ts.
+export type DoorType = 'hinged' | 'sliding';
+
 export type WallType = 'front' | 'left' | 'right' | 'back';
 
 // The closed set of cut-part types a modular item can generate. Shared
@@ -55,6 +62,7 @@ export interface ModularItem {
   volumeCuFt: number;
   projectType?: ProjectType; // Optional per-item override; blank/undefined inherits the project-wide Semi/Full Modular toggle
   shutterCount: number;
+  doorType?: DoorType; // blank/undefined = hinged (open/close); 'sliding' = track-mounted, never drawn with a hinge swing
   drawerCount: number;
   shelfCount: number;
   finishType: 'Laminate' | 'Acrylic' | 'PU Paint' | 'Profile Glass' | 'Veneer';
@@ -124,6 +132,10 @@ export interface CutListPart {
   // surface, doubling its fabric quantity, instead of the factory-
   // standard single face.
   fabricBothSides?: boolean;
+  // Copied from the originating item, only ever set on a 'Shutter' part -
+  // lets hardware calculation charge a sliding track/rollers instead of
+  // hinges for that panel, without having to look the item back up.
+  doorType?: DoorType;
   sheetNumber?: string;
   edgeL1: boolean;
   edgeL2: boolean;

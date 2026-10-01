@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { ModularItem, CutListPart, WallType, ProjectType } from '../types';
-import { ftToMm, mmToFt, recalculateItemMetrics, isDepthRequiredButMissing, resolveEffectiveProjectType } from '../utils/calculator';
+import { ftToMm, mmToFt, recalculateItemMetrics, isDepthRequiredButMissing, resolveEffectiveProjectType, hasShutterDoors, getAutoShutterCount } from '../utils/calculator';
 import { exportCutListFactoryFormat } from '../utils/excelParser';
 import { Plus, Trash2, Copy, Search, Filter, ArrowUpDown, FileSpreadsheet, Download } from 'lucide-react';
 import { NumberField } from './NumberField';
@@ -85,6 +85,13 @@ export const SpreadsheetEditor: React.FC<SpreadsheetEditorProps> = ({
         newItem.quantity = Math.max(1, parseInt(value, 10) || 1);
       } else if (field === 'projectType') {
         newItem.projectType = value === 'semi' || value === 'full' ? value : undefined;
+      } else if (field === 'doorType') {
+        // Switching Door Type immediately recalculates the panel count from
+        // the current width (2/3 for Sliding, the 1-4 hinged ladder
+        // otherwise) - same auto-calc the Item Inspector's selector uses.
+        const doorType = value === 'sliding' ? 'sliding' : undefined;
+        newItem.doorType = doorType;
+        newItem.shutterCount = getAutoShutterCount(newItem.widthMm, doorType);
       }
 
       return recalculateItemMetrics(newItem);
@@ -253,6 +260,9 @@ export const SpreadsheetEditor: React.FC<SpreadsheetEditorProps> = ({
               </th>
               <th className="py-2.5 px-2 border-r border-slate-600 text-center w-16">Qty</th>
               <th className="py-2.5 px-2 border-r border-slate-600 text-center w-28">
+                Door Type <span className="text-[9px] font-normal block lowercase opacity-80">auto-sets panel count</span>
+              </th>
+              <th className="py-2.5 px-2 border-r border-slate-600 text-center w-28">
                 Type Override <span className="text-[9px] font-normal block lowercase opacity-80">blank=inherit</span>
               </th>
               <th className="py-2.5 px-3 border-r border-slate-600 min-w-[140px] bg-fuchsia-950/60">Laminate Color Code</th>
@@ -397,6 +407,25 @@ export const SpreadsheetEditor: React.FC<SpreadsheetEditorProps> = ({
                       onCommit={(num) => handleCellChange(item.id, 'quantity', num)}
                       className="w-full text-center bg-transparent text-slate-800 font-bold focus:bg-white focus:ring-1 focus:ring-cyan-500 rounded"
                     />
+                  </td>
+
+                  {/* Door Type - Hinged (default) swings open on hinges; Sliding rides
+                      a track and auto-sets its own panel count from width (2 or 3),
+                      separate from the hinged 1-4 door ladder. Only meaningful for
+                      items that actually get doors at all. */}
+                  <td className="py-1.5 px-2 border-r border-slate-200 text-center" onClick={(e) => e.stopPropagation()}>
+                    {hasShutterDoors(item) ? (
+                      <select
+                        value={item.doorType === 'sliding' ? 'sliding' : 'hinged'}
+                        onChange={(e) => handleCellChange(item.id, 'doorType', e.target.value)}
+                        className="text-[10px] font-sans font-bold uppercase bg-slate-100 hover:bg-slate-200 px-1 py-0.5 rounded text-slate-700 focus:outline-hidden w-full"
+                      >
+                        <option value="hinged">Hinged</option>
+                        <option value="sliding">Sliding</option>
+                      </select>
+                    ) : (
+                      <span className="text-slate-300">—</span>
+                    )}
                   </td>
 
                   {/* Per-item Semi/Full override - blank inherits the header toggle */}
