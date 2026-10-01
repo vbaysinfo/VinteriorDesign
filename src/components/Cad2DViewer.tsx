@@ -876,11 +876,11 @@ export const Cad2DViewer: React.FC<Cad2DViewerProps> = ({
                 {positionedElevationItems.map((pos) => {
                   const isSelected = selectedItemId === pos.item.id;
                   const itemY = wallHeight - pos.y - pos.h; // convert from bottom datum to top-left SVG coords
-                  // Match the real cut list exactly (calculator.ts): a 3mm
-                  // reveal between adjacent shutters, floored so sCount
-                  // identical shutter widths can never combine to exceed
-                  // pos.w - i.e. what's drawn here is what actually gets cut,
-                  // and the doors are shown with real clearance, not touching.
+                  // Match the real cut list exactly (calculator.ts): hinged
+                  // doors get a 3mm reveal gap, sliding doors a 3" overlap
+                  // instead (gapMm is signed - see getShutterLayout), floored
+                  // so sCount identical shutter widths can never combine to
+                  // exceed pos.w - what's drawn here is what actually gets cut.
                   const { count: sCount, widths: shutterWidths, gapMm: shutterGapMm } = getShutterLayout(pos.item);
                   // Cumulative left edge (in mm, relative to pos.x) of each
                   // shutter - a plain array walk instead of a fixed pitch so
@@ -1057,18 +1057,39 @@ export const Cad2DViewer: React.FC<Cad2DViewerProps> = ({
                           const isSliding = pos.item.doorType === 'sliding';
                           return (
                             <g key={`shutter-${sIdx}`}>
-                              {/* Real reveal gap between adjacent shutters (matches cut list exactly).
-                                  Non-interactive so a click that happens to land in this sliver falls
-                                  through to the shutter/cabinet underneath instead of hitting a dead zone -
-                                  this strip can otherwise line up exactly with the cabinet's own label,
-                                  which is centered on the whole box and so on an even shutter count. */}
-                              {sIdx > 0 && (
+                              {/* Real reveal gap between adjacent HINGED shutters (matches cut list
+                                  exactly). Non-interactive so a click that happens to land in this
+                                  sliver falls through to the shutter/cabinet underneath instead of
+                                  hitting a dead zone - this strip can otherwise line up exactly with
+                                  the cabinet's own label, which is centered on the whole box and so
+                                  on an even shutter count. Sliding doors have no gap at all here -
+                                  shutterGapMm is negative for them (an overlap, not a gap - see
+                                  getShutterLayout), so this would draw a nonsensical negative-width
+                                  rect; the dashed overlap seam line below replaces it instead. */}
+                              {!isSliding && sIdx > 0 && (
                                 <rect
                                   x={sx - shutterGapMm}
                                   y={itemY}
                                   width={shutterGapMm}
                                   height={pos.h}
                                   fill={themeStyles.bg}
+                                  pointerEvents="none"
+                                />
+                              )}
+
+                              {/* Sliding overlap seam - a dashed line marking where this panel
+                                  overlaps the previous one on the parallel track, instead of the
+                                  hinged door's reveal-gap sliver above. */}
+                              {isSliding && sIdx > 0 && (
+                                <line
+                                  x1={sx}
+                                  y1={itemY}
+                                  x2={sx}
+                                  y2={itemY + pos.h}
+                                  stroke={themeStyles.text}
+                                  strokeWidth="1"
+                                  strokeDasharray="3,3"
+                                  opacity="0.3"
                                   pointerEvents="none"
                                 />
                               )}

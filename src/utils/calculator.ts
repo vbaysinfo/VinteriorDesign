@@ -150,6 +150,9 @@ export function getAutoShutterCount(widthMm: number, doorType?: DoorType): numbe
   return widthMm > 1800 ? 4 : widthMm > 1000 ? 3 : widthMm > 500 ? 2 : 1;
 }
 
+const SHUTTER_GAP_MM = 3; // hinged-door reveal gap between adjacent panels
+const SLIDING_OVERLAP_MM = 76.2; // 3 inches - how much adjacent sliding panels overlap instead of leaving a gap
+
 // Single source of truth for how many shutters an item gets and how wide
 // each one is - used by the real cut list below, the interactive 2D CAD
 // elevation, and the printable layout, so all three always agree with each
@@ -161,10 +164,24 @@ export function getAutoShutterCount(widthMm: number, doorType?: DoorType): numbe
 // independently - e.g. two unequal wardrobe doors instead of a plain 50/50
 // split. `shutterWidthMm` is kept as the first shutter's width for older
 // call sites that only care about the even-split case.
+//
+// `gapMm` is signed, not just a hinged-door constant: positive is a real
+// reveal gap (hinged doors sit side by side with a sliver of daylight
+// between them, so less material is needed than the raw opening width);
+// negative is a sliding-door OVERLAP (adjacent panels ride on separate
+// parallel tracks and overlap each other by a fixed amount instead of
+// butting up against a gap, so each panel needs to be cut WIDER than an
+// even split of the opening, not narrower). Every downstream formula that
+// reads gapMm - evenWidthMm below, the 2D CAD panel offsets, and
+// redistributeShutterWidths' available-width calc - already does
+// `width - (count-1) * gapMm`, so a negative gapMm naturally ADDS the
+// overlap back in without needing a separate overlap-specific branch
+// anywhere: sliding doors just fall out of the same formula hinged doors
+// use, with the sign flipped.
 export function getShutterLayout(item: ModularItem): { count: number; widths: number[]; shutterWidthMm: number; gapMm: number } {
   const w = item.widthMm;
   const count = Math.max(1, item.shutterCount ?? getAutoShutterCount(w, item.doorType));
-  const gapMm = count > 1 ? 3 : 0;
+  const gapMm = count > 1 ? (item.doorType === 'sliding' ? -SLIDING_OVERLAP_MM : SHUTTER_GAP_MM) : 0;
   // Floored, not rounded: see the note in generateCutListForItem - rounding
   // up even by 0.5mm compounds across every shutter sharing this one width.
   const evenWidthMm = Math.floor((w - (count - 1) * gapMm) / count);
