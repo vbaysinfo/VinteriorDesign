@@ -222,21 +222,64 @@ export const PrintableCadLayout: React.FC<PrintableCadLayoutProps> = ({ items, p
                       const dScale = DIAGRAM_WIDTH / innerW;
                       const dHeight = innerH * dScale;
                       const layout = getEffectiveClosetLayout(item);
+                      let colAcc = 0;
                       return (
                         <div key={item.id} className="text-center">
                           <svg width={DIAGRAM_WIDTH} height={dHeight} viewBox={`0 0 ${DIAGRAM_WIDTH} ${dHeight}`} className="border border-slate-400">
                             <rect x={0} y={0} width={DIAGRAM_WIDTH} height={dHeight} fill="#fffbeb" stroke="#0f172a" strokeWidth={1} />
-                            {layout.horizontalShelvesMm.map((yMm, idx) => (
-                              <line key={`h-${idx}`} x1={0} y1={yMm * dScale} x2={DIAGRAM_WIDTH} y2={yMm * dScale} stroke="#0f172a" strokeWidth={0.8} />
-                            ))}
-                            {layout.verticalDividersMm.map((xMm, idx) => (
-                              <line key={`v-${idx}`} x1={xMm * dScale} y1={0} x2={xMm * dScale} y2={dHeight} stroke="#0f172a" strokeWidth={1.2} />
-                            ))}
+                            {layout.columns.map((col, colIdx) => {
+                              const colX = colAcc * dScale;
+                              const colW = col.widthMm * dScale;
+                              const isLast = colIdx === layout.columns.length - 1;
+                              colAcc += col.widthMm;
+                              const boundary = !isLast && (
+                                <line key={`bnd-${colIdx}`} x1={colX + colW} y1={0} x2={colX + colW} y2={dHeight} stroke="#0f172a" strokeWidth={1.2} />
+                              );
+                              if (col.type === 'hanging_rod') {
+                                const rodY = Math.min(innerH - 60, (col.shelvesMm[0] ?? 0) + 120);
+                                return (
+                                  <g key={col.id}>
+                                    {col.shelvesMm.length > 0 && (
+                                      <line x1={colX} y1={col.shelvesMm[0] * dScale} x2={colX + colW} y2={col.shelvesMm[0] * dScale} stroke="#0f172a" strokeWidth={0.8} />
+                                    )}
+                                    <line x1={colX + 4} y1={rodY * dScale} x2={colX + colW - 4} y2={rodY * dScale} stroke="#0f172a" strokeWidth={1} opacity={0.6} />
+                                    {boundary}
+                                  </g>
+                                );
+                              }
+                              const sortedShelves = [...col.shelvesMm].sort((a, b) => a - b);
+                              const bounds = [0, ...sortedShelves, innerH];
+                              return (
+                                <g key={col.id}>
+                                  {bounds.slice(0, -1).map((top, compIdx) => {
+                                    if (!col.drawerCompartments.includes(compIdx)) return null;
+                                    const bottom = bounds[compIdx + 1];
+                                    return (
+                                      <rect
+                                        key={`drw-${colIdx}-${compIdx}`}
+                                        x={colX + 2}
+                                        y={top * dScale + 2}
+                                        width={Math.max(0, colW - 4)}
+                                        height={Math.max(0, (bottom - top) * dScale - 4)}
+                                        fill="none"
+                                        stroke="#0f172a"
+                                        strokeDasharray="3,3"
+                                        strokeWidth={0.8}
+                                        opacity={0.6}
+                                      />
+                                    );
+                                  })}
+                                  {sortedShelves.map((yMm, idx) => (
+                                    <line key={`h-${colIdx}-${idx}`} x1={colX} y1={yMm * dScale} x2={colX + colW} y2={yMm * dScale} stroke="#0f172a" strokeWidth={0.8} />
+                                  ))}
+                                  {boundary}
+                                </g>
+                              );
+                            })}
                           </svg>
                           <div className="text-[9px] font-semibold text-slate-700 mt-1">{item.description}</div>
                           <div className="text-[8px] text-slate-500">
-                            {item.widthMm}×{item.heightMm}mm · {layout.verticalDividersMm.length + 1} column(s) ×{' '}
-                            {layout.horizontalShelvesMm.length} shelf row(s)
+                            {item.widthMm}×{item.heightMm}mm · {layout.columns.length} column(s)
                           </div>
                         </div>
                       );

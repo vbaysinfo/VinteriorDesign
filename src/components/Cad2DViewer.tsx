@@ -1041,30 +1041,93 @@ export const Cad2DViewer: React.FC<Cad2DViewerProps> = ({
                         const scaleY = pos.h / pos.item.heightMm;
                         const insetX = 18 * scaleX;
                         const insetY = 18 * scaleY;
+                        const innerHeightMm = Math.max(100, pos.item.heightMm - 36);
+                        let colAccMm = 0;
                         return (
                           <g opacity="0.9">
-                            {closetLayout.horizontalShelvesMm.map((yMm, idx) => (
-                              <line
-                                key={`cs-h-${idx}`}
-                                x1={pos.x + insetX}
-                                y1={itemY + insetY + yMm * scaleY}
-                                x2={pos.x + pos.w - insetX}
-                                y2={itemY + insetY + yMm * scaleY}
-                                stroke={themeStyles.text}
-                                strokeWidth="2"
-                              />
-                            ))}
-                            {closetLayout.verticalDividersMm.map((xMm, idx) => (
-                              <line
-                                key={`cs-v-${idx}`}
-                                x1={pos.x + insetX + xMm * scaleX}
-                                y1={itemY + insetY}
-                                x2={pos.x + insetX + xMm * scaleX}
-                                y2={itemY + pos.h - insetY}
-                                stroke={themeStyles.text}
-                                strokeWidth="3"
-                              />
-                            ))}
+                            {closetLayout.columns.map((col, colIdx) => {
+                              const colXPx = pos.x + insetX + colAccMm * scaleX;
+                              const colWPx = col.widthMm * scaleX;
+                              const isLastCol = colIdx === closetLayout.columns.length - 1;
+                              colAccMm += col.widthMm;
+                              const boundaryEl = !isLastCol && (
+                                <line
+                                  key={`cs-bnd-${colIdx}`}
+                                  x1={colXPx + colWPx}
+                                  y1={itemY + insetY}
+                                  x2={colXPx + colWPx}
+                                  y2={itemY + pos.h - insetY}
+                                  stroke={themeStyles.text}
+                                  strokeWidth="3"
+                                />
+                              );
+
+                              if (col.type === 'hanging_rod') {
+                                const rodYMm = Math.min(innerHeightMm - 60, (col.shelvesMm[0] ?? 0) + 120);
+                                return (
+                                  <g key={`cs-col-${colIdx}`}>
+                                    {col.shelvesMm.length > 0 && (
+                                      <line
+                                        x1={colXPx}
+                                        y1={itemY + insetY + col.shelvesMm[0] * scaleY}
+                                        x2={colXPx + colWPx}
+                                        y2={itemY + insetY + col.shelvesMm[0] * scaleY}
+                                        stroke={themeStyles.text}
+                                        strokeWidth="2"
+                                      />
+                                    )}
+                                    <line
+                                      x1={colXPx + 6}
+                                      y1={itemY + insetY + rodYMm * scaleY}
+                                      x2={colXPx + colWPx - 6}
+                                      y2={itemY + insetY + rodYMm * scaleY}
+                                      stroke={themeStyles.text}
+                                      strokeWidth="2"
+                                      opacity="0.7"
+                                    />
+                                    {boundaryEl}
+                                  </g>
+                                );
+                              }
+
+                              const sortedShelves = [...col.shelvesMm].sort((a, b) => a - b);
+                              const bounds = [0, ...sortedShelves, innerHeightMm];
+                              return (
+                                <g key={`cs-col-${colIdx}`}>
+                                  {bounds.slice(0, -1).map((top, compIdx) => {
+                                    if (!col.drawerCompartments.includes(compIdx)) return null;
+                                    const bottom = bounds[compIdx + 1];
+                                    const midY = itemY + insetY + ((top + bottom) / 2) * scaleY;
+                                    return (
+                                      <rect
+                                        key={`cs-drw-${colIdx}-${compIdx}`}
+                                        x={colXPx + 3}
+                                        y={itemY + insetY + top * scaleY + 3}
+                                        width={Math.max(0, colWPx - 6)}
+                                        height={Math.max(0, (bottom - top) * scaleY - 6)}
+                                        fill="none"
+                                        stroke={themeStyles.text}
+                                        strokeDasharray="5,4"
+                                        strokeWidth="1.3"
+                                        opacity="0.6"
+                                      />
+                                    );
+                                  })}
+                                  {sortedShelves.map((yMm, sIdx) => (
+                                    <line
+                                      key={`cs-shelf-${colIdx}-${sIdx}`}
+                                      x1={colXPx}
+                                      y1={itemY + insetY + yMm * scaleY}
+                                      x2={colXPx + colWPx}
+                                      y2={itemY + insetY + yMm * scaleY}
+                                      stroke={themeStyles.text}
+                                      strokeWidth="2"
+                                    />
+                                  ))}
+                                  {boundaryEl}
+                                </g>
+                              );
+                            })}
                           </g>
                         );
                       })() : pos.item.drawerCount > 0 ? (

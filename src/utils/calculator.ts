@@ -19,6 +19,7 @@ import {
   QuickAreaEstimate,
   DoorType,
   ClosetLayout,
+  ClosetColumn,
   UnitCategory,
 } from '../types';
 
@@ -229,32 +230,51 @@ export function isClosetEligible(item: ModularItem): boolean {
   return CLOSET_CATEGORIES.includes(item.category);
 }
 
-const CLOSET_DIVIDER_THICKNESS_MM = 18;
+export const CLOSET_DIVIDER_THICKNESS_MM = 18;
 const CLOSET_TARGET_COLUMN_WIDTH_MM = 650; // a comfortable hanging/shelf column width
 const CLOSET_TARGET_SHELF_SPACING_MM = 350; // typical shelf-to-shelf clearance
+export const CLOSET_ROD_OVERHEAD_SHELF_MM = 280; // distance from a hanging-rod column's inner-top edge down to its overhead storage shelf
+
+let closetColumnCounter = 0;
+export function makeClosetColumnId(): string {
+  closetColumnCounter += 1;
+  return `col-${Date.now()}-${closetColumnCounter}`;
+}
 
 // Auto-generates a sensible closet interior purely from the carcass's own
-// width/height - evenly spaced vertical dividers (~650mm columns, capped at
-// 4) and evenly spaced horizontal shelves (~350mm spacing, capped at 7) -
-// used whenever the item hasn't had its own layout saved yet (see
-// getEffectiveClosetLayout). Positions are measured from the inner-left/
-// inner-top edge, inside the 18mm gables/decks, matching how the real
-// carcass panels below are sized.
+// width/height - evenly-wide columns (~650mm each, capped at 4), each with
+// its own evenly-spaced shelves (~350mm spacing, capped at 7). Matching the
+// factory's own common reference layout, the outer column(s) default to a
+// hanging rod (with one overhead storage shelf) once there's more than one
+// column, and every inner column defaults to shelves - used whenever the
+// item hasn't had its own layout saved yet (see getEffectiveClosetLayout).
+// Column widths are measured inside the two 18mm gables; shelf positions
+// are measured from each column's own inner-top edge.
 export function getAutoClosetLayout(widthMm: number, heightMm: number): ClosetLayout {
   const innerWidth = Math.max(100, widthMm - 2 * CLOSET_DIVIDER_THICKNESS_MM);
   const innerHeight = Math.max(100, heightMm - 2 * CLOSET_DIVIDER_THICKNESS_MM);
   const colCount = Math.min(4, Math.max(1, Math.round(innerWidth / CLOSET_TARGET_COLUMN_WIDTH_MM)));
+  const colWidth = Math.floor((innerWidth - (colCount - 1) * CLOSET_DIVIDER_THICKNESS_MM) / colCount);
   const rowCount = Math.min(7, Math.max(1, Math.round(innerHeight / CLOSET_TARGET_SHELF_SPACING_MM)));
+  const shelvesMm = Array.from({ length: rowCount - 1 }, (_, i) => Math.round((innerHeight / rowCount) * (i + 1)));
 
-  const verticalDividersMm = Array.from({ length: colCount - 1 }, (_, i) => Math.round((innerWidth / colCount) * (i + 1)));
-  const horizontalShelvesMm = Array.from({ length: rowCount - 1 }, (_, i) => Math.round((innerHeight / rowCount) * (i + 1)));
-  return { verticalDividersMm, horizontalShelvesMm };
+  const columns: ClosetColumn[] = Array.from({ length: colCount }, (_, i) => {
+    const isEdgeColumn = i === 0 || i === colCount - 1;
+    const useRod = colCount > 1 && isEdgeColumn;
+    return {
+      id: makeClosetColumnId(),
+      widthMm: colWidth,
+      type: useRod ? 'hanging_rod' : 'shelves',
+      shelvesMm: useRod ? [CLOSET_ROD_OVERHEAD_SHELF_MM] : shelvesMm,
+      drawerCompartments: [],
+    };
+  });
+  return { columns };
 }
 
 // The item's real closet interior - its own saved layout if it has one
-// (even a deliberately empty one, e.g. a plain hanging-only closet with no
-// dividers or shelves), otherwise an auto-generated default from its
-// current width/height.
+// (even a deliberately stripped-down one), otherwise an auto-generated
+// default from its current width/height.
 export function getEffectiveClosetLayout(item: ModularItem): ClosetLayout {
   return item.closetLayout ?? getAutoClosetLayout(item.widthMm, item.heightMm);
 }
@@ -694,71 +714,180 @@ export function generateCutListForItem(item: ModularItem, globalProjectType: Pro
   // shelfCount behavior unchanged.
   if (canBuildBox && isClosetEligible(item)) {
     const layout = getEffectiveClosetLayout(item);
-    const innerWidth = Math.max(100, w - 36); // inside the two 18mm gables, same as the carcass deck width above
     const innerHeight = Math.max(100, h - 36); // inside the top/bottom decks
-    const sortedDividers = Array.from(new Set(layout.verticalDividersMm))
-      .filter((x) => x > 0 && x < innerWidth)
-      .sort((a, b) => a - b);
-    const shelfRowCount = layout.horizontalShelvesMm.filter((y) => y > 0 && y < innerHeight).length;
+    const shelfDepth = d - 30;
+    const drawerDepth = d - 50;
 
-    // Vertical Partitions - one full-height, full-depth panel per divider.
-    sortedDividers.forEach((posMm, idx) => {
-      parts.push({
-        id: `${item.id}-partition-${idx + 1}`,
-        itemId: item.id,
-        room: item.room,
-        itemName: item.description,
-        wall: item.wall,
-        partName: 'Vertical Partition',
-        lengthMm: innerHeight,
-        widthMm: d - 30,
-        thicknessMm: 18,
-        qty: 1,
-        material: `${getCoreMaterialLabel(item)} (Fabric)`,
-        materialCategory: 'Fabric',
-        backMaterialCategory: 'Fabric',
-        fabricBothSides: item.fabricBothSides ?? false,
-        edgeL1: true,
-        edgeL2: false,
-        edgeW1: true,
-        edgeW2: false,
-        edgeThicknessMm: 0.8,
-        grainDirection: 'length',
-        notes: `Closet interior vertical divider at ${posMm}mm from inner-left`,
-        areaSqMt: Number(((innerHeight * (d - 30)) / 1_000_000).toFixed(3)),
-      });
+    // Vertical Partitions - one full-height, full-depth panel between each
+    // pair of adjacent columns (none after the last column).
+    layout.columns.forEach((col, idx) => {
+      if (idx < layout.columns.length - 1) {
+        parts.push({
+          id: `${item.id}-partition-${idx + 1}`,
+          itemId: item.id,
+          room: item.room,
+          itemName: item.description,
+          wall: item.wall,
+          partName: 'Vertical Partition',
+          lengthMm: innerHeight,
+          widthMm: shelfDepth,
+          thicknessMm: 18,
+          qty: 1,
+          material: `${getCoreMaterialLabel(item)} (Fabric)`,
+          materialCategory: 'Fabric',
+          backMaterialCategory: 'Fabric',
+          fabricBothSides: item.fabricBothSides ?? false,
+          edgeL1: true,
+          edgeL2: false,
+          edgeW1: true,
+          edgeW2: false,
+          edgeThicknessMm: 0.8,
+          grainDirection: 'length',
+          notes: `Closet interior vertical divider after column ${idx + 1}`,
+          areaSqMt: Number(((innerHeight * shelfDepth) / 1_000_000).toFixed(3)),
+        });
+      }
     });
 
-    // Horizontal Shelves, per column section - the dividers split the
-    // carcass into (dividers + 1) sections, each half a divider's
-    // thickness narrower on whichever side(s) border a divider; sections
-    // sharing the same resulting width are grouped into one cut part
-    // (qty = shelf rows x how many sections share that width), same
-    // grouping convention the Shutter width-groups use above.
-    if (shelfRowCount > 0) {
-      const edges = [0, ...sortedDividers, innerWidth];
-      const sectionWidthGroups = new Map<number, number>();
-      for (let i = 0; i < edges.length - 1; i++) {
-        const leftInset = i > 0 ? CLOSET_DIVIDER_THICKNESS_MM / 2 : 0;
-        const rightInset = i < edges.length - 2 ? CLOSET_DIVIDER_THICKNESS_MM / 2 : 0;
-        const sectionWidth = Math.max(60, Math.floor(edges[i + 1] - edges[i] - leftInset - rightInset));
-        sectionWidthGroups.set(sectionWidth, (sectionWidthGroups.get(sectionWidth) || 0) + 1);
+    // Per-column interior: a hanging-rod column only ever gets its
+    // optional overhead shelf (the rod itself is purchased hardware, not a
+    // cut panel - not yet priced here); a shelves column gets one
+    // Internal Shelf per compartment that ISN'T in drawerCompartments, and
+    // a full drawer box (Front/Side/Bottom, same construction as the
+    // item-level drawer count above) for every compartment that IS.
+    layout.columns.forEach((col, colIdx) => {
+      const colWidth = Math.max(60, col.widthMm);
+
+      if (col.type === 'hanging_rod') {
+        if (col.shelvesMm.length > 0) {
+          parts.push({
+            id: `${item.id}-closet-rod-shelf-${colIdx}`,
+            itemId: item.id,
+            room: item.room,
+            itemName: item.description,
+            wall: item.wall,
+            partName: 'Internal Shelf',
+            lengthMm: colWidth,
+            widthMm: shelfDepth,
+            thicknessMm: 18,
+            qty: 1,
+            material: `${getCoreMaterialLabel(item)} (Fabric)`,
+            materialCategory: 'Fabric',
+            backMaterialCategory: 'Fabric',
+            fabricBothSides: item.fabricBothSides ?? false,
+            edgeL1: true,
+            edgeL2: false,
+            edgeW1: false,
+            edgeW2: false,
+            edgeThicknessMm: 0.8,
+            grainDirection: 'any',
+            canRotate: true,
+            notes: `Overhead shelf above hanging rod, column ${colIdx + 1}`,
+            areaSqMt: Number(((colWidth * shelfDepth) / 1_000_000).toFixed(3)),
+          });
+        }
+        return;
       }
-      const shelfDepth = d - 30;
-      let groupIdx = 0;
-      for (const [sectionWidth, sectionCount] of sectionWidthGroups) {
-        groupIdx++;
+
+      // 'shelves' column: compartments are the bands between consecutive
+      // shelf positions (plus the column's own top/bottom edges). A shelf
+      // PANEL is the physical divider between two compartments, so its
+      // count is the number of shelf positions, period - it doesn't
+      // change when a compartment next to it becomes a drawer (the
+      // drawer still slides into the space between the same two panels,
+      // it just gets its own box instead of sitting directly on the open
+      // shelf below it).
+      const sortedShelves = [...col.shelvesMm].filter((y) => y > 0 && y < innerHeight).sort((a, b) => a - b);
+      const bounds = [0, ...sortedShelves, innerHeight];
+      const drawerSet = new Set(col.drawerCompartments);
+
+      for (let compIdx = 0; compIdx < bounds.length - 1; compIdx++) {
+        const isDrawer = drawerSet.has(compIdx);
+        if (isDrawer) {
+          const compHeight = Math.max(80, bounds[compIdx + 1] - bounds[compIdx]);
+          const faciaWidth = colWidth - 10;
+          const faciaHeight = Math.max(50, compHeight - 5);
+          parts.push({
+            id: `${item.id}-closet-drawer-front-${colIdx}-${compIdx}`,
+            itemId: item.id,
+            room: item.room,
+            itemName: item.description,
+            wall: item.wall,
+            partName: 'Drawer Front',
+            lengthMm: faciaWidth,
+            widthMm: faciaHeight,
+            thicknessMm: 18,
+            qty: 1,
+            material: `${getCoreMaterialLabel(item)} (${getFinishLabel(item)})`,
+            materialCategory: 'Color/Laminate',
+            backMaterialCategory: 'Color/Laminate',
+            edgeL1: true,
+            edgeL2: true,
+            edgeW1: true,
+            edgeW2: true,
+            edgeThicknessMm: 2.0,
+            notes: `Closet drawer, column ${colIdx + 1} compartment ${compIdx + 1}`,
+            areaSqMt: Number(((faciaWidth * faciaHeight) / 1_000_000).toFixed(3)),
+          });
+          parts.push({
+            id: `${item.id}-closet-drawer-sides-${colIdx}-${compIdx}`,
+            itemId: item.id,
+            room: item.room,
+            itemName: item.description,
+            wall: item.wall,
+            partName: 'Drawer Side',
+            lengthMm: drawerDepth,
+            widthMm: Math.max(100, faciaHeight - 50),
+            thicknessMm: 18,
+            qty: 2,
+            material: '18mm Prelam / BWP',
+            materialCategory: 'Fabric',
+            backMaterialCategory: 'Fabric',
+            fabricBothSides: item.fabricBothSides ?? false,
+            edgeL1: true,
+            edgeL2: false,
+            edgeW1: true,
+            edgeW2: false,
+            edgeThicknessMm: 0.8,
+            areaSqMt: Number(((drawerDepth * Math.max(100, faciaHeight - 50) * 2) / 1_000_000).toFixed(3)),
+          });
+          parts.push({
+            id: `${item.id}-closet-drawer-bottom-${colIdx}-${compIdx}`,
+            itemId: item.id,
+            room: item.room,
+            itemName: item.description,
+            wall: item.wall,
+            partName: 'Drawer Bottom',
+            lengthMm: Math.max(100, faciaWidth - 40),
+            widthMm: drawerDepth,
+            thicknessMm: 9,
+            qty: 1,
+            material: '9mm Plywood',
+            materialCategory: 'Fabric',
+            backMaterialCategory: 'Fabric',
+            fabricBothSides: item.fabricBothSides ?? false,
+            edgeL1: false,
+            edgeL2: false,
+            edgeW1: false,
+            edgeW2: false,
+            edgeThicknessMm: 0,
+            areaSqMt: Number(((Math.max(100, faciaWidth - 40) * drawerDepth) / 1_000_000).toFixed(3)),
+          });
+        }
+      }
+
+      if (sortedShelves.length > 0) {
         parts.push({
-          id: sectionWidthGroups.size > 1 ? `${item.id}-closet-shelf-${groupIdx}` : `${item.id}-closet-shelf`,
+          id: `${item.id}-closet-shelf-${colIdx}`,
           itemId: item.id,
           room: item.room,
           itemName: item.description,
           wall: item.wall,
           partName: 'Internal Shelf',
-          lengthMm: sectionWidth,
+          lengthMm: colWidth,
           widthMm: shelfDepth,
           thicknessMm: 18,
-          qty: shelfRowCount * sectionCount,
+          qty: sortedShelves.length,
           material: `${getCoreMaterialLabel(item)} (Fabric)`,
           materialCategory: 'Fabric',
           backMaterialCategory: 'Fabric',
@@ -770,11 +899,11 @@ export function generateCutListForItem(item: ModularItem, globalProjectType: Pro
           edgeThicknessMm: 0.8,
           grainDirection: 'any',
           canRotate: true,
-          notes: 'Closet interior shelf (rotatable for optimal nesting)',
-          areaSqMt: Number(((sectionWidth * shelfDepth * shelfRowCount * sectionCount) / 1_000_000).toFixed(3)),
+          notes: `Closet interior shelf, column ${colIdx + 1} (rotatable for optimal nesting)`,
+          areaSqMt: Number(((colWidth * shelfDepth * sortedShelves.length) / 1_000_000).toFixed(3)),
         });
       }
-    }
+    });
   } else {
   // `?? ` (not `||`) so an explicit 0 (shelves removed) is respected
   // instead of silently falling back to the default count, which used to

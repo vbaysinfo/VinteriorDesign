@@ -27,19 +27,41 @@ export type CutListPartName =
   | 'Pelmet/Skirting'
   | 'Expo/Dummy Panel';
 
-// A wardrobe/dressing unit's interior closet organization - vertical
-// partitions splitting the carcass into columns, and horizontal shelves
-// (one shared set of heights across every column) splitting each column
-// into compartments. Positions are measured in mm from the carcass's own
-// inner-left/inner-top edge (inside the 18mm gables/decks), independent of
-// the item's overall width/height so they stay meaningful as those change.
+// A wardrobe/dressing unit's interior closet organization - full-height
+// vertical columns (like the two reference photo styles the factory
+// actually builds: a hanging-rod bay next to an independent shelf/drawer
+// stack), each with its OWN horizontal shelf pattern instead of one shared
+// set of shelf heights across the whole carcass. This is what lets one
+// column be a plain hanging rod while the column next to it has its own
+// shelves, some of which are converted to drawers - a real asymmetric
+// closet, not just a uniform grid.
+export type ClosetColumnType = 'shelves' | 'hanging_rod';
+
+export interface ClosetColumn {
+  id: string;
+  widthMm: number; // this column's own width - every column's widthMm sums to the carcass's inner width
+  type: ClosetColumnType;
+  // Horizontal shelf positions within THIS column only, in mm from the
+  // column's own inner-top edge. For 'shelves', splits the column into
+  // compartments top-to-bottom. For 'hanging_rod', at most one entry - an
+  // overhead storage shelf above the rod (the common reference-photo
+  // pattern); the rod itself always sits a fixed distance below that.
+  shelvesMm: number[];
+  // Which compartments (0-indexed top-to-bottom, bounded by shelvesMm plus
+  // the column's own top/bottom edges) are fabricated as a real drawer box
+  // (front + sides + bottom) instead of an open shelf - the Item
+  // Inspector's Closet Interior Design editor exposes this as a "Make
+  // Drawer" / "Make Shelf" button on each compartment. Only meaningful for
+  // 'shelves' columns.
+  drawerCompartments: number[];
+}
+
 // See getAutoClosetLayout() / getEffectiveClosetLayout() in calculator.ts -
 // undefined on the item means "not customized yet, auto-generate from
-// width/height"; an explicit value (even with empty arrays - a deliberately
-// plain closet with no dividers or shelves) always wins over the auto-layout.
+// width/height"; an explicit value always wins over the auto-layout, even
+// one the user has stripped down to a single plain column.
 export interface ClosetLayout {
-  verticalDividersMm: number[];
-  horizontalShelvesMm: number[];
+  columns: ClosetColumn[];
 }
 
 export type UnitCategory = 

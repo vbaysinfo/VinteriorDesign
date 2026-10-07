@@ -1,7 +1,7 @@
 import React, { useRef, useState } from 'react';
-import { ModularItem, ClosetLayout } from '../types';
-import { getEffectiveClosetLayout } from '../utils/calculator';
-import { Plus, RotateCcw, X, Columns, Rows } from 'lucide-react';
+import { ModularItem, ClosetLayout, ClosetColumn } from '../types';
+import { getEffectiveClosetLayout, makeClosetColumnId, CLOSET_ROD_OVERHEAD_SHELF_MM } from '../utils/calculator';
+import { Plus, RotateCcw, Columns as ColumnsIcon, Rows, Shirt, Archive } from 'lucide-react';
 
 interface ClosetInteriorEditorProps {
   item: ModularItem;
@@ -9,17 +9,18 @@ interface ClosetInteriorEditorProps {
 }
 
 const DISPLAY_WIDTH_PX = 380;
-const MIN_SPACING_MM = 150; // smallest allowed column width / shelf clearance
+const MIN_COLUMN_SPACING_MM = 250;
+const MIN_SHELF_SPACING_MM = 150;
 const DIVIDER_THICKNESS_MM = 18;
 
-// Interactive diagram of a wardrobe/dressing unit's interior - vertical
-// partitions and horizontal shelves, auto-laid-out from the item's own
-// width/height until the user drags something, at which point the layout
-// is saved on the item itself (closetLayout) and stops auto-regenerating
-// on every width/height edit. Drag math works entirely in mm (the item's
-// own real dimensions) and only converts to/from screen pixels for
-// rendering, so what's shown here is exactly what generateCutListForItem
-// in calculator.ts will actually cut.
+// Interactive diagram of a wardrobe/dressing unit's interior - independent
+// full-height columns, each either a hanging rod or its own shelves (some
+// of which can be converted into real drawer boxes). Auto-laid-out from
+// the item's own width/height until the user touches something, at which
+// point the layout is saved on the item itself (closetLayout) and stops
+// auto-regenerating on every width/height edit. All drag math works in mm
+// (the item's own real dimensions), so what's shown here is exactly what
+// generateCutListForItem in calculator.ts will actually cut.
 export const ClosetInteriorEditor: React.FC<ClosetInteriorEditorProps> = ({ item, onUpdateItem }) => {
   const layout = getEffectiveClosetLayout(item);
   const innerWidthMm = Math.max(100, item.widthMm - 2 * DIVIDER_THICKNESS_MM);
@@ -28,48 +29,70 @@ export const ClosetInteriorEditor: React.FC<ClosetInteriorEditorProps> = ({ item
   const displayHeightPx = innerHeightMm * scale;
 
   const svgRef = useRef<SVGSVGElement>(null);
-  const dragRef = useRef<{ type: 'v' | 'h'; index: number } | null>(null);
-  // Only used to force a re-render while dragging (the committed value lives
-  // on item.closetLayout via onUpdateItem, called on every move already).
+  const dragRef = useRef<{ type: 'col' | 'shelf'; colIdx: number; shelfIdx?: number } | null>(null);
   const [, forceTick] = useState(0);
 
   const isCustomized = !!item.closetLayout;
 
-  const commit = (next: ClosetLayout) => {
-    onUpdateItem({ ...item, closetLayout: next });
+  const commit = (columns: ClosetColumn[]) => {
+    onUpdateItem({ ...item, closetLayout: { columns } });
   };
 
   const getSvgPoint = (clientX: number, clientY: number) => {
     const rect = svgRef.current?.getBoundingClientRect();
     if (!rect) return { xMm: 0, yMm: 0 };
-    return {
-      xMm: (clientX - rect.left) / scale,
-      yMm: (clientY - rect.top) / scale,
-    };
+    return { xMm: (clientX - rect.left) / scale, yMm: (clientY - rect.top) / scale };
   };
 
-  const handlePointerDown = (type: 'v' | 'h', index: number) => (e: React.PointerEvent) => {
+  // Cumulative left edge (mm) of each column.
+  const colOffsets: number[] = [];
+  {
+    let acc = 0;
+    for (const col of layout.columns) {
+      colOffsets.push(acc);
+      acc += col.widthMm;
+    }
+  }
+
+  const handleColumnBoundaryDown = (colIdx: number) => (e: React.PointerEvent) => {
     e.stopPropagation();
     (e.target as Element).setPointerCapture(e.pointerId);
-    dragRef.current = { type, index };
+    dragRef.current = { type: 'col', colIdx };
+  };
+
+  const handleShelfDown = (colIdx: number, shelfIdx: number) => (e: React.PointerEvent) => {
+    e.stopPropagation();
+    (e.target as Element).setPointerCapture(e.pointerId);
+    dragRef.current = { type: 'shelf', colIdx, shelfIdx };
   };
 
   const handlePointerMove = (e: React.PointerEvent) => {
     const drag = dragRef.current;
     if (!drag) return;
     const { xMm, yMm } = getSvgPoint(e.clientX, e.clientY);
-    if (drag.type === 'v') {
-      const dividers = [...layout.verticalDividersMm];
-      const lower = drag.index === 0 ? MIN_SPACING_MM : dividers[drag.index - 1] + MIN_SPACING_MM;
-      const upper = drag.index === dividers.length - 1 ? innerWidthMm - MIN_SPACING_MM : dividers[drag.index + 1] - MIN_SPACING_MM;
-      dividers[drag.index] = Math.round(Math.min(Math.max(xMm, lower), upper));
-      commit({ ...layout, verticalDividersMm: dividers });
-    } else {
-      const shelves = [...layout.horizontalShelvesMm];
-      const lower = drag.index === 0 ? MIN_SPACING_MM : shelves[drag.index - 1] + MIN_SPACING_MM;
-      const upper = drag.index === shelves.length - 1 ? innerHeightMm - MIN_SPACING_MM : shelves[drag.index + 1] - MIN_SPACING_MM;
-      shelves[drag.index] = Math.round(Math.min(Math.max(yMm, lower), upper));
-      commit({ ...layout, horizontalShelvesMm: shelves });
+    const columns = layout.columns.map((c) => ({ ...c, shelvesMm: [...c.shelvesMm], drawerCompartments: [...c.drawerCompartments] }));
+
+    if (drag.type === 'col') {
+      // Dragging the boundary AFTER column `colIdx` - resizes it and its
+      // right-hand neighbor, keeping every other column's width fixed.
+      const left = columns[drag.colIdx];
+      const right = columns[drag.colIdx + 1];
+      const pairStart = colOffsets[drag.colIdx];
+      const pairTotal = left.widthMm + right.widthMm;
+      const newLeftWidth = Math.round(
+        Math.min(Math.max(xMm - pairStart, MIN_COLUMN_SPACING_MM), pairTotal - MIN_COLUMN_SPACING_MM)
+      );
+      left.widthMm = newLeftWidth;
+      right.widthMm = pairTotal - newLeftWidth;
+      commit(columns);
+    } else if (drag.shelfIdx !== undefined) {
+      const col = columns[drag.colIdx];
+      const shelves = col.shelvesMm;
+      const lower = drag.shelfIdx === 0 ? MIN_SHELF_SPACING_MM : shelves[drag.shelfIdx - 1] + MIN_SHELF_SPACING_MM;
+      const upper =
+        drag.shelfIdx === shelves.length - 1 ? innerHeightMm - MIN_SHELF_SPACING_MM : shelves[drag.shelfIdx + 1] - MIN_SHELF_SPACING_MM;
+      shelves[drag.shelfIdx] = Math.round(Math.min(Math.max(yMm, lower), upper));
+      commit(columns);
     }
     forceTick((t) => t + 1);
   };
@@ -78,25 +101,23 @@ export const ClosetInteriorEditor: React.FC<ClosetInteriorEditorProps> = ({ item
     dragRef.current = null;
   };
 
-  const addDivider = () => {
-    const dividers = [...layout.verticalDividersMm].sort((a, b) => a - b);
-    const edges = [0, ...dividers, innerWidthMm];
-    let bestGapIdx = 0;
-    let bestGap = -Infinity;
-    for (let i = 0; i < edges.length - 1; i++) {
-      const gap = edges[i + 1] - edges[i];
-      if (gap > bestGap) {
-        bestGap = gap;
-        bestGapIdx = i;
-      }
-    }
-    if (bestGap < MIN_SPACING_MM * 2) return; // no room for another divider
-    const newPos = Math.round((edges[bestGapIdx] + edges[bestGapIdx + 1]) / 2);
-    commit({ ...layout, verticalDividersMm: [...dividers, newPos].sort((a, b) => a - b) });
+  const updateColumn = (colIdx: number, patch: Partial<ClosetColumn>) => {
+    const columns = layout.columns.map((c, i) => (i === colIdx ? { ...c, ...patch } : c));
+    commit(columns);
   };
 
-  const addShelf = () => {
-    const shelves = [...layout.horizontalShelvesMm].sort((a, b) => a - b);
+  const toggleColumnType = (colIdx: number) => {
+    const col = layout.columns[colIdx];
+    if (col.type === 'shelves') {
+      updateColumn(colIdx, { type: 'hanging_rod', shelvesMm: [CLOSET_ROD_OVERHEAD_SHELF_MM], drawerCompartments: [] });
+    } else {
+      updateColumn(colIdx, { type: 'shelves', shelvesMm: [], drawerCompartments: [] });
+    }
+  };
+
+  const addShelf = (colIdx: number) => {
+    const col = layout.columns[colIdx];
+    const shelves = [...col.shelvesMm].sort((a, b) => a - b);
     const edges = [0, ...shelves, innerHeightMm];
     let bestGapIdx = 0;
     let bestGap = -Infinity;
@@ -107,59 +128,95 @@ export const ClosetInteriorEditor: React.FC<ClosetInteriorEditorProps> = ({ item
         bestGapIdx = i;
       }
     }
-    if (bestGap < MIN_SPACING_MM * 2) return;
+    if (bestGap < MIN_SHELF_SPACING_MM * 2) return;
     const newPos = Math.round((edges[bestGapIdx] + edges[bestGapIdx + 1]) / 2);
-    commit({ ...layout, horizontalShelvesMm: [...shelves, newPos].sort((a, b) => a - b) });
+    // Inserting a shelf shifts every drawer-compartment index at or after
+    // the new shelf's position up by one, so existing drawer conversions
+    // keep pointing at the same physical compartment.
+    const newShelves = [...shelves, newPos].sort((a, b) => a - b);
+    const insertedAt = newShelves.indexOf(newPos);
+    const shiftedDrawers = col.drawerCompartments.map((d) => (d >= insertedAt ? d + 1 : d));
+    updateColumn(colIdx, { shelvesMm: newShelves, drawerCompartments: shiftedDrawers });
   };
 
-  const removeDivider = (index: number) => {
-    const dividers = [...layout.verticalDividersMm];
-    dividers.splice(index, 1);
-    commit({ ...layout, verticalDividersMm: dividers });
+  const removeShelf = (colIdx: number, shelfIdx: number) => {
+    const col = layout.columns[colIdx];
+    const shelves = [...col.shelvesMm];
+    shelves.splice(shelfIdx, 1);
+    // Merging two compartments into one - drop any drawer flag on either
+    // side of the removed shelf and shift the rest down.
+    const shiftedDrawers = col.drawerCompartments
+      .filter((d) => d !== shelfIdx && d !== shelfIdx + 1)
+      .map((d) => (d > shelfIdx + 1 ? d - 1 : d));
+    updateColumn(colIdx, { shelvesMm: shelves, drawerCompartments: shiftedDrawers });
   };
 
-  const removeShelf = (index: number) => {
-    const shelves = [...layout.horizontalShelvesMm];
-    shelves.splice(index, 1);
-    commit({ ...layout, horizontalShelvesMm: shelves });
+  const toggleDrawer = (colIdx: number, compIdx: number) => {
+    const col = layout.columns[colIdx];
+    const isDrawer = col.drawerCompartments.includes(compIdx);
+    const next = isDrawer ? col.drawerCompartments.filter((d) => d !== compIdx) : [...col.drawerCompartments, compIdx];
+    updateColumn(colIdx, { drawerCompartments: next });
+  };
+
+  const addColumn = () => {
+    let bestIdx = 0;
+    let bestWidth = -Infinity;
+    layout.columns.forEach((c, i) => {
+      if (c.widthMm > bestWidth) {
+        bestWidth = c.widthMm;
+        bestIdx = i;
+      }
+    });
+    if (bestWidth < MIN_COLUMN_SPACING_MM * 2) return;
+    const half = Math.round(bestWidth / 2);
+    const columns = [...layout.columns];
+    const original = columns[bestIdx];
+    columns.splice(
+      bestIdx,
+      1,
+      { ...original, widthMm: half },
+      { id: makeClosetColumnId(), widthMm: bestWidth - half, type: 'shelves', shelvesMm: [], drawerCompartments: [] }
+    );
+    commit(columns);
+  };
+
+  const removeColumn = (colIdx: number) => {
+    if (layout.columns.length <= 1) return;
+    const columns = [...layout.columns];
+    const removed = columns.splice(colIdx, 1)[0];
+    // Give the removed column's width to its left neighbor (or the right
+    // one, if it was the first column) so the total stays correct.
+    const mergeIdx = colIdx > 0 ? colIdx - 1 : 0;
+    columns[mergeIdx] = { ...columns[mergeIdx], widthMm: columns[mergeIdx].widthMm + removed.widthMm };
+    commit(columns);
   };
 
   const resetToAuto = () => {
     onUpdateItem({ ...item, closetLayout: undefined });
   };
 
-  const sortedDividers = [...layout.verticalDividersMm].sort((a, b) => a - b);
-  const sortedShelves = [...layout.horizontalShelvesMm].sort((a, b) => a - b);
-  const columnCount = sortedDividers.length + 1;
-  const shelfRowCount = sortedShelves.length;
-
   return (
     <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
       <div className="flex items-center justify-between font-semibold text-slate-900 pb-2 border-b border-slate-200">
         <span className="flex items-center gap-1.5">
-          <Columns className="w-4 h-4 text-cyan-600" />
+          <ColumnsIcon className="w-4 h-4 text-cyan-600" />
           Closet Interior Design
         </span>
-        <div className="flex items-center gap-2">
-          {isCustomized && (
-            <button
-              onClick={resetToAuto}
-              className="text-[11px] text-cyan-700 underline hover:text-cyan-900 flex items-center gap-1"
-            >
-              <RotateCcw className="w-3 h-3" />
-              Reset to auto
-            </button>
-          )}
-        </div>
+        {isCustomized && (
+          <button onClick={resetToAuto} className="text-[11px] text-cyan-700 underline hover:text-cyan-900 flex items-center gap-1">
+            <RotateCcw className="w-3 h-3" />
+            Reset to auto
+          </button>
+        )}
       </div>
 
       <p className="text-[11px] text-slate-500">
-        Drag any divider or shelf line to reposition it. {columnCount} column{columnCount !== 1 ? 's' : ''} ×{' '}
-        {shelfRowCount} shelf row{shelfRowCount !== 1 ? 's' : ''} per column
-        {!isCustomized && ' (auto-fit from width & height)'}.
+        Drag a column edge or shelf line to resize it. Click a column's icon to switch it between Shelves and Hanging Rod. Click any
+        shelf compartment's drawer icon to turn it into a real drawer.
+        {!isCustomized && ' (auto-fit from width & height)'}
       </p>
 
-      <div className="flex justify-center bg-white rounded-lg border border-slate-300 p-3">
+      <div className="flex justify-center bg-white rounded-lg border border-slate-300 p-3 overflow-x-auto">
         <svg
           ref={svgRef}
           width={DISPLAY_WIDTH_PX}
@@ -169,92 +226,218 @@ export const ClosetInteriorEditor: React.FC<ClosetInteriorEditorProps> = ({ item
           onPointerUp={handlePointerUp}
           className="touch-none select-none"
         >
-          {/* Outer carcass outline */}
           <rect x={0} y={0} width={DISPLAY_WIDTH_PX} height={displayHeightPx} fill="#fef3c7" stroke="#92400e" strokeWidth="2" />
 
-          {/* Horizontal shelves - span the full width, drawn under the vertical
-              dividers so a divider's own hit-handle stays grabbable on top */}
-          {sortedShelves.map((yMm, idx) => (
-            <g key={`h-${idx}`}>
-              <line x1={0} y1={yMm * scale} x2={DISPLAY_WIDTH_PX} y2={yMm * scale} stroke="#0891b2" strokeWidth="3" />
-              {/* Wide invisible drag handle */}
-              <rect
-                x={0}
-                y={yMm * scale - 8}
-                width={DISPLAY_WIDTH_PX}
-                height={16}
-                fill="transparent"
-                className="cursor-row-resize"
-                onPointerDown={handlePointerDown('h', idx)}
-              />
-              <g
-                className="cursor-pointer"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  removeShelf(idx);
-                }}
-              >
-                <circle cx={DISPLAY_WIDTH_PX - 10} cy={yMm * scale} r="7" fill="#fff" stroke="#0891b2" strokeWidth="1.5" />
-                <text x={DISPLAY_WIDTH_PX - 10} y={yMm * scale + 3} textAnchor="middle" fontSize="9" fill="#0891b2" fontWeight="bold">
-                  ×
-                </text>
-              </g>
-            </g>
-          ))}
+          {layout.columns.map((col, colIdx) => {
+            const colXMm = colOffsets[colIdx];
+            const colXPx = colXMm * scale;
+            const colWPx = col.widthMm * scale;
 
-          {/* Vertical dividers */}
-          {sortedDividers.map((xMm, idx) => (
-            <g key={`v-${idx}`}>
-              <line x1={xMm * scale} y1={0} x2={xMm * scale} y2={displayHeightPx} stroke="#92400e" strokeWidth="3" />
-              <rect
-                x={xMm * scale - 8}
-                y={0}
-                width={16}
-                height={displayHeightPx}
-                fill="transparent"
-                className="cursor-col-resize"
-                onPointerDown={handlePointerDown('v', idx)}
-              />
-              <g
-                className="cursor-pointer"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  removeDivider(idx);
-                }}
-              >
-                <circle cx={xMm * scale} cy={10} r="7" fill="#fff" stroke="#92400e" strokeWidth="1.5" />
-                <text x={xMm * scale} y={13} textAnchor="middle" fontSize="9" fill="#92400e" fontWeight="bold">
-                  ×
-                </text>
+            if (col.type === 'hanging_rod') {
+              const rodYMm = Math.min(innerHeightMm - 60, (col.shelvesMm[0] ?? 0) + 120);
+              return (
+                <g key={col.id}>
+                  {col.shelvesMm.length > 0 && (
+                    <line
+                      x1={colXPx}
+                      y1={col.shelvesMm[0] * scale}
+                      x2={colXPx + colWPx}
+                      y2={col.shelvesMm[0] * scale}
+                      stroke="#0891b2"
+                      strokeWidth="3"
+                    />
+                  )}
+                  {/* Hanging rod symbol */}
+                  <line x1={colXPx + 8} y1={rodYMm * scale} x2={colXPx + colWPx - 8} y2={rodYMm * scale} stroke="#64748b" strokeWidth="2.5" />
+                  <circle cx={colXPx + 8} cy={rodYMm * scale} r="3" fill="#64748b" />
+                  <circle cx={colXPx + colWPx - 8} cy={rodYMm * scale} r="3" fill="#64748b" />
+                  {/* A couple of hanger glyphs for readability */}
+                  {Array.from({ length: Math.max(1, Math.floor(colWPx / 26)) }).map((_, hIdx, arr) => {
+                    const hx = colXPx + ((hIdx + 1) * colWPx) / (arr.length + 1);
+                    return (
+                      <path
+                        key={hIdx}
+                        d={`M ${hx - 7} ${rodYMm * scale + 14} L ${hx} ${rodYMm * scale + 4} L ${hx + 7} ${rodYMm * scale + 14}`}
+                        stroke="#94a3b8"
+                        strokeWidth="1.3"
+                        fill="none"
+                      />
+                    );
+                  })}
+                </g>
+              );
+            }
+
+            const sortedShelves = [...col.shelvesMm].sort((a, b) => a - b);
+            const bounds = [0, ...sortedShelves, innerHeightMm];
+
+            return (
+              <g key={col.id}>
+                {/* Compartments - drawer ones get a tinted fill + a drawer-pull line */}
+                {bounds.slice(0, -1).map((top, compIdx) => {
+                  const bottom = bounds[compIdx + 1];
+                  const isDrawer = col.drawerCompartments.includes(compIdx);
+                  const compMidY = ((top + bottom) / 2) * scale;
+                  return (
+                    <g key={compIdx}>
+                      {isDrawer && (
+                        <>
+                          <rect
+                            x={colXPx + 3}
+                            y={top * scale + 3}
+                            width={Math.max(0, colWPx - 6)}
+                            height={Math.max(0, (bottom - top) * scale - 6)}
+                            fill="#fce7f3"
+                            stroke="#db2777"
+                            strokeWidth="1"
+                          />
+                          <rect x={colXPx + colWPx / 2 - 14} y={compMidY - 1.5} width="28" height="3" rx="1.5" fill="#db2777" />
+                        </>
+                      )}
+                      {/* Drawer / Shelf toggle button for this compartment */}
+                      <g
+                        className="cursor-pointer"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleDrawer(colIdx, compIdx);
+                        }}
+                      >
+                        <circle cx={colXPx + colWPx - 12} cy={top * scale + 12} r="8" fill="#fff" stroke={isDrawer ? '#db2777' : '#0891b2'} strokeWidth="1.3" />
+                        <Archive x={colXPx + colWPx - 17} y={top * scale + 7} width={10} height={10} color={isDrawer ? '#db2777' : '#0891b2'} />
+                      </g>
+                    </g>
+                  );
+                })}
+
+                {/* Shelf lines (draggable) */}
+                {sortedShelves.map((yMm, shelfIdx) => (
+                  <g key={`shelf-${shelfIdx}`}>
+                    <line x1={colXPx} y1={yMm * scale} x2={colXPx + colWPx} y2={yMm * scale} stroke="#0891b2" strokeWidth="3" />
+                    <rect
+                      x={colXPx}
+                      y={yMm * scale - 7}
+                      width={colWPx}
+                      height={14}
+                      fill="transparent"
+                      className="cursor-row-resize"
+                      onPointerDown={handleShelfDown(colIdx, shelfIdx)}
+                    />
+                    <g
+                      className="cursor-pointer"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        removeShelf(colIdx, shelfIdx);
+                      }}
+                    >
+                      <circle cx={colXPx + colWPx / 2} cy={yMm * scale} r="6" fill="#fff" stroke="#0891b2" strokeWidth="1.3" />
+                      <text x={colXPx + colWPx / 2} y={yMm * scale + 3} textAnchor="middle" fontSize="8" fill="#0891b2" fontWeight="bold">
+                        ×
+                      </text>
+                    </g>
+                  </g>
+                ))}
               </g>
-            </g>
-          ))}
+            );
+          })}
+
+          {/* Column boundaries (draggable + removable), drawn last so their
+              hit-areas sit on top of shelf/drawer content at the edges. */}
+          {layout.columns.map((col, colIdx) => {
+            if (colIdx === layout.columns.length - 1) return null;
+            const boundaryXMm = colOffsets[colIdx] + col.widthMm;
+            const boundaryXPx = boundaryXMm * scale;
+            return (
+              <g key={`boundary-${col.id}`}>
+                <line x1={boundaryXPx} y1={0} x2={boundaryXPx} y2={displayHeightPx} stroke="#92400e" strokeWidth="3" />
+                <rect
+                  x={boundaryXPx - 8}
+                  y={0}
+                  width={16}
+                  height={displayHeightPx}
+                  fill="transparent"
+                  className="cursor-col-resize"
+                  onPointerDown={handleColumnBoundaryDown(colIdx)}
+                />
+              </g>
+            );
+          })}
+
+          {/* Column headers - type toggle + remove, drawn above the box */}
+          {layout.columns.map((col, colIdx) => {
+            const colXMm = colOffsets[colIdx];
+            const colXPx = colXMm * scale;
+            const colWPx = col.widthMm * scale;
+            return (
+              <g key={`header-${col.id}`}>
+                <g
+                  className="cursor-pointer"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleColumnType(colIdx);
+                  }}
+                >
+                  <rect x={colXPx + colWPx / 2 - 11} y={-2} width={22} height={18} rx={4} fill="#fff" stroke="#92400e" strokeWidth="1" />
+                  {col.type === 'hanging_rod' ? (
+                    <Shirt x={colXPx + colWPx / 2 - 7} y={2} width={14} height={14} color="#92400e" />
+                  ) : (
+                    <Rows x={colXPx + colWPx / 2 - 7} y={2} width={14} height={14} color="#92400e" />
+                  )}
+                </g>
+              </g>
+            );
+          })}
         </svg>
       </div>
 
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 flex-wrap">
         <button
-          onClick={addDivider}
-          className="flex-1 flex items-center justify-center gap-1 text-[11px] font-semibold px-2.5 py-1.5 rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-800 transition"
+          onClick={addColumn}
+          className="flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1.5 rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-800 transition"
         >
           <Plus className="w-3 h-3" />
-          Add Vertical Divider
+          Add Column
         </button>
-        <button
-          onClick={addShelf}
-          className="flex-1 flex items-center justify-center gap-1 text-[11px] font-semibold px-2.5 py-1.5 rounded-lg bg-cyan-100 hover:bg-cyan-200 text-cyan-800 transition"
-        >
-          <Plus className="w-3 h-3" />
-          Add Horizontal Shelf
-        </button>
+        {layout.columns.map(
+          (col, colIdx) =>
+            col.type === 'shelves' && (
+              <button
+                key={col.id}
+                onClick={() => addShelf(colIdx)}
+                className="flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1.5 rounded-lg bg-cyan-100 hover:bg-cyan-200 text-cyan-800 transition"
+              >
+                <Plus className="w-3 h-3" />
+                Shelf in Col {colIdx + 1}
+              </button>
+            )
+        )}
+        {layout.columns.length > 1 && (
+          <select
+            value=""
+            onChange={(e) => {
+              const idx = parseInt(e.target.value, 10);
+              if (!isNaN(idx)) removeColumn(idx);
+            }}
+            className="text-[11px] font-semibold px-2 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300"
+          >
+            <option value="">Remove column…</option>
+            {layout.columns.map((col, idx) => (
+              <option key={col.id} value={idx}>
+                Column {idx + 1} ({col.type === 'hanging_rod' ? 'Rod' : 'Shelves'})
+              </option>
+            ))}
+          </select>
+        )}
       </div>
 
-      <div className="flex items-center gap-3 text-[10px] text-slate-500">
+      <div className="flex items-center gap-3 flex-wrap text-[10px] text-slate-500">
         <span className="flex items-center gap-1">
-          <Columns className="w-3 h-3 text-amber-700" /> Vertical divider (drag ↔, click × to remove)
+          <Shirt className="w-3 h-3 text-amber-700" /> Hanging rod column
         </span>
         <span className="flex items-center gap-1">
-          <Rows className="w-3 h-3 text-cyan-700" /> Horizontal shelf (drag ↕, click × to remove)
+          <Rows className="w-3 h-3 text-cyan-700" /> Shelves column (drag shelf ↕, click × to remove)
+        </span>
+        <span className="flex items-center gap-1">
+          <Archive className="w-3 h-3 text-rose-700" /> Click a compartment's icon to toggle Drawer / Shelf
         </span>
       </div>
     </div>
