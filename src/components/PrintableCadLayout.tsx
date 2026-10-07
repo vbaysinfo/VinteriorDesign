@@ -249,11 +249,39 @@ export const PrintableCadLayout: React.FC<PrintableCadLayoutProps> = ({ items, p
                               }
                               const sortedShelves = [...col.shelvesMm].sort((a, b) => a - b);
                               const bounds = [0, ...sortedShelves, innerH];
+                              const splitSet = new Set(col.splitCompartments ?? []);
+                              const subCellDrawerSet = new Set(col.drawerSubCells ?? []);
                               return (
                                 <g key={col.id}>
                                   {bounds.slice(0, -1).map((top, compIdx) => {
-                                    if (!col.drawerCompartments.includes(compIdx)) return null;
                                     const bottom = bounds[compIdx + 1];
+                                    if (splitSet.has(compIdx)) {
+                                      const midX = colX + colW / 2;
+                                      return (
+                                        <g key={`split-${colIdx}-${compIdx}`}>
+                                          <line x1={midX} y1={top * dScale + 1} x2={midX} y2={bottom * dScale - 1} stroke="#0f172a" strokeWidth={1} opacity={0.7} />
+                                          {([0, 1] as const).map((subIdx) => {
+                                            if (!subCellDrawerSet.has(`${compIdx}:${subIdx}`)) return null;
+                                            const cellX = subIdx === 0 ? colX : midX;
+                                            return (
+                                              <rect
+                                                key={`subdrw-${colIdx}-${compIdx}-${subIdx}`}
+                                                x={cellX + 2}
+                                                y={top * dScale + 2}
+                                                width={Math.max(0, colW / 2 - 4)}
+                                                height={Math.max(0, (bottom - top) * dScale - 4)}
+                                                fill="none"
+                                                stroke="#0f172a"
+                                                strokeDasharray="3,3"
+                                                strokeWidth={0.8}
+                                                opacity={0.6}
+                                              />
+                                            );
+                                          })}
+                                        </g>
+                                      );
+                                    }
+                                    if (!col.drawerCompartments.includes(compIdx)) return null;
                                     return (
                                       <rect
                                         key={`drw-${colIdx}-${compIdx}`}

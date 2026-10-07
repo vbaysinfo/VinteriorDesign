@@ -1037,6 +1037,13 @@ export const Cad2DViewer: React.FC<Cad2DViewerProps> = ({
                           instead, replacing the normal closed-door view. */}
                       {showInterior && isClosetEligible(pos.item) && shutterIsBoxUnit ? (() => {
                         const closetLayout = getEffectiveClosetLayout(pos.item);
+                        // The interior overlay always sits on its own fixed
+                        // cream fill (#fffbeb above), regardless of the active
+                        // CAD theme - themeStyles.text is near-white in both
+                        // dark themes and would be invisible against that pale
+                        // background, so these lines use a fixed dark stroke
+                        // instead (matching the printed closet diagram).
+                        const interiorLineColor = '#1e293b';
                         const scaleX = pos.w / pos.item.widthMm;
                         const scaleY = pos.h / pos.item.heightMm;
                         const insetX = 18 * scaleX;
@@ -1057,7 +1064,7 @@ export const Cad2DViewer: React.FC<Cad2DViewerProps> = ({
                                   y1={itemY + insetY}
                                   x2={colXPx + colWPx}
                                   y2={itemY + pos.h - insetY}
-                                  stroke={themeStyles.text}
+                                  stroke={interiorLineColor}
                                   strokeWidth="3"
                                 />
                               );
@@ -1072,7 +1079,7 @@ export const Cad2DViewer: React.FC<Cad2DViewerProps> = ({
                                         y1={itemY + insetY + col.shelvesMm[0] * scaleY}
                                         x2={colXPx + colWPx}
                                         y2={itemY + insetY + col.shelvesMm[0] * scaleY}
-                                        stroke={themeStyles.text}
+                                        stroke={interiorLineColor}
                                         strokeWidth="2"
                                       />
                                     )}
@@ -1081,7 +1088,7 @@ export const Cad2DViewer: React.FC<Cad2DViewerProps> = ({
                                       y1={itemY + insetY + rodYMm * scaleY}
                                       x2={colXPx + colWPx - 6}
                                       y2={itemY + insetY + rodYMm * scaleY}
-                                      stroke={themeStyles.text}
+                                      stroke={interiorLineColor}
                                       strokeWidth="2"
                                       opacity="0.7"
                                     />
@@ -1092,12 +1099,47 @@ export const Cad2DViewer: React.FC<Cad2DViewerProps> = ({
 
                               const sortedShelves = [...col.shelvesMm].sort((a, b) => a - b);
                               const bounds = [0, ...sortedShelves, innerHeightMm];
+                              const splitSet = new Set(col.splitCompartments ?? []);
+                              const subCellDrawerSet = new Set(col.drawerSubCells ?? []);
                               return (
                                 <g key={`cs-col-${colIdx}`}>
                                   {bounds.slice(0, -1).map((top, compIdx) => {
-                                    if (!col.drawerCompartments.includes(compIdx)) return null;
                                     const bottom = bounds[compIdx + 1];
-                                    const midY = itemY + insetY + ((top + bottom) / 2) * scaleY;
+                                    if (splitSet.has(compIdx)) {
+                                      const midXPx = colXPx + colWPx / 2;
+                                      return (
+                                        <g key={`cs-split-${colIdx}-${compIdx}`}>
+                                          <line
+                                            x1={midXPx}
+                                            y1={itemY + insetY + top * scaleY + 2}
+                                            x2={midXPx}
+                                            y2={itemY + insetY + bottom * scaleY - 2}
+                                            stroke={interiorLineColor}
+                                            strokeWidth="2"
+                                            opacity="0.7"
+                                          />
+                                          {([0, 1] as const).map((subIdx) => {
+                                            if (!subCellDrawerSet.has(`${compIdx}:${subIdx}`)) return null;
+                                            const cellX = subIdx === 0 ? colXPx : midXPx;
+                                            return (
+                                              <rect
+                                                key={`cs-subdrw-${colIdx}-${compIdx}-${subIdx}`}
+                                                x={cellX + 3}
+                                                y={itemY + insetY + top * scaleY + 3}
+                                                width={Math.max(0, colWPx / 2 - 6)}
+                                                height={Math.max(0, (bottom - top) * scaleY - 6)}
+                                                fill="none"
+                                                stroke={interiorLineColor}
+                                                strokeDasharray="5,4"
+                                                strokeWidth="1.3"
+                                                opacity="0.6"
+                                              />
+                                            );
+                                          })}
+                                        </g>
+                                      );
+                                    }
+                                    if (!col.drawerCompartments.includes(compIdx)) return null;
                                     return (
                                       <rect
                                         key={`cs-drw-${colIdx}-${compIdx}`}
@@ -1106,7 +1148,7 @@ export const Cad2DViewer: React.FC<Cad2DViewerProps> = ({
                                         width={Math.max(0, colWPx - 6)}
                                         height={Math.max(0, (bottom - top) * scaleY - 6)}
                                         fill="none"
-                                        stroke={themeStyles.text}
+                                        stroke={interiorLineColor}
                                         strokeDasharray="5,4"
                                         strokeWidth="1.3"
                                         opacity="0.6"
@@ -1120,7 +1162,7 @@ export const Cad2DViewer: React.FC<Cad2DViewerProps> = ({
                                       y1={itemY + insetY + yMm * scaleY}
                                       x2={colXPx + colWPx}
                                       y2={itemY + insetY + yMm * scaleY}
-                                      stroke={themeStyles.text}
+                                      stroke={interiorLineColor}
                                       strokeWidth="2"
                                     />
                                   ))}

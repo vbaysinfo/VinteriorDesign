@@ -54,6 +54,17 @@ export interface ClosetColumn {
   // Drawer" / "Make Shelf" button on each compartment. Only meaningful for
   // 'shelves' columns.
   drawerCompartments: number[];
+  // Compartments (same indexing as drawerCompartments) that have been
+  // divided by a single vertical sub-divider into a left/right pair of
+  // half-width cubbies - the "vertical shelf in the middle of a horizontal
+  // band" reference-photo pattern. A compartment is never both split AND a
+  // whole-width drawer at once; splitting one clears its drawerCompartments
+  // flag. Only meaningful for 'shelves' columns.
+  splitCompartments?: number[];
+  // Which half of a split compartment is built as a drawer box instead of
+  // an open cubby, keyed as `${compartmentIndex}:${0|1}` (0 = left half,
+  // 1 = right half).
+  drawerSubCells?: string[];
 }
 
 // See getAutoClosetLayout() / getEffectiveClosetLayout() in calculator.ts -

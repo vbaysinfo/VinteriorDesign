@@ -1,7 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { ModularItem, ClosetLayout, ClosetColumn } from '../types';
 import { getEffectiveClosetLayout, makeClosetColumnId, CLOSET_ROD_OVERHEAD_SHELF_MM } from '../utils/calculator';
-import { Plus, RotateCcw, Columns as ColumnsIcon, Rows, Shirt, Archive } from 'lucide-react';
+import { Plus, RotateCcw, Columns as ColumnsIcon, Rows, Shirt, Archive, SplitSquareHorizontal } from 'lucide-react';
 
 interface ClosetInteriorEditorProps {
   item: ModularItem;
@@ -109,11 +109,43 @@ export const ClosetInteriorEditor: React.FC<ClosetInteriorEditorProps> = ({ item
   const toggleColumnType = (colIdx: number) => {
     const col = layout.columns[colIdx];
     if (col.type === 'shelves') {
-      updateColumn(colIdx, { type: 'hanging_rod', shelvesMm: [CLOSET_ROD_OVERHEAD_SHELF_MM], drawerCompartments: [] });
+      updateColumn(colIdx, {
+        type: 'hanging_rod',
+        shelvesMm: [CLOSET_ROD_OVERHEAD_SHELF_MM],
+        drawerCompartments: [],
+        splitCompartments: [],
+        drawerSubCells: [],
+      });
     } else {
-      updateColumn(colIdx, { type: 'shelves', shelvesMm: [], drawerCompartments: [] });
+      updateColumn(colIdx, { type: 'shelves', shelvesMm: [], drawerCompartments: [], splitCompartments: [], drawerSubCells: [] });
     }
   };
+
+  // Shifts compartment-index references by +1 at/after `insertedAt` (a new
+  // shelf was inserted there) or merges/shifts them down by 1 when the
+  // compartments at `shelfIdx`/`shelfIdx+1` are being merged back into one
+  // (a shelf was removed) - keeps split/drawer flags pointing at the same
+  // physical compartment across edits.
+  const shiftCompartments = (indices: number[], insertedAt: number) => indices.map((d) => (d >= insertedAt ? d + 1 : d));
+  const shiftSubCellKeys = (keys: string[], insertedAt: number) =>
+    keys.map((k) => {
+      const [c, s] = k.split(':');
+      const ci = parseInt(c, 10);
+      return `${ci >= insertedAt ? ci + 1 : ci}:${s}`;
+    });
+  const mergeCompartments = (indices: number[], shelfIdx: number) =>
+    indices.filter((d) => d !== shelfIdx && d !== shelfIdx + 1).map((d) => (d > shelfIdx + 1 ? d - 1 : d));
+  const mergeSubCellKeys = (keys: string[], shelfIdx: number) =>
+    keys
+      .filter((k) => {
+        const ci = parseInt(k.split(':')[0], 10);
+        return ci !== shelfIdx && ci !== shelfIdx + 1;
+      })
+      .map((k) => {
+        const [c, s] = k.split(':');
+        const ci = parseInt(c, 10);
+        return `${ci > shelfIdx + 1 ? ci - 1 : ci}:${s}`;
+      });
 
   const addShelf = (colIdx: number) => {
     const col = layout.columns[colIdx];
@@ -135,20 +167,26 @@ export const ClosetInteriorEditor: React.FC<ClosetInteriorEditorProps> = ({ item
     // keep pointing at the same physical compartment.
     const newShelves = [...shelves, newPos].sort((a, b) => a - b);
     const insertedAt = newShelves.indexOf(newPos);
-    const shiftedDrawers = col.drawerCompartments.map((d) => (d >= insertedAt ? d + 1 : d));
-    updateColumn(colIdx, { shelvesMm: newShelves, drawerCompartments: shiftedDrawers });
+    updateColumn(colIdx, {
+      shelvesMm: newShelves,
+      drawerCompartments: shiftCompartments(col.drawerCompartments, insertedAt),
+      splitCompartments: shiftCompartments(col.splitCompartments ?? [], insertedAt),
+      drawerSubCells: shiftSubCellKeys(col.drawerSubCells ?? [], insertedAt),
+    });
   };
 
   const removeShelf = (colIdx: number, shelfIdx: number) => {
     const col = layout.columns[colIdx];
     const shelves = [...col.shelvesMm];
     shelves.splice(shelfIdx, 1);
-    // Merging two compartments into one - drop any drawer flag on either
-    // side of the removed shelf and shift the rest down.
-    const shiftedDrawers = col.drawerCompartments
-      .filter((d) => d !== shelfIdx && d !== shelfIdx + 1)
-      .map((d) => (d > shelfIdx + 1 ? d - 1 : d));
-    updateColumn(colIdx, { shelvesMm: shelves, drawerCompartments: shiftedDrawers });
+    // Merging two compartments into one - drop any drawer/split flag on
+    // either side of the removed shelf and shift the rest down.
+    updateColumn(colIdx, {
+      shelvesMm: shelves,
+      drawerCompartments: mergeCompartments(col.drawerCompartments, shelfIdx),
+      splitCompartments: mergeCompartments(col.splitCompartments ?? [], shelfIdx),
+      drawerSubCells: mergeSubCellKeys(col.drawerSubCells ?? [], shelfIdx),
+    });
   };
 
   const toggleDrawer = (colIdx: number, compIdx: number) => {
@@ -156,6 +194,37 @@ export const ClosetInteriorEditor: React.FC<ClosetInteriorEditorProps> = ({ item
     const isDrawer = col.drawerCompartments.includes(compIdx);
     const next = isDrawer ? col.drawerCompartments.filter((d) => d !== compIdx) : [...col.drawerCompartments, compIdx];
     updateColumn(colIdx, { drawerCompartments: next });
+  };
+
+  // A compartment is either a single whole-width drawer OR split into two
+  // half-width cells - never both, so splitting one clears any whole-width
+  // drawer flag it had, and vice versa (toggleDrawer only ever runs on a
+  // non-split compartment, since split ones hide that button).
+  const toggleSplit = (colIdx: number, compIdx: number) => {
+    const col = layout.columns[colIdx];
+    const splitSet = new Set(col.splitCompartments ?? []);
+    const subCells = new Set(col.drawerSubCells ?? []);
+    if (splitSet.has(compIdx)) {
+      splitSet.delete(compIdx);
+      subCells.delete(`${compIdx}:0`);
+      subCells.delete(`${compIdx}:1`);
+      updateColumn(colIdx, { splitCompartments: Array.from(splitSet), drawerSubCells: Array.from(subCells) });
+    } else {
+      splitSet.add(compIdx);
+      updateColumn(colIdx, {
+        splitCompartments: Array.from(splitSet),
+        drawerCompartments: col.drawerCompartments.filter((d) => d !== compIdx),
+      });
+    }
+  };
+
+  const toggleSubCellDrawer = (colIdx: number, compIdx: number, subIdx: 0 | 1) => {
+    const col = layout.columns[colIdx];
+    const key = `${compIdx}:${subIdx}`;
+    const subCells = new Set(col.drawerSubCells ?? []);
+    if (subCells.has(key)) subCells.delete(key);
+    else subCells.add(key);
+    updateColumn(colIdx, { drawerSubCells: Array.from(subCells) });
   };
 
   const addColumn = () => {
@@ -211,8 +280,9 @@ export const ClosetInteriorEditor: React.FC<ClosetInteriorEditorProps> = ({ item
       </div>
 
       <p className="text-[11px] text-slate-500">
-        Drag a column edge or shelf line to resize it. Click a column's icon to switch it between Shelves and Hanging Rod. Click any
-        shelf compartment's drawer icon to turn it into a real drawer.
+        Drag a column edge or shelf line to resize it - the gap (compartment height, shown in mm under each band) follows the drag, down
+        to a {MIN_SHELF_SPACING_MM}mm minimum. Click a column's icon to switch it between Shelves and Hanging Rod. Click a compartment's
+        drawer icon to turn it into a real drawer, or its split icon to divide it with a vertical shelf into a left/right pair.
         {!isCustomized && ' (auto-fit from width & height)'}
       </p>
 
@@ -273,11 +343,92 @@ export const ClosetInteriorEditor: React.FC<ClosetInteriorEditorProps> = ({ item
 
             return (
               <g key={col.id}>
-                {/* Compartments - drawer ones get a tinted fill + a drawer-pull line */}
+                {/* Compartments - drawer ones get a tinted fill + a drawer-pull
+                    line, split ones get a mid-height vertical sub-divider and
+                    two independent half-width drawer toggles instead of one. */}
                 {bounds.slice(0, -1).map((top, compIdx) => {
                   const bottom = bounds[compIdx + 1];
-                  const isDrawer = col.drawerCompartments.includes(compIdx);
+                  const compHeightMm = Math.round(bottom - top);
+                  const isSplit = (col.splitCompartments ?? []).includes(compIdx);
+                  const isDrawer = !isSplit && col.drawerCompartments.includes(compIdx);
                   const compMidY = ((top + bottom) / 2) * scale;
+                  const midXPx = colXPx + colWPx / 2;
+                  const gapLabel = (
+                    <text x={colXPx + 3} y={bottom * scale - 4} fontSize="7" fill="#94a3b8">
+                      {compHeightMm}mm
+                    </text>
+                  );
+
+                  if (isSplit) {
+                    const leftDrawer = (col.drawerSubCells ?? []).includes(`${compIdx}:0`);
+                    const rightDrawer = (col.drawerSubCells ?? []).includes(`${compIdx}:1`);
+                    return (
+                      <g key={compIdx}>
+                        {([0, 1] as const).map((subIdx) => {
+                          const isD = subIdx === 0 ? leftDrawer : rightDrawer;
+                          const cellX = subIdx === 0 ? colXPx : midXPx;
+                          const cx = subIdx === 0 ? colXPx + colWPx / 4 : colXPx + (3 * colWPx) / 4;
+                          return (
+                            <g key={subIdx}>
+                              {isD && (
+                                <>
+                                  <rect
+                                    x={cellX + 3}
+                                    y={top * scale + 3}
+                                    width={Math.max(0, colWPx / 2 - 6)}
+                                    height={Math.max(0, (bottom - top) * scale - 6)}
+                                    fill="#fce7f3"
+                                    stroke="#db2777"
+                                    strokeWidth="1"
+                                  />
+                                  <rect x={cx - 10} y={compMidY - 1.5} width="20" height="3" rx="1.5" fill="#db2777" />
+                                </>
+                              )}
+                              <g
+                                className="cursor-pointer"
+                                role="button"
+                                aria-label={`Toggle drawer, ${subIdx === 0 ? 'left' : 'right'} half of compartment ${compIdx + 1}, column ${colIdx + 1}`}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  toggleSubCellDrawer(colIdx, compIdx, subIdx);
+                                }}
+                              >
+                                <circle cx={cx} cy={top * scale + 12} r="7" fill="#fff" stroke={isD ? '#db2777' : '#0891b2'} strokeWidth="1.3" />
+                                <Archive x={cx - 5} y={top * scale + 7} width={10} height={10} color={isD ? '#db2777' : '#0891b2'} />
+                              </g>
+                            </g>
+                          );
+                        })}
+                        {/* Mid-height vertical sub-divider */}
+                        <line
+                          x1={midXPx}
+                          y1={top * scale + 2}
+                          x2={midXPx}
+                          y2={bottom * scale - 2}
+                          stroke="#0891b2"
+                          strokeWidth="2.5"
+                          strokeDasharray="4 2"
+                        />
+                        {/* Un-split toggle, top-left */}
+                        <g
+                          className="cursor-pointer"
+                          role="button"
+                          aria-label={`Un-split compartment ${compIdx + 1}, column ${colIdx + 1}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleSplit(colIdx, compIdx);
+                          }}
+                        >
+                          <circle cx={colXPx + 12} cy={top * scale + 12} r="7" fill="#ecfeff" stroke="#0891b2" strokeWidth="1.3" />
+                          <text x={colXPx + 12} y={top * scale + 15} textAnchor="middle" fontSize="9" fill="#0891b2" fontWeight="bold">
+                            ×
+                          </text>
+                        </g>
+                        {gapLabel}
+                      </g>
+                    );
+                  }
+
                   return (
                     <g key={compIdx}>
                       {isDrawer && (
@@ -297,6 +448,8 @@ export const ClosetInteriorEditor: React.FC<ClosetInteriorEditorProps> = ({ item
                       {/* Drawer / Shelf toggle button for this compartment */}
                       <g
                         className="cursor-pointer"
+                        role="button"
+                        aria-label={`Toggle drawer, compartment ${compIdx + 1}, column ${colIdx + 1}`}
                         onClick={(e) => {
                           e.stopPropagation();
                           toggleDrawer(colIdx, compIdx);
@@ -305,6 +458,24 @@ export const ClosetInteriorEditor: React.FC<ClosetInteriorEditorProps> = ({ item
                         <circle cx={colXPx + colWPx - 12} cy={top * scale + 12} r="8" fill="#fff" stroke={isDrawer ? '#db2777' : '#0891b2'} strokeWidth="1.3" />
                         <Archive x={colXPx + colWPx - 17} y={top * scale + 7} width={10} height={10} color={isDrawer ? '#db2777' : '#0891b2'} />
                       </g>
+                      {/* Split-into-two toggle, top-left - only offered for a
+                          plain open/shelf compartment (a whole drawer or an
+                          already-split cell hides this). */}
+                      {!isDrawer && (
+                        <g
+                          className="cursor-pointer"
+                          role="button"
+                          aria-label={`Split compartment ${compIdx + 1}, column ${colIdx + 1}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleSplit(colIdx, compIdx);
+                          }}
+                        >
+                          <circle cx={colXPx + 12} cy={top * scale + 12} r="7" fill="#fff" stroke="#64748b" strokeWidth="1.3" />
+                          <SplitSquareHorizontal x={colXPx + 7} y={top * scale + 7} width={10} height={10} color="#64748b" />
+                        </g>
+                      )}
+                      {gapLabel}
                     </g>
                   );
                 })}
@@ -324,6 +495,8 @@ export const ClosetInteriorEditor: React.FC<ClosetInteriorEditorProps> = ({ item
                     />
                     <g
                       className="cursor-pointer"
+                      role="button"
+                      aria-label={`Remove shelf ${shelfIdx + 1}, column ${colIdx + 1}`}
                       onClick={(e) => {
                         e.stopPropagation();
                         removeShelf(colIdx, shelfIdx);
@@ -371,6 +544,8 @@ export const ClosetInteriorEditor: React.FC<ClosetInteriorEditorProps> = ({ item
               <g key={`header-${col.id}`}>
                 <g
                   className="cursor-pointer"
+                  role="button"
+                  aria-label={`Switch column ${colIdx + 1} between Shelves and Hanging Rod (currently ${col.type === 'hanging_rod' ? 'Hanging Rod' : 'Shelves'})`}
                   onClick={(e) => {
                     e.stopPropagation();
                     toggleColumnType(colIdx);
@@ -438,6 +613,9 @@ export const ClosetInteriorEditor: React.FC<ClosetInteriorEditorProps> = ({ item
         </span>
         <span className="flex items-center gap-1">
           <Archive className="w-3 h-3 text-rose-700" /> Click a compartment's icon to toggle Drawer / Shelf
+        </span>
+        <span className="flex items-center gap-1">
+          <SplitSquareHorizontal className="w-3 h-3 text-slate-600" /> Split a compartment with a vertical shelf (left/right drawers)
         </span>
       </div>
     </div>

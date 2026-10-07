@@ -259,8 +259,11 @@ export function getAutoClosetLayout(widthMm: number, heightMm: number): ClosetLa
   const shelvesMm = Array.from({ length: rowCount - 1 }, (_, i) => Math.round((innerHeight / rowCount) * (i + 1)));
 
   const columns: ClosetColumn[] = Array.from({ length: colCount }, (_, i) => {
-    const isEdgeColumn = i === 0 || i === colCount - 1;
-    const useRod = colCount > 1 && isEdgeColumn;
+    // 3+ columns: both outer edges get a rod bay, middle column(s) stay
+    // shelves (the common reference-photo pattern). Exactly 2 columns: "both
+    // edges" would mean both columns, leaving zero shelves columns at all -
+    // so only the first becomes a rod, the second stays shelves instead.
+    const useRod = colCount === 2 ? i === 0 : colCount >= 3 && (i === 0 || i === colCount - 1);
     return {
       id: makeClosetColumnId(),
       widthMm: colWidth,
@@ -800,47 +803,102 @@ export function generateCutListForItem(item: ModularItem, globalProjectType: Pro
       const sortedShelves = [...col.shelvesMm].filter((y) => y > 0 && y < innerHeight).sort((a, b) => a - b);
       const bounds = [0, ...sortedShelves, innerHeight];
       const drawerSet = new Set(col.drawerCompartments);
+      const splitSet = new Set(col.splitCompartments ?? []);
+      const subCellDrawerSet = new Set(col.drawerSubCells ?? []);
+
+      // One drawer box (Front/Side/Bottom) for a given cell - shared by both
+      // a whole-width drawer compartment and each half of a split one, so
+      // the box construction is identical either way, just narrower.
+      const pushDrawerBox = (keySuffix: string, labelSuffix: string, faciaWidth: number, compHeight: number) => {
+        const faciaHeight = Math.max(50, compHeight - 5);
+        parts.push({
+          id: `${item.id}-closet-drawer-front-${colIdx}-${keySuffix}`,
+          itemId: item.id,
+          room: item.room,
+          itemName: item.description,
+          wall: item.wall,
+          partName: 'Drawer Front',
+          lengthMm: faciaWidth,
+          widthMm: faciaHeight,
+          thicknessMm: 18,
+          qty: 1,
+          material: `${getCoreMaterialLabel(item)} (${getFinishLabel(item)})`,
+          materialCategory: 'Color/Laminate',
+          backMaterialCategory: 'Color/Laminate',
+          edgeL1: true,
+          edgeL2: true,
+          edgeW1: true,
+          edgeW2: true,
+          edgeThicknessMm: 2.0,
+          notes: `Closet drawer, column ${colIdx + 1}${labelSuffix}`,
+          areaSqMt: Number(((faciaWidth * faciaHeight) / 1_000_000).toFixed(3)),
+        });
+        parts.push({
+          id: `${item.id}-closet-drawer-sides-${colIdx}-${keySuffix}`,
+          itemId: item.id,
+          room: item.room,
+          itemName: item.description,
+          wall: item.wall,
+          partName: 'Drawer Side',
+          lengthMm: drawerDepth,
+          widthMm: Math.max(100, faciaHeight - 50),
+          thicknessMm: 18,
+          qty: 2,
+          material: '18mm Prelam / BWP',
+          materialCategory: 'Fabric',
+          backMaterialCategory: 'Fabric',
+          fabricBothSides: item.fabricBothSides ?? false,
+          edgeL1: true,
+          edgeL2: false,
+          edgeW1: true,
+          edgeW2: false,
+          edgeThicknessMm: 0.8,
+          areaSqMt: Number(((drawerDepth * Math.max(100, faciaHeight - 50) * 2) / 1_000_000).toFixed(3)),
+        });
+        parts.push({
+          id: `${item.id}-closet-drawer-bottom-${colIdx}-${keySuffix}`,
+          itemId: item.id,
+          room: item.room,
+          itemName: item.description,
+          wall: item.wall,
+          partName: 'Drawer Bottom',
+          lengthMm: Math.max(100, faciaWidth - 40),
+          widthMm: drawerDepth,
+          thicknessMm: 9,
+          qty: 1,
+          material: '9mm Plywood',
+          materialCategory: 'Fabric',
+          backMaterialCategory: 'Fabric',
+          fabricBothSides: item.fabricBothSides ?? false,
+          edgeL1: false,
+          edgeL2: false,
+          edgeW1: false,
+          edgeW2: false,
+          edgeThicknessMm: 0,
+          areaSqMt: Number(((Math.max(100, faciaWidth - 40) * drawerDepth) / 1_000_000).toFixed(3)),
+        });
+      };
 
       for (let compIdx = 0; compIdx < bounds.length - 1; compIdx++) {
-        const isDrawer = drawerSet.has(compIdx);
-        if (isDrawer) {
-          const compHeight = Math.max(80, bounds[compIdx + 1] - bounds[compIdx]);
-          const faciaWidth = colWidth - 10;
-          const faciaHeight = Math.max(50, compHeight - 5);
+        const compHeight = Math.max(80, bounds[compIdx + 1] - bounds[compIdx]);
+
+        // A split compartment gets a mid-height vertical sub-divider (the
+        // "vertical shelf in the middle of a horizontal band" reference
+        // pattern) and up to two independent half-width cells instead of
+        // one whole-width compartment.
+        if (splitSet.has(compIdx)) {
           parts.push({
-            id: `${item.id}-closet-drawer-front-${colIdx}-${compIdx}`,
+            id: `${item.id}-closet-subdivider-${colIdx}-${compIdx}`,
             itemId: item.id,
             room: item.room,
             itemName: item.description,
             wall: item.wall,
-            partName: 'Drawer Front',
-            lengthMm: faciaWidth,
-            widthMm: faciaHeight,
+            partName: 'Vertical Partition',
+            lengthMm: compHeight,
+            widthMm: shelfDepth,
             thicknessMm: 18,
             qty: 1,
-            material: `${getCoreMaterialLabel(item)} (${getFinishLabel(item)})`,
-            materialCategory: 'Color/Laminate',
-            backMaterialCategory: 'Color/Laminate',
-            edgeL1: true,
-            edgeL2: true,
-            edgeW1: true,
-            edgeW2: true,
-            edgeThicknessMm: 2.0,
-            notes: `Closet drawer, column ${colIdx + 1} compartment ${compIdx + 1}`,
-            areaSqMt: Number(((faciaWidth * faciaHeight) / 1_000_000).toFixed(3)),
-          });
-          parts.push({
-            id: `${item.id}-closet-drawer-sides-${colIdx}-${compIdx}`,
-            itemId: item.id,
-            room: item.room,
-            itemName: item.description,
-            wall: item.wall,
-            partName: 'Drawer Side',
-            lengthMm: drawerDepth,
-            widthMm: Math.max(100, faciaHeight - 50),
-            thicknessMm: 18,
-            qty: 2,
-            material: '18mm Prelam / BWP',
+            material: `${getCoreMaterialLabel(item)} (Fabric)`,
             materialCategory: 'Fabric',
             backMaterialCategory: 'Fabric',
             fabricBothSides: item.fabricBothSides ?? false,
@@ -849,30 +907,25 @@ export function generateCutListForItem(item: ModularItem, globalProjectType: Pro
             edgeW1: true,
             edgeW2: false,
             edgeThicknessMm: 0.8,
-            areaSqMt: Number(((drawerDepth * Math.max(100, faciaHeight - 50) * 2) / 1_000_000).toFixed(3)),
+            grainDirection: 'length',
+            notes: `Closet sub-divider, column ${colIdx + 1} compartment ${compIdx + 1}`,
+            areaSqMt: Number(((compHeight * shelfDepth) / 1_000_000).toFixed(3)),
           });
-          parts.push({
-            id: `${item.id}-closet-drawer-bottom-${colIdx}-${compIdx}`,
-            itemId: item.id,
-            room: item.room,
-            itemName: item.description,
-            wall: item.wall,
-            partName: 'Drawer Bottom',
-            lengthMm: Math.max(100, faciaWidth - 40),
-            widthMm: drawerDepth,
-            thicknessMm: 9,
-            qty: 1,
-            material: '9mm Plywood',
-            materialCategory: 'Fabric',
-            backMaterialCategory: 'Fabric',
-            fabricBothSides: item.fabricBothSides ?? false,
-            edgeL1: false,
-            edgeL2: false,
-            edgeW1: false,
-            edgeW2: false,
-            edgeThicknessMm: 0,
-            areaSqMt: Number(((Math.max(100, faciaWidth - 40) * drawerDepth) / 1_000_000).toFixed(3)),
+          const subWidth = Math.max(60, Math.floor((colWidth - 18) / 2));
+          ([0, 1] as const).forEach((subIdx) => {
+            if (!subCellDrawerSet.has(`${compIdx}:${subIdx}`)) return;
+            pushDrawerBox(
+              `${compIdx}-${subIdx === 0 ? 'L' : 'R'}`,
+              ` compartment ${compIdx + 1} (${subIdx === 0 ? 'left' : 'right'} half)`,
+              subWidth - 10,
+              compHeight
+            );
           });
+          continue;
+        }
+
+        if (drawerSet.has(compIdx)) {
+          pushDrawerBox(`${compIdx}`, ` compartment ${compIdx + 1}`, colWidth - 10, compHeight);
         }
       }
 
