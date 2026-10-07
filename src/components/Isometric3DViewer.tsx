@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { ModularItem, WallType, ProjectType, CutListPartName } from '../types';
-import { generateCutListForItem } from '../utils/calculator';
+import { generateCutListForItem, isClosetEligible, getEffectiveClosetLayout, resolveEffectiveProjectType } from '../utils/calculator';
 import {
   RotateCcw,
   ZoomIn,
@@ -629,6 +629,15 @@ export const Isometric3DViewer: React.FC<Isometric3DViewerProps> = ({
       const isSelected = selectedItemId === item.id;
       const isHovered = hoveredItemId === item.id;
 
+      // A wardrobe/dressing unit built as a real box gets its own editable
+      // closet interior (columns of shelves/hanging rods/drawers - see
+      // ClosetInteriorEditor) instead of the plain flat shelfCount grid or
+      // the generic full-width drawer tiers below - same eligibility rule
+      // as the 2D CAD Interior View and the cut list (isClosetEligible +
+      // Full Modular + a real depth entered).
+      const closetEffType = resolveEffectiveProjectType(item, projectType);
+      const isClosetBoxUnit = isClosetEligible(item) && closetEffType === 'full' && item.depthMm > 0;
+
       // Two cabinets sitting side by side along the same single wall run
       // (only true in this mode - see layout3D above, where modules are
       // pushed in one strict left-to-right sequence) share almost no gap
@@ -790,27 +799,182 @@ export const Isometric3DViewer: React.FC<Isometric3DViewerProps> = ({
 
       // INTERNAL SHELVES (If in X-Ray mode or doors opened)
       if (doorOpenPercent > 20 || renderStyle === 'xray_translucent') {
-        const shelfCount = item.shelfCount ?? 2;
-        for (let s = 1; s <= shelfCount; s++) {
-          const sY = yExp + (h / (shelfCount + 1)) * s;
-          const sThickness = 18;
-          const sP0 = { x: xExp + 18, y: sY, z: zExp + 18 };
-          const sP1 = { x: xExp + w - 18, y: sY, z: zExp + 18 };
-          const sP2 = { x: xExp + w - 18, y: sY, z: zExp + d - 25 };
-          const sP3 = { x: xExp + 18, y: sY, z: zExp + d - 25 };
+        if (isClosetBoxUnit) {
+          // Full closet interior - mirrors the 2D CAD Interior View / print
+          // diagram's column model exactly (same source of truth,
+          // getEffectiveClosetLayout), just extruded in 3D: a thin shelf
+          // quad per shelf position, a vertical partition quad between
+          // columns (and mid-compartment when split), a simple bar for a
+          // hanging rod, and a recessed drawer-front quad for every
+          // drawer-converted compartment (or half-compartment, if split).
+          const closetLayout = getEffectiveClosetLayout(item);
+          const innerTopY = yExp + h - 18;
+          const innerHeightMm = Math.max(100, h - 36);
+          const shelfZBack = zExp + 18;
+          const shelfZFront = zExp + d - 25;
+          const drawerZFront = zExp + d - 10;
 
-          addQuad(
-            `shelf-${item.id}-${s}`,
-            sP3,
-            sP2,
-            sP1,
-            sP0,
-            '#e2d5c3',
-            '#94a3b8',
-            0.8,
-            item.id,
-            `Internal Shelf ${s}`
-          );
+          const addShelfQuad = (id: string, colXStart: number, colXEnd: number, yAt: number, label: string) => {
+            addQuad(
+              id,
+              { x: colXStart, y: yAt, z: shelfZFront },
+              { x: colXEnd, y: yAt, z: shelfZFront },
+              { x: colXEnd, y: yAt, z: shelfZBack },
+              { x: colXStart, y: yAt, z: shelfZBack },
+              '#e2d5c3',
+              '#94a3b8',
+              0.8,
+              item.id,
+              label
+            );
+          };
+          const addVerticalPartitionQuad = (id: string, xAt: number, yTop: number, yBottom: number, label: string) => {
+            addQuad(
+              id,
+              { x: xAt, y: yTop, z: shelfZFront },
+              { x: xAt, y: yBottom, z: shelfZFront },
+              { x: xAt, y: yBottom, z: shelfZBack },
+              { x: xAt, y: yTop, z: shelfZBack },
+              '#cbd5e1',
+              '#94a3b8',
+              0.8,
+              item.id,
+              label
+            );
+          };
+          const addDrawerFrontQuad = (id: string, cellXStart: number, cellXEnd: number, yTop: number, yBottom: number, label: string) => {
+            addQuad(
+              id,
+              { x: cellXStart + 4, y: yBottom + 4, z: drawerZFront },
+              { x: cellXEnd - 4, y: yBottom + 4, z: drawerZFront },
+              { x: cellXEnd - 4, y: yTop - 4, z: drawerZFront },
+              { x: cellXStart + 4, y: yTop - 4, z: drawerZFront },
+              shutterFill,
+              strokeColor,
+              1,
+              item.id,
+              label
+            );
+          };
+
+          let colAccMm = 0;
+          closetLayout.columns.forEach((col, colIdx) => {
+            const colXStart = xExp + 18 + colAccMm;
+            const colXEnd = colXStart + col.widthMm;
+            const isLastCol = colIdx === closetLayout.columns.length - 1;
+            colAccMm += col.widthMm;
+
+            if (!isLastCol) {
+              addVerticalPartitionQuad(
+                `closet-vpart-${item.id}-${colIdx}`,
+                colXEnd,
+                innerTopY,
+                innerTopY - innerHeightMm,
+                `Vertical Partition (after column ${colIdx + 1})`
+              );
+            }
+
+            if (col.type === 'hanging_rod') {
+              if (col.shelvesMm.length > 0) {
+                addShelfQuad(
+                  `closet-rodshelf-${item.id}-${colIdx}`,
+                  colXStart,
+                  colXEnd,
+                  innerTopY - col.shelvesMm[0],
+                  `Overhead Shelf (column ${colIdx + 1})`
+                );
+              }
+              const rodDropMm = Math.min(innerHeightMm - 60, (col.shelvesMm[0] ?? 0) + 120);
+              const rodY = innerTopY - rodDropMm;
+              addQuad(
+                `closet-rod-${item.id}-${colIdx}`,
+                { x: colXStart + 15, y: rodY + 6, z: zExp + d - 70 },
+                { x: colXEnd - 15, y: rodY + 6, z: zExp + d - 70 },
+                { x: colXEnd - 15, y: rodY - 6, z: zExp + d - 70 },
+                { x: colXStart + 15, y: rodY - 6, z: zExp + d - 70 },
+                '#94a3b8',
+                '#64748b',
+                1,
+                item.id,
+                `Hanging Rod (column ${colIdx + 1})`
+              );
+              return;
+            }
+
+            // 'shelves' column
+            const sortedShelves = [...col.shelvesMm].sort((a, b) => a - b);
+            sortedShelves.forEach((sMm, sIdx) => {
+              addShelfQuad(`closet-shelf-${item.id}-${colIdx}-${sIdx}`, colXStart, colXEnd, innerTopY - sMm, `Internal Shelf (column ${colIdx + 1})`);
+            });
+
+            const bounds = [0, ...sortedShelves, innerHeightMm];
+            const splitSet = new Set(col.splitCompartments ?? []);
+            const subCellDrawerSet = new Set(col.drawerSubCells ?? []);
+            const drawerSet = new Set(col.drawerCompartments);
+
+            bounds.slice(0, -1).forEach((topMm, compIdx) => {
+              const bottomMm = bounds[compIdx + 1];
+              const compTopY = innerTopY - topMm;
+              const compBottomY = innerTopY - bottomMm;
+
+              if (splitSet.has(compIdx)) {
+                const midX = (colXStart + colXEnd) / 2;
+                addVerticalPartitionQuad(
+                  `closet-subdiv-${item.id}-${colIdx}-${compIdx}`,
+                  midX,
+                  compTopY,
+                  compBottomY,
+                  `Closet Sub-Divider (column ${colIdx + 1} compartment ${compIdx + 1})`
+                );
+                ([0, 1] as const).forEach((subIdx) => {
+                  if (!subCellDrawerSet.has(`${compIdx}:${subIdx}`)) return;
+                  const cellXStart = subIdx === 0 ? colXStart : midX;
+                  const cellXEnd = subIdx === 0 ? midX : colXEnd;
+                  addDrawerFrontQuad(
+                    `closet-subdrw-${item.id}-${colIdx}-${compIdx}-${subIdx}`,
+                    cellXStart,
+                    cellXEnd,
+                    compTopY,
+                    compBottomY,
+                    `Drawer (column ${colIdx + 1} compartment ${compIdx + 1}, ${subIdx === 0 ? 'left' : 'right'} half)`
+                  );
+                });
+                return;
+              }
+
+              if (!drawerSet.has(compIdx)) return;
+              addDrawerFrontQuad(
+                `closet-drw-${item.id}-${colIdx}-${compIdx}`,
+                colXStart,
+                colXEnd,
+                compTopY,
+                compBottomY,
+                `Drawer (column ${colIdx + 1} compartment ${compIdx + 1})`
+              );
+            });
+          });
+        } else {
+          const shelfCount = item.shelfCount ?? 2;
+          for (let s = 1; s <= shelfCount; s++) {
+            const sY = yExp + (h / (shelfCount + 1)) * s;
+            const sP0 = { x: xExp + 18, y: sY, z: zExp + 18 };
+            const sP1 = { x: xExp + w - 18, y: sY, z: zExp + 18 };
+            const sP2 = { x: xExp + w - 18, y: sY, z: zExp + d - 25 };
+            const sP3 = { x: xExp + 18, y: sY, z: zExp + d - 25 };
+
+            addQuad(
+              `shelf-${item.id}-${s}`,
+              sP3,
+              sP2,
+              sP1,
+              sP0,
+              '#e2d5c3',
+              '#94a3b8',
+              0.8,
+              item.id,
+              `Internal Shelf ${s}`
+            );
+          }
         }
       }
 
@@ -888,7 +1052,11 @@ export const Isometric3DViewer: React.FC<Isometric3DViewerProps> = ({
       const shutterCount = item.shutterCount ?? (drawerCount > 0 ? 0 : 2);
       const slideOutDist = (drawerSlidePercent / 100) * 350; // up to 350mm pull-out
 
-      if (drawerCount > 0) {
+      // A closet box unit's drawers live INSIDE specific compartments of its
+      // closet interior (rendered below), not as full-width exterior tiers -
+      // its exterior is always its hinged/sliding doors, so the opened
+      // doors reveal that interior instead of this generic drawer stack.
+      if (!isClosetBoxUnit && drawerCount > 0) {
         const drawerH = (h - 20) / drawerCount;
         for (let dIdx = 0; dIdx < drawerCount; dIdx++) {
           const dY = yExp + 10 + dIdx * drawerH;
