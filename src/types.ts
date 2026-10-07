@@ -19,12 +19,28 @@ export type CutListPartName =
   | 'Bottom Deck'
   | 'Back Panel'
   | 'Internal Shelf'
+  | 'Vertical Partition'
   | 'Shutter'
   | 'Drawer Front'
   | 'Drawer Side'
   | 'Drawer Bottom'
   | 'Pelmet/Skirting'
   | 'Expo/Dummy Panel';
+
+// A wardrobe/dressing unit's interior closet organization - vertical
+// partitions splitting the carcass into columns, and horizontal shelves
+// (one shared set of heights across every column) splitting each column
+// into compartments. Positions are measured in mm from the carcass's own
+// inner-left/inner-top edge (inside the 18mm gables/decks), independent of
+// the item's overall width/height so they stay meaningful as those change.
+// See getAutoClosetLayout() / getEffectiveClosetLayout() in calculator.ts -
+// undefined on the item means "not customized yet, auto-generate from
+// width/height"; an explicit value (even with empty arrays - a deliberately
+// plain closet with no dividers or shelves) always wins over the auto-layout.
+export interface ClosetLayout {
+  verticalDividersMm: number[];
+  horizontalShelvesMm: number[];
+}
 
 export type UnitCategory = 
   | 'wardrobe_shutter'
@@ -65,6 +81,14 @@ export interface ModularItem {
   doorType?: DoorType; // blank/undefined = hinged (open/close); 'sliding' = track-mounted, never drawn with a hinge swing
   drawerCount: number;
   shelfCount: number;
+  // Wardrobe/dressing-unit interior closet design (vertical partitions +
+  // horizontal shelves) - only meaningful for a closet-eligible category
+  // (wardrobe_shutter, single_wardrobe, dressing_unit) built Full Modular
+  // with a real Depth (a real box). Undefined = not customized, auto-
+  // generate from width/height; superseded by shelfCount above for every
+  // other category/construction mode, which keeps using the plain flat
+  // shelf count. See isClosetEligible() / getEffectiveClosetLayout().
+  closetLayout?: ClosetLayout;
   finishType: 'Laminate' | 'Acrylic' | 'PU Paint' | 'Profile Glass' | 'Veneer';
   coreMaterial: 'BWP Marine Ply' | 'BWR Commercial Ply' | 'HDHMR' | 'Prelam MDF';
   notes?: string;

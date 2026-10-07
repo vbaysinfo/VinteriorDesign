@@ -10,9 +10,11 @@ import {
   isDepthRequiredButMissing,
   resolveEffectiveProjectType,
   getAutoShutterCount,
+  isClosetEligible,
 } from '../utils/calculator';
 import { X, Box, Layers, Scissors, Check, Sliders, DoorOpen } from 'lucide-react';
 import { NumberField } from './NumberField';
+import { ClosetInteriorEditor } from './ClosetInteriorEditor';
 
 interface ItemInspectorDrawerProps {
   item: ModularItem | null;
@@ -36,6 +38,11 @@ export const ItemInspectorDrawer: React.FC<ItemInspectorDrawerProps> = ({
   const cutListParts = generateCutListForItem(item, projectType);
   const effectiveType = resolveEffectiveProjectType(item, projectType);
   const depthMissing = isDepthRequiredButMissing(item, effectiveType);
+  // A real closet interior (vertical partitions + per-section shelves)
+  // only replaces the plain Shelves count once there's an actual box to
+  // put it in - a wardrobe/dressing unit that's Semi Modular, or Full
+  // Modular with Depth still blank, has no carcass at all yet.
+  const isCloset = isClosetEligible(item) && effectiveType === 'full' && item.depthMm > 0;
 
   // Editing width/height/depth here always goes through the ft fields
   // (recalculateItemMetrics derives mm from ft), matching the same
@@ -349,7 +356,7 @@ export const ItemInspectorDrawer: React.FC<ItemInspectorDrawerProps> = ({
             </div>
           )}
 
-          <div className="grid grid-cols-3 gap-2">
+          <div className={`grid gap-2 ${isCloset ? 'grid-cols-2' : 'grid-cols-3'}`}>
             <div>
               <label className="block text-slate-600 font-medium mb-1">Shutters</label>
               <NumberField
@@ -368,16 +375,23 @@ export const ItemInspectorDrawer: React.FC<ItemInspectorDrawerProps> = ({
                 className="w-full px-2 py-1 border border-slate-300 rounded-lg text-center font-bold"
               />
             </div>
-            <div>
-              <label className="block text-slate-600 font-medium mb-1">Shelves</label>
-              <NumberField
-                min={0}
-                value={item.shelfCount}
-                onCommit={(num) => onUpdateItem({ ...item, shelfCount: num })}
-                className="w-full px-2 py-1 border border-slate-300 rounded-lg text-center font-bold"
-              />
-            </div>
+            {/* A closet's shelf count/positions are set entirely by the
+                Closet Interior Design editor below once it has a real box -
+                this plain field would otherwise sit there doing nothing. */}
+            {!isCloset && (
+              <div>
+                <label className="block text-slate-600 font-medium mb-1">Shelves</label>
+                <NumberField
+                  min={0}
+                  value={item.shelfCount}
+                  onCommit={(num) => onUpdateItem({ ...item, shelfCount: num })}
+                  className="w-full px-2 py-1 border border-slate-300 rounded-lg text-center font-bold"
+                />
+              </div>
+            )}
           </div>
+
+          {isCloset && <ClosetInteriorEditor item={item} onUpdateItem={onUpdateItem} />}
 
           {/* Fabric and shutter color are two different material rules -
               this only ever affects the box (Gables/Decks/Back Panel and

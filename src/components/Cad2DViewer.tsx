@@ -1,8 +1,16 @@
 import React, { useState, useMemo, useRef } from 'react';
 import { ModularItem, WallType, ProjectType } from '../types';
-import { Layers, ZoomIn, ZoomOut, Maximize2, Minimize2, Download, Eye, Grid, Box, Sliders, Type, RotateCcw, Move } from 'lucide-react';
+import { Layers, ZoomIn, ZoomOut, Maximize2, Minimize2, Download, Eye, Grid, Box, Sliders, Type, RotateCcw, Move, Columns } from 'lucide-react';
 import { Isometric3DViewer } from './Isometric3DViewer';
-import { getShutterLayout, redistributeShutterWidths, mmToFt, recalculateItemMetrics, resolveEffectiveProjectType } from '../utils/calculator';
+import {
+  getShutterLayout,
+  redistributeShutterWidths,
+  mmToFt,
+  recalculateItemMetrics,
+  resolveEffectiveProjectType,
+  isClosetEligible,
+  getEffectiveClosetLayout,
+} from '../utils/calculator';
 import { exportSvgAsDxf } from '../utils/dxfExport';
 import { NumberField } from './NumberField';
 
@@ -36,6 +44,12 @@ export const Cad2DViewer: React.FC<Cad2DViewerProps> = ({
   const [showDimensions, setShowDimensions] = useState(true);
   const [showDatums, setShowDatums] = useState(true);
   const [showGrid, setShowGrid] = useState(true);
+  // Interior View - for Full Modular wardrobes/dressing units with a real
+  // box, draws the shutter as an outline only and shows the closet's
+  // interior vertical dividers/horizontal shelves instead of the solid
+  // door face, so the hidden interior organization can be inspected and
+  // isn't confused with the normal closed-door elevation.
+  const [showInterior, setShowInterior] = useState(false);
   const [selectedShutter, setSelectedShutter] = useState<{ itemId: string; index: number } | null>(null);
   const [zoomLevel, setZoomLevel] = useState(1);
   const [pan, setPan] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
@@ -464,6 +478,17 @@ export const Cad2DViewer: React.FC<Cad2DViewerProps> = ({
             }`}
           >
             <Grid className="w-3.5 h-3.5" />
+          </button>
+
+          <button
+            onClick={() => setShowInterior(!showInterior)}
+            title="Toggle Closet Interior View (wardrobes/dressing units with a real box)"
+            className={`p-1.5 rounded-lg border text-xs flex items-center gap-1 ${
+              showInterior ? 'bg-amber-50 border-amber-300 text-amber-700' : 'bg-white border-slate-200 text-slate-600'
+            }`}
+          >
+            <Columns className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Interior</span>
           </button>
 
           {/* Zoom controls */}
@@ -983,7 +1008,10 @@ export const Cad2DViewer: React.FC<Cad2DViewerProps> = ({
                       }}
                       className="cursor-pointer transition-all duration-150 group"
                     >
-                      {/* Cabinet Outer Box */}
+                      {/* Cabinet Outer Box - a lighter, uncluttered fill while
+                          Interior View shows this wardrobe's closet grid, so
+                          the divider/shelf lines read clearly instead of
+                          competing with the normal solid cabinet fill. */}
                       <rect
                         x={pos.x}
                         y={itemY}
@@ -992,6 +1020,8 @@ export const Cad2DViewer: React.FC<Cad2DViewerProps> = ({
                         fill={
                           isSelected
                             ? themeStyles.selectedFill
+                            : showInterior && isClosetEligible(pos.item) && shutterIsBoxUnit
+                            ? '#fffbeb'
                             : pos.item.category === 'profile_door'
                             ? 'url(#cadHatch)'
                             : themeStyles.cabinetFill
@@ -1000,8 +1030,44 @@ export const Cad2DViewer: React.FC<Cad2DViewerProps> = ({
                         strokeWidth={isSelected ? '4' : '2'}
                       />
 
-                      {/* Internal Shelves / Drawers visual representations */}
-                      {pos.item.drawerCount > 0 ? (
+                      {/* Internal Shelves / Drawers visual representations,
+                          OR - when Interior View is on for a wardrobe/
+                          dressing unit with a real box - its closet
+                          interior (vertical dividers + horizontal shelves)
+                          instead, replacing the normal closed-door view. */}
+                      {showInterior && isClosetEligible(pos.item) && shutterIsBoxUnit ? (() => {
+                        const closetLayout = getEffectiveClosetLayout(pos.item);
+                        const scaleX = pos.w / pos.item.widthMm;
+                        const scaleY = pos.h / pos.item.heightMm;
+                        const insetX = 18 * scaleX;
+                        const insetY = 18 * scaleY;
+                        return (
+                          <g opacity="0.9">
+                            {closetLayout.horizontalShelvesMm.map((yMm, idx) => (
+                              <line
+                                key={`cs-h-${idx}`}
+                                x1={pos.x + insetX}
+                                y1={itemY + insetY + yMm * scaleY}
+                                x2={pos.x + pos.w - insetX}
+                                y2={itemY + insetY + yMm * scaleY}
+                                stroke={themeStyles.text}
+                                strokeWidth="2"
+                              />
+                            ))}
+                            {closetLayout.verticalDividersMm.map((xMm, idx) => (
+                              <line
+                                key={`cs-v-${idx}`}
+                                x1={pos.x + insetX + xMm * scaleX}
+                                y1={itemY + insetY}
+                                x2={pos.x + insetX + xMm * scaleX}
+                                y2={itemY + pos.h - insetY}
+                                stroke={themeStyles.text}
+                                strokeWidth="3"
+                              />
+                            ))}
+                          </g>
+                        );
+                      })() : pos.item.drawerCount > 0 ? (
                         // Drawers Tier lines
                         Array.from({ length: pos.item.drawerCount }).map((_, dIdx) => {
                           const drawerH = pos.h / pos.item.drawerCount;

@@ -1,6 +1,13 @@
 import React, { useMemo } from 'react';
 import { ModularItem, WallType, ProjectType } from '../types';
-import { getShutterLayout, hasShutterDoors, getEffectiveDepthMm, resolveEffectiveProjectType } from '../utils/calculator';
+import {
+  getShutterLayout,
+  hasShutterDoors,
+  getEffectiveDepthMm,
+  resolveEffectiveProjectType,
+  isClosetEligible,
+  getEffectiveClosetLayout,
+} from '../utils/calculator';
 
 interface PrintableCadLayoutProps {
   items: ModularItem[];
@@ -190,6 +197,54 @@ export const PrintableCadLayout: React.FC<PrintableCadLayoutProps> = ({ items, p
                 </div>
               );
             })}
+
+            {/* Closet Interior Layouts - a wardrobe/dressing unit built with a
+                real box gets its own interior diagram printed here (vertical
+                dividers + horizontal shelves), separate from the closed-door
+                elevation above, so the factory floor has the actual interior
+                cutting/assembly intent on paper, not just the exterior look. */}
+            {(() => {
+              const closetItems = roomItems.filter((item) => {
+                const pType = resolveEffectiveProjectType(item, projectType);
+                return isClosetEligible(item) && pType === 'full' && item.depthMm > 0;
+              });
+              if (closetItems.length === 0) return null;
+              const DIAGRAM_WIDTH = 220;
+              return (
+                <div className="mt-4 break-inside-avoid">
+                  <h3 className="text-sm font-bold uppercase tracking-wide mb-2 text-slate-700 border-t-2 border-slate-900 pt-3">
+                    Closet Interior Layouts
+                  </h3>
+                  <div className="flex flex-wrap gap-4">
+                    {closetItems.map((item) => {
+                      const innerW = Math.max(100, item.widthMm - 36);
+                      const innerH = Math.max(100, item.heightMm - 36);
+                      const dScale = DIAGRAM_WIDTH / innerW;
+                      const dHeight = innerH * dScale;
+                      const layout = getEffectiveClosetLayout(item);
+                      return (
+                        <div key={item.id} className="text-center">
+                          <svg width={DIAGRAM_WIDTH} height={dHeight} viewBox={`0 0 ${DIAGRAM_WIDTH} ${dHeight}`} className="border border-slate-400">
+                            <rect x={0} y={0} width={DIAGRAM_WIDTH} height={dHeight} fill="#fffbeb" stroke="#0f172a" strokeWidth={1} />
+                            {layout.horizontalShelvesMm.map((yMm, idx) => (
+                              <line key={`h-${idx}`} x1={0} y1={yMm * dScale} x2={DIAGRAM_WIDTH} y2={yMm * dScale} stroke="#0f172a" strokeWidth={0.8} />
+                            ))}
+                            {layout.verticalDividersMm.map((xMm, idx) => (
+                              <line key={`v-${idx}`} x1={xMm * dScale} y1={0} x2={xMm * dScale} y2={dHeight} stroke="#0f172a" strokeWidth={1.2} />
+                            ))}
+                          </svg>
+                          <div className="text-[9px] font-semibold text-slate-700 mt-1">{item.description}</div>
+                          <div className="text-[8px] text-slate-500">
+                            {item.widthMm}×{item.heightMm}mm · {layout.verticalDividersMm.length + 1} column(s) ×{' '}
+                            {layout.horizontalShelvesMm.length} shelf row(s)
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()}
 
             <table className="w-full text-[10px] border-collapse mt-4">
               <thead>

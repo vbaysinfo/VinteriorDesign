@@ -18,6 +18,8 @@ import {
   MaterialReuseSummary,
   QuickAreaEstimate,
   DoorType,
+  ClosetLayout,
+  UnitCategory,
 } from '../types';
 
 // Standard sheet dimensions in mm
@@ -217,6 +219,46 @@ export function redistributeShutterWidths(item: ModularItem, editIndex: number, 
   });
 }
 
+// Categories that get a real, editable closet interior (vertical
+// partitions + horizontal shelves) instead of the plain flat shelfCount
+// every other boxed category uses - a wardrobe or dressing unit is the
+// only furniture here with a genuine "closet" interior organization.
+export const CLOSET_CATEGORIES: UnitCategory[] = ['wardrobe_shutter', 'single_wardrobe', 'dressing_unit'];
+
+export function isClosetEligible(item: ModularItem): boolean {
+  return CLOSET_CATEGORIES.includes(item.category);
+}
+
+const CLOSET_DIVIDER_THICKNESS_MM = 18;
+const CLOSET_TARGET_COLUMN_WIDTH_MM = 650; // a comfortable hanging/shelf column width
+const CLOSET_TARGET_SHELF_SPACING_MM = 350; // typical shelf-to-shelf clearance
+
+// Auto-generates a sensible closet interior purely from the carcass's own
+// width/height - evenly spaced vertical dividers (~650mm columns, capped at
+// 4) and evenly spaced horizontal shelves (~350mm spacing, capped at 7) -
+// used whenever the item hasn't had its own layout saved yet (see
+// getEffectiveClosetLayout). Positions are measured from the inner-left/
+// inner-top edge, inside the 18mm gables/decks, matching how the real
+// carcass panels below are sized.
+export function getAutoClosetLayout(widthMm: number, heightMm: number): ClosetLayout {
+  const innerWidth = Math.max(100, widthMm - 2 * CLOSET_DIVIDER_THICKNESS_MM);
+  const innerHeight = Math.max(100, heightMm - 2 * CLOSET_DIVIDER_THICKNESS_MM);
+  const colCount = Math.min(4, Math.max(1, Math.round(innerWidth / CLOSET_TARGET_COLUMN_WIDTH_MM)));
+  const rowCount = Math.min(7, Math.max(1, Math.round(innerHeight / CLOSET_TARGET_SHELF_SPACING_MM)));
+
+  const verticalDividersMm = Array.from({ length: colCount - 1 }, (_, i) => Math.round((innerWidth / colCount) * (i + 1)));
+  const horizontalShelvesMm = Array.from({ length: rowCount - 1 }, (_, i) => Math.round((innerHeight / rowCount) * (i + 1)));
+  return { verticalDividersMm, horizontalShelvesMm };
+}
+
+// The item's real closet interior - its own saved layout if it has one
+// (even a deliberately empty one, e.g. a plain hanging-only closet with no
+// dividers or shelves), otherwise an auto-generated default from its
+// current width/height.
+export function getEffectiveClosetLayout(item: ModularItem): ClosetLayout {
+  return item.closetLayout ?? getAutoClosetLayout(item.widthMm, item.heightMm);
+}
+
 // Whether an item has doors drawn/cut at all - excludes drawer-only units
 // and flat panel/partition categories that never get hinged shutters, and
 // any item explicitly set to 0 shutters (an open expo/display unit with no
@@ -239,6 +281,7 @@ const PART_COLORS: Record<string, string> = {
   'Bottom Deck': '#d97706', // dark amber
   'Back Panel': '#8b5cf6', // purple
   'Internal Shelf': '#06b6d4', // cyan
+  'Vertical Partition': '#0891b2', // darker cyan (closet interior divider)
   'Drawer Front': '#ec4899', // pink
   'Drawer Side': '#f43f5e', // rose
   'Drawer Bottom': '#6366f1', // indigo
@@ -643,15 +686,105 @@ export function generateCutListForItem(item: ModularItem, globalProjectType: Pro
     });
   }
 
-  // 4. Internal Shelves - `?? ` (not `||`) so an explicit 0 (shelves
-  // removed) is respected instead of silently falling back to the default
-  // count, which used to keep drawing a phantom Internal Shelf part even
-  // after the user zeroed the shelf count out. This fallback only matters
-  // if shelfCount is ever missing entirely (every real construction site -
-  // Excel upload, sample dataset, new-row default - already sets it): a
-  // Shelves unit defaults to 0, not a guessed count, since nothing
-  // upstream actually specified a shelf count for it. (Expo/Dummy never
-  // reach here at all - they returned as a flat panel above.)
+  // 4. Internal Shelves / Closet Interior Layout
+  // A wardrobe/dressing unit built with a real box gets its own editable
+  // closet interior (vertical partitions + per-section shelves) instead of
+  // the flat shelfCount below - see getEffectiveClosetLayout(). Every other
+  // boxed category (loft, sitting box, kitchen base, ...) keeps the plain
+  // shelfCount behavior unchanged.
+  if (canBuildBox && isClosetEligible(item)) {
+    const layout = getEffectiveClosetLayout(item);
+    const innerWidth = Math.max(100, w - 36); // inside the two 18mm gables, same as the carcass deck width above
+    const innerHeight = Math.max(100, h - 36); // inside the top/bottom decks
+    const sortedDividers = Array.from(new Set(layout.verticalDividersMm))
+      .filter((x) => x > 0 && x < innerWidth)
+      .sort((a, b) => a - b);
+    const shelfRowCount = layout.horizontalShelvesMm.filter((y) => y > 0 && y < innerHeight).length;
+
+    // Vertical Partitions - one full-height, full-depth panel per divider.
+    sortedDividers.forEach((posMm, idx) => {
+      parts.push({
+        id: `${item.id}-partition-${idx + 1}`,
+        itemId: item.id,
+        room: item.room,
+        itemName: item.description,
+        wall: item.wall,
+        partName: 'Vertical Partition',
+        lengthMm: innerHeight,
+        widthMm: d - 30,
+        thicknessMm: 18,
+        qty: 1,
+        material: `${getCoreMaterialLabel(item)} (Fabric)`,
+        materialCategory: 'Fabric',
+        backMaterialCategory: 'Fabric',
+        fabricBothSides: item.fabricBothSides ?? false,
+        edgeL1: true,
+        edgeL2: false,
+        edgeW1: true,
+        edgeW2: false,
+        edgeThicknessMm: 0.8,
+        grainDirection: 'length',
+        notes: `Closet interior vertical divider at ${posMm}mm from inner-left`,
+        areaSqMt: Number(((innerHeight * (d - 30)) / 1_000_000).toFixed(3)),
+      });
+    });
+
+    // Horizontal Shelves, per column section - the dividers split the
+    // carcass into (dividers + 1) sections, each half a divider's
+    // thickness narrower on whichever side(s) border a divider; sections
+    // sharing the same resulting width are grouped into one cut part
+    // (qty = shelf rows x how many sections share that width), same
+    // grouping convention the Shutter width-groups use above.
+    if (shelfRowCount > 0) {
+      const edges = [0, ...sortedDividers, innerWidth];
+      const sectionWidthGroups = new Map<number, number>();
+      for (let i = 0; i < edges.length - 1; i++) {
+        const leftInset = i > 0 ? CLOSET_DIVIDER_THICKNESS_MM / 2 : 0;
+        const rightInset = i < edges.length - 2 ? CLOSET_DIVIDER_THICKNESS_MM / 2 : 0;
+        const sectionWidth = Math.max(60, Math.floor(edges[i + 1] - edges[i] - leftInset - rightInset));
+        sectionWidthGroups.set(sectionWidth, (sectionWidthGroups.get(sectionWidth) || 0) + 1);
+      }
+      const shelfDepth = d - 30;
+      let groupIdx = 0;
+      for (const [sectionWidth, sectionCount] of sectionWidthGroups) {
+        groupIdx++;
+        parts.push({
+          id: sectionWidthGroups.size > 1 ? `${item.id}-closet-shelf-${groupIdx}` : `${item.id}-closet-shelf`,
+          itemId: item.id,
+          room: item.room,
+          itemName: item.description,
+          wall: item.wall,
+          partName: 'Internal Shelf',
+          lengthMm: sectionWidth,
+          widthMm: shelfDepth,
+          thicknessMm: 18,
+          qty: shelfRowCount * sectionCount,
+          material: `${getCoreMaterialLabel(item)} (Fabric)`,
+          materialCategory: 'Fabric',
+          backMaterialCategory: 'Fabric',
+          fabricBothSides: item.fabricBothSides ?? false,
+          edgeL1: true,
+          edgeL2: false,
+          edgeW1: false,
+          edgeW2: false,
+          edgeThicknessMm: 0.8,
+          grainDirection: 'any',
+          canRotate: true,
+          notes: 'Closet interior shelf (rotatable for optimal nesting)',
+          areaSqMt: Number(((sectionWidth * shelfDepth * shelfRowCount * sectionCount) / 1_000_000).toFixed(3)),
+        });
+      }
+    }
+  } else {
+  // `?? ` (not `||`) so an explicit 0 (shelves removed) is respected
+  // instead of silently falling back to the default count, which used to
+  // keep drawing a phantom Internal Shelf part even after the user zeroed
+  // the shelf count out. This fallback only matters if shelfCount is ever
+  // missing entirely (every real construction site - Excel upload, sample
+  // dataset, new-row default - already sets it): a Shelves unit defaults
+  // to 0, not a guessed count, since nothing upstream actually specified a
+  // shelf count for it. (Expo/Dummy never reach here at all - they
+  // returned as a flat panel above.)
   // Also never mixed: a closed unit's shelves are a hidden internal
   // carcass component (needs a real box to build, same as the drawer box
   // above), but an open "shelves" display unit's shelves ARE the whole
@@ -696,6 +829,7 @@ export function generateCutListForItem(item: ModularItem, globalProjectType: Pro
       notes: 'Internal adjustable / fixed shelf (rotatable for optimal nesting)',
       areaSqMt: Number(((shelfWidth * shelfDepth * shelfCount) / 1_000_000).toFixed(3)),
     });
+  }
   }
 
   // 5. Floor Skirting Plinth & Structural Under-Carcass Battens
