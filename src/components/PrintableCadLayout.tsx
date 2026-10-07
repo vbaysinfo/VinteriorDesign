@@ -235,26 +235,30 @@ export const PrintableCadLayout: React.FC<PrintableCadLayoutProps> = ({ items, p
                               const boundary = !isLast && (
                                 <line key={`bnd-${colIdx}`} x1={colX + colW} y1={0} x2={colX + colW} y2={dHeight} stroke="#0f172a" strokeWidth={1.2} />
                               );
-                              if (col.type === 'hanging_rod') {
-                                const rodY = Math.min(innerH - 60, (col.shelvesMm[0] ?? 0) + 120);
-                                return (
-                                  <g key={col.id}>
-                                    {col.shelvesMm.length > 0 && (
-                                      <line x1={colX} y1={col.shelvesMm[0] * dScale} x2={colX + colW} y2={col.shelvesMm[0] * dScale} stroke="#0f172a" strokeWidth={0.8} />
-                                    )}
-                                    <line x1={colX + 4} y1={rodY * dScale} x2={colX + colW - 4} y2={rodY * dScale} stroke="#0f172a" strokeWidth={1} opacity={0.6} />
-                                    {boundary}
-                                  </g>
-                                );
-                              }
                               const sortedShelves = [...col.shelvesMm].sort((a, b) => a - b);
                               const bounds = [0, ...sortedShelves, innerH];
+                              const rodSet = new Set(col.rodCompartments);
                               const splitSet = new Set(col.splitCompartments ?? []);
                               const subCellDrawerSet = new Set(col.drawerSubCells ?? []);
                               return (
                                 <g key={col.id}>
                                   {bounds.slice(0, -1).map((top, compIdx) => {
                                     const bottom = bounds[compIdx + 1];
+                                    if (rodSet.has(compIdx)) {
+                                      const rodY = Math.min(bottom - 60, top + 120);
+                                      return (
+                                        <line
+                                          key={`rod-${colIdx}-${compIdx}`}
+                                          x1={colX + 4}
+                                          y1={rodY * dScale}
+                                          x2={colX + colW - 4}
+                                          y2={rodY * dScale}
+                                          stroke="#0f172a"
+                                          strokeWidth={1}
+                                          opacity={0.6}
+                                        />
+                                      );
+                                    }
                                     if (splitSet.has(compIdx)) {
                                       const midX = colX + colW / 2;
                                       return (

@@ -33,33 +33,39 @@ export type CutListPartName =
 // stack), each with its OWN horizontal shelf pattern instead of one shared
 // set of shelf heights across the whole carcass. This is what lets one
 // column be a plain hanging rod while the column next to it has its own
-// shelves, some of which are converted to drawers - a real asymmetric
-// closet, not just a uniform grid.
-export type ClosetColumnType = 'shelves' | 'hanging_rod';
-
+// shelves, some of which are converted to drawers, split with a vertical
+// sub-divider, or turned into a hanging rod bay - a real asymmetric closet,
+// not just a uniform grid. There is no column-level "type" any more - every
+// column is just a stack of shelf-bounded compartments, and each
+// compartment independently decides what it is (see the flag arrays below),
+// so a single column can freely mix shelf space, drawers, and a rod bay,
+// matching how real wardrobes are actually laid out.
 export interface ClosetColumn {
   id: string;
   widthMm: number; // this column's own width - every column's widthMm sums to the carcass's inner width
-  type: ClosetColumnType;
   // Horizontal shelf positions within THIS column only, in mm from the
-  // column's own inner-top edge. For 'shelves', splits the column into
-  // compartments top-to-bottom. For 'hanging_rod', at most one entry - an
-  // overhead storage shelf above the rod (the common reference-photo
-  // pattern); the rod itself always sits a fixed distance below that.
+  // column's own inner-top edge - splits the column into compartments
+  // top-to-bottom. Every column has these, regardless of what its
+  // compartments are used for.
   shelvesMm: number[];
   // Which compartments (0-indexed top-to-bottom, bounded by shelvesMm plus
   // the column's own top/bottom edges) are fabricated as a real drawer box
   // (front + sides + bottom) instead of an open shelf - the Item
   // Inspector's Closet Interior Design editor exposes this as a "Make
-  // Drawer" / "Make Shelf" button on each compartment. Only meaningful for
-  // 'shelves' columns.
+  // Drawer" / "Make Shelf" button on each compartment.
   drawerCompartments: number[];
+  // Compartments that are an open hanging-rod bay instead of shelf storage -
+  // no physical cut part (the rod itself is hardware, not a panel), it just
+  // skips the "Internal Shelf" treatment for this specific compartment.
+  // Mutually exclusive with drawerCompartments / splitCompartments for the
+  // same index - toggling a compartment into a rod bay clears any drawer or
+  // split flag it had, and vice versa.
+  rodCompartments: number[];
   // Compartments (same indexing as drawerCompartments) that have been
   // divided by a single vertical sub-divider into a left/right pair of
   // half-width cubbies - the "vertical shelf in the middle of a horizontal
   // band" reference-photo pattern. A compartment is never both split AND a
-  // whole-width drawer at once; splitting one clears its drawerCompartments
-  // flag. Only meaningful for 'shelves' columns.
+  // whole-width drawer or rod bay at once; splitting one clears those flags.
   splitCompartments?: number[];
   // Which half of a split compartment is built as a drawer box instead of
   // an open cubby, keyed as `${compartmentIndex}:${0|1}` (0 = left half,

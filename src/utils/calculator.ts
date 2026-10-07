@@ -244,32 +244,37 @@ export function makeClosetColumnId(): string {
 // Auto-generates a sensible closet interior purely from the carcass's own
 // width/height - evenly-wide columns (~650mm each, capped at 4), each with
 // its own evenly-spaced shelves (~350mm spacing, capped at 7). Matching the
-// factory's own common reference layout, the outer column(s) default to a
-// hanging rod (with one overhead storage shelf) once there's more than one
-// column, and every inner column defaults to shelves - used whenever the
-// item hasn't had its own layout saved yet (see getEffectiveClosetLayout).
-// Column widths are measured inside the two 18mm gables; shelf positions
-// are measured from each column's own inner-top edge.
+// factory's own common reference layout, the outer column(s) get one
+// overhead storage shelf then a single tall hanging-rod bay (a compartment
+// flagged in rodCompartments, not a separate column type) once there's more
+// than one column, and every inner column defaults to a plain dense shelf
+// grid - used whenever the item hasn't had its own layout saved yet (see
+// getEffectiveClosetLayout). Every column can be further edited compartment
+// by compartment afterwards - shelves and rod bays can be freely mixed
+// within the same column, this just picks a sensible starting point. Column
+// widths are measured inside the two 18mm gables; shelf positions are
+// measured from each column's own inner-top edge.
 export function getAutoClosetLayout(widthMm: number, heightMm: number): ClosetLayout {
   const innerWidth = Math.max(100, widthMm - 2 * CLOSET_DIVIDER_THICKNESS_MM);
   const innerHeight = Math.max(100, heightMm - 2 * CLOSET_DIVIDER_THICKNESS_MM);
   const colCount = Math.min(4, Math.max(1, Math.round(innerWidth / CLOSET_TARGET_COLUMN_WIDTH_MM)));
   const colWidth = Math.floor((innerWidth - (colCount - 1) * CLOSET_DIVIDER_THICKNESS_MM) / colCount);
   const rowCount = Math.min(7, Math.max(1, Math.round(innerHeight / CLOSET_TARGET_SHELF_SPACING_MM)));
-  const shelvesMm = Array.from({ length: rowCount - 1 }, (_, i) => Math.round((innerHeight / rowCount) * (i + 1)));
+  const denseShelvesMm = Array.from({ length: rowCount - 1 }, (_, i) => Math.round((innerHeight / rowCount) * (i + 1)));
 
   const columns: ClosetColumn[] = Array.from({ length: colCount }, (_, i) => {
     // 3+ columns: both outer edges get a rod bay, middle column(s) stay
-    // shelves (the common reference-photo pattern). Exactly 2 columns: "both
-    // edges" would mean both columns, leaving zero shelves columns at all -
-    // so only the first becomes a rod, the second stays shelves instead.
+    // dense shelves (the common reference-photo pattern). Exactly 2
+    // columns: "both edges" would mean both columns, leaving zero plain
+    // shelf columns at all - so only the first gets the rod bay, the
+    // second stays a dense shelf grid instead.
     const useRod = colCount === 2 ? i === 0 : colCount >= 3 && (i === 0 || i === colCount - 1);
     return {
       id: makeClosetColumnId(),
       widthMm: colWidth,
-      type: useRod ? 'hanging_rod' : 'shelves',
-      shelvesMm: useRod ? [CLOSET_ROD_OVERHEAD_SHELF_MM] : shelvesMm,
+      shelvesMm: useRod ? [CLOSET_ROD_OVERHEAD_SHELF_MM] : denseShelvesMm,
       drawerCompartments: [],
+      rodCompartments: useRod ? [1] : [],
     };
   });
   return { columns };
@@ -752,57 +757,22 @@ export function generateCutListForItem(item: ModularItem, globalProjectType: Pro
       }
     });
 
-    // Per-column interior: a hanging-rod column only ever gets its
-    // optional overhead shelf (the rod itself is purchased hardware, not a
-    // cut panel - not yet priced here); a shelves column gets one
-    // Internal Shelf per compartment that ISN'T in drawerCompartments, and
-    // a full drawer box (Front/Side/Bottom, same construction as the
-    // item-level drawer count above) for every compartment that IS.
+    // Per-column interior: every column is just a stack of shelf-bounded
+    // compartments now - each one independently a plain open shelf space, a
+    // drawer box (Front/Side/Bottom, same construction as the item-level
+    // drawer count above), a split left/right pair, or an open hanging-rod
+    // bay (the rod itself is purchased hardware, not a cut panel - not yet
+    // priced here, so a rod compartment contributes no part at all). The
+    // shelf PANELS themselves are the physical dividers between
+    // compartments, so their count is simply the number of shelf positions,
+    // period - it doesn't change based on what any given compartment is
+    // used for.
     layout.columns.forEach((col, colIdx) => {
       const colWidth = Math.max(60, col.widthMm);
-
-      if (col.type === 'hanging_rod') {
-        if (col.shelvesMm.length > 0) {
-          parts.push({
-            id: `${item.id}-closet-rod-shelf-${colIdx}`,
-            itemId: item.id,
-            room: item.room,
-            itemName: item.description,
-            wall: item.wall,
-            partName: 'Internal Shelf',
-            lengthMm: colWidth,
-            widthMm: shelfDepth,
-            thicknessMm: 18,
-            qty: 1,
-            material: `${getCoreMaterialLabel(item)} (Fabric)`,
-            materialCategory: 'Fabric',
-            backMaterialCategory: 'Fabric',
-            fabricBothSides: item.fabricBothSides ?? false,
-            edgeL1: true,
-            edgeL2: false,
-            edgeW1: false,
-            edgeW2: false,
-            edgeThicknessMm: 0.8,
-            grainDirection: 'any',
-            canRotate: true,
-            notes: `Overhead shelf above hanging rod, column ${colIdx + 1}`,
-            areaSqMt: Number(((colWidth * shelfDepth) / 1_000_000).toFixed(3)),
-          });
-        }
-        return;
-      }
-
-      // 'shelves' column: compartments are the bands between consecutive
-      // shelf positions (plus the column's own top/bottom edges). A shelf
-      // PANEL is the physical divider between two compartments, so its
-      // count is the number of shelf positions, period - it doesn't
-      // change when a compartment next to it becomes a drawer (the
-      // drawer still slides into the space between the same two panels,
-      // it just gets its own box instead of sitting directly on the open
-      // shelf below it).
       const sortedShelves = [...col.shelvesMm].filter((y) => y > 0 && y < innerHeight).sort((a, b) => a - b);
       const bounds = [0, ...sortedShelves, innerHeight];
       const drawerSet = new Set(col.drawerCompartments);
+      const rodSet = new Set(col.rodCompartments);
       const splitSet = new Set(col.splitCompartments ?? []);
       const subCellDrawerSet = new Set(col.drawerSubCells ?? []);
 
@@ -881,6 +851,9 @@ export function generateCutListForItem(item: ModularItem, globalProjectType: Pro
 
       for (let compIdx = 0; compIdx < bounds.length - 1; compIdx++) {
         const compHeight = Math.max(80, bounds[compIdx + 1] - bounds[compIdx]);
+
+        // An open hanging-rod bay - no physical part, just skip it.
+        if (rodSet.has(compIdx)) continue;
 
         // A split compartment gets a mid-height vertical sub-divider (the
         // "vertical shelf in the middle of a horizontal band" reference

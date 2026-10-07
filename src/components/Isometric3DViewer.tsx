@@ -874,40 +874,16 @@ export const Isometric3DViewer: React.FC<Isometric3DViewerProps> = ({
               );
             }
 
-            if (col.type === 'hanging_rod') {
-              if (col.shelvesMm.length > 0) {
-                addShelfQuad(
-                  `closet-rodshelf-${item.id}-${colIdx}`,
-                  colXStart,
-                  colXEnd,
-                  innerTopY - col.shelvesMm[0],
-                  `Overhead Shelf (column ${colIdx + 1})`
-                );
-              }
-              const rodDropMm = Math.min(innerHeightMm - 60, (col.shelvesMm[0] ?? 0) + 120);
-              const rodY = innerTopY - rodDropMm;
-              addQuad(
-                `closet-rod-${item.id}-${colIdx}`,
-                { x: colXStart + 15, y: rodY + 6, z: zExp + d - 70 },
-                { x: colXEnd - 15, y: rodY + 6, z: zExp + d - 70 },
-                { x: colXEnd - 15, y: rodY - 6, z: zExp + d - 70 },
-                { x: colXStart + 15, y: rodY - 6, z: zExp + d - 70 },
-                '#94a3b8',
-                '#64748b',
-                1,
-                item.id,
-                `Hanging Rod (column ${colIdx + 1})`
-              );
-              return;
-            }
-
-            // 'shelves' column
+            // Every column is just a stack of shelf-bounded compartments -
+            // each one independently plain, a drawer, a split left/right
+            // pair, or an open hanging-rod bay.
             const sortedShelves = [...col.shelvesMm].sort((a, b) => a - b);
             sortedShelves.forEach((sMm, sIdx) => {
               addShelfQuad(`closet-shelf-${item.id}-${colIdx}-${sIdx}`, colXStart, colXEnd, innerTopY - sMm, `Internal Shelf (column ${colIdx + 1})`);
             });
 
             const bounds = [0, ...sortedShelves, innerHeightMm];
+            const rodSet = new Set(col.rodCompartments);
             const splitSet = new Set(col.splitCompartments ?? []);
             const subCellDrawerSet = new Set(col.drawerSubCells ?? []);
             const drawerSet = new Set(col.drawerCompartments);
@@ -916,6 +892,24 @@ export const Isometric3DViewer: React.FC<Isometric3DViewerProps> = ({
               const bottomMm = bounds[compIdx + 1];
               const compTopY = innerTopY - topMm;
               const compBottomY = innerTopY - bottomMm;
+
+              if (rodSet.has(compIdx)) {
+                const rodDropMm = Math.min(bottomMm - 60, topMm + 120);
+                const rodY = innerTopY - rodDropMm;
+                addQuad(
+                  `closet-rod-${item.id}-${colIdx}-${compIdx}`,
+                  { x: colXStart + 15, y: rodY + 6, z: zExp + d - 70 },
+                  { x: colXEnd - 15, y: rodY + 6, z: zExp + d - 70 },
+                  { x: colXEnd - 15, y: rodY - 6, z: zExp + d - 70 },
+                  { x: colXStart + 15, y: rodY - 6, z: zExp + d - 70 },
+                  '#94a3b8',
+                  '#64748b',
+                  1,
+                  item.id,
+                  `Hanging Rod (column ${colIdx + 1} compartment ${compIdx + 1})`
+                );
+                return;
+              }
 
               if (splitSet.has(compIdx)) {
                 const midX = (colXStart + colXEnd) / 2;

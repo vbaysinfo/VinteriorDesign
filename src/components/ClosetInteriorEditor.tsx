@@ -1,7 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { ModularItem, ClosetLayout, ClosetColumn } from '../types';
-import { getEffectiveClosetLayout, makeClosetColumnId, CLOSET_ROD_OVERHEAD_SHELF_MM } from '../utils/calculator';
-import { Plus, RotateCcw, Columns as ColumnsIcon, Rows, Shirt, Archive, SplitSquareHorizontal } from 'lucide-react';
+import { getEffectiveClosetLayout, makeClosetColumnId } from '../utils/calculator';
+import { Plus, RotateCcw, Columns as ColumnsIcon, Shirt, Archive, SplitSquareHorizontal } from 'lucide-react';
 
 interface ClosetInteriorEditorProps {
   item: ModularItem;
@@ -14,13 +14,16 @@ const MIN_SHELF_SPACING_MM = 150;
 const DIVIDER_THICKNESS_MM = 18;
 
 // Interactive diagram of a wardrobe/dressing unit's interior - independent
-// full-height columns, each either a hanging rod or its own shelves (some
-// of which can be converted into real drawer boxes). Auto-laid-out from
-// the item's own width/height until the user touches something, at which
-// point the layout is saved on the item itself (closetLayout) and stops
-// auto-regenerating on every width/height edit. All drag math works in mm
-// (the item's own real dimensions), so what's shown here is exactly what
-// generateCutListForItem in calculator.ts will actually cut.
+// full-height columns, each its own stack of shelf-bounded compartments
+// that can freely mix plain open shelf space, real drawer boxes, a vertical
+// split into a left/right pair, and a hanging-rod bay, all within the same
+// column (matching how real wardrobes mix a rod zone with shelves above or
+// below it, not a rigid "whole column is one type" rule). Auto-laid-out
+// from the item's own width/height until the user touches something, at
+// which point the layout is saved on the item itself (closetLayout) and
+// stops auto-regenerating on every width/height edit. All drag math works
+// in mm (the item's own real dimensions), so what's shown here is exactly
+// what generateCutListForItem in calculator.ts will actually cut.
 export const ClosetInteriorEditor: React.FC<ClosetInteriorEditorProps> = ({ item, onUpdateItem }) => {
   const layout = getEffectiveClosetLayout(item);
   const innerWidthMm = Math.max(100, item.widthMm - 2 * DIVIDER_THICKNESS_MM);
@@ -106,21 +109,6 @@ export const ClosetInteriorEditor: React.FC<ClosetInteriorEditorProps> = ({ item
     commit(columns);
   };
 
-  const toggleColumnType = (colIdx: number) => {
-    const col = layout.columns[colIdx];
-    if (col.type === 'shelves') {
-      updateColumn(colIdx, {
-        type: 'hanging_rod',
-        shelvesMm: [CLOSET_ROD_OVERHEAD_SHELF_MM],
-        drawerCompartments: [],
-        splitCompartments: [],
-        drawerSubCells: [],
-      });
-    } else {
-      updateColumn(colIdx, { type: 'shelves', shelvesMm: [], drawerCompartments: [], splitCompartments: [], drawerSubCells: [] });
-    }
-  };
-
   // Shifts compartment-index references by +1 at/after `insertedAt` (a new
   // shelf was inserted there) or merges/shifts them down by 1 when the
   // compartments at `shelfIdx`/`shelfIdx+1` are being merged back into one
@@ -170,6 +158,7 @@ export const ClosetInteriorEditor: React.FC<ClosetInteriorEditorProps> = ({ item
     updateColumn(colIdx, {
       shelvesMm: newShelves,
       drawerCompartments: shiftCompartments(col.drawerCompartments, insertedAt),
+      rodCompartments: shiftCompartments(col.rodCompartments, insertedAt),
       splitCompartments: shiftCompartments(col.splitCompartments ?? [], insertedAt),
       drawerSubCells: shiftSubCellKeys(col.drawerSubCells ?? [], insertedAt),
     });
@@ -179,27 +168,35 @@ export const ClosetInteriorEditor: React.FC<ClosetInteriorEditorProps> = ({ item
     const col = layout.columns[colIdx];
     const shelves = [...col.shelvesMm];
     shelves.splice(shelfIdx, 1);
-    // Merging two compartments into one - drop any drawer/split flag on
+    // Merging two compartments into one - drop any drawer/rod/split flag on
     // either side of the removed shelf and shift the rest down.
     updateColumn(colIdx, {
       shelvesMm: shelves,
       drawerCompartments: mergeCompartments(col.drawerCompartments, shelfIdx),
+      rodCompartments: mergeCompartments(col.rodCompartments, shelfIdx),
       splitCompartments: mergeCompartments(col.splitCompartments ?? [], shelfIdx),
       drawerSubCells: mergeSubCellKeys(col.drawerSubCells ?? [], shelfIdx),
     });
   };
 
+  // A compartment is exactly one of: plain open shelf space, a whole-width
+  // drawer, a split left/right pair, or a hanging-rod bay - never more than
+  // one at once, so turning any of these on for a compartment clears
+  // whichever of the other three it previously had.
   const toggleDrawer = (colIdx: number, compIdx: number) => {
     const col = layout.columns[colIdx];
     const isDrawer = col.drawerCompartments.includes(compIdx);
-    const next = isDrawer ? col.drawerCompartments.filter((d) => d !== compIdx) : [...col.drawerCompartments, compIdx];
-    updateColumn(colIdx, { drawerCompartments: next });
+    if (isDrawer) {
+      updateColumn(colIdx, { drawerCompartments: col.drawerCompartments.filter((d) => d !== compIdx) });
+    } else {
+      updateColumn(colIdx, {
+        drawerCompartments: [...col.drawerCompartments, compIdx],
+        rodCompartments: col.rodCompartments.filter((d) => d !== compIdx),
+        splitCompartments: (col.splitCompartments ?? []).filter((d) => d !== compIdx),
+      });
+    }
   };
 
-  // A compartment is either a single whole-width drawer OR split into two
-  // half-width cells - never both, so splitting one clears any whole-width
-  // drawer flag it had, and vice versa (toggleDrawer only ever runs on a
-  // non-split compartment, since split ones hide that button).
   const toggleSplit = (colIdx: number, compIdx: number) => {
     const col = layout.columns[colIdx];
     const splitSet = new Set(col.splitCompartments ?? []);
@@ -214,6 +211,21 @@ export const ClosetInteriorEditor: React.FC<ClosetInteriorEditorProps> = ({ item
       updateColumn(colIdx, {
         splitCompartments: Array.from(splitSet),
         drawerCompartments: col.drawerCompartments.filter((d) => d !== compIdx),
+        rodCompartments: col.rodCompartments.filter((d) => d !== compIdx),
+      });
+    }
+  };
+
+  const toggleRod = (colIdx: number, compIdx: number) => {
+    const col = layout.columns[colIdx];
+    const isRod = col.rodCompartments.includes(compIdx);
+    if (isRod) {
+      updateColumn(colIdx, { rodCompartments: col.rodCompartments.filter((d) => d !== compIdx) });
+    } else {
+      updateColumn(colIdx, {
+        rodCompartments: [...col.rodCompartments, compIdx],
+        drawerCompartments: col.drawerCompartments.filter((d) => d !== compIdx),
+        splitCompartments: (col.splitCompartments ?? []).filter((d) => d !== compIdx),
       });
     }
   };
@@ -244,7 +256,7 @@ export const ClosetInteriorEditor: React.FC<ClosetInteriorEditorProps> = ({ item
       bestIdx,
       1,
       { ...original, widthMm: half },
-      { id: makeClosetColumnId(), widthMm: bestWidth - half, type: 'shelves', shelvesMm: [], drawerCompartments: [] }
+      { id: makeClosetColumnId(), widthMm: bestWidth - half, shelvesMm: [], drawerCompartments: [], rodCompartments: [] }
     );
     commit(columns);
   };
@@ -281,8 +293,9 @@ export const ClosetInteriorEditor: React.FC<ClosetInteriorEditorProps> = ({ item
 
       <p className="text-[11px] text-slate-500">
         Drag a column edge or shelf line to resize it - the gap (compartment height, shown in mm under each band) follows the drag, down
-        to a {MIN_SHELF_SPACING_MM}mm minimum. Click a column's icon to switch it between Shelves and Hanging Rod. Click a compartment's
-        drawer icon to turn it into a real drawer, or its split icon to divide it with a vertical shelf into a left/right pair.
+        to a {MIN_SHELF_SPACING_MM}mm minimum. Every compartment of every column can independently be a plain shelf space, a drawer, a
+        hanging rod bay, or split into a left/right pair - click its drawer icon, hanger icon, or split icon to switch it, or click "Shelf
+        in Col N" to divide any column (rod bay or not) with another horizontal shelf.
         {!isCustomized && ' (auto-fit from width & height)'}
       </p>
 
@@ -302,55 +315,21 @@ export const ClosetInteriorEditor: React.FC<ClosetInteriorEditorProps> = ({ item
             const colXMm = colOffsets[colIdx];
             const colXPx = colXMm * scale;
             const colWPx = col.widthMm * scale;
-
-            if (col.type === 'hanging_rod') {
-              const rodYMm = Math.min(innerHeightMm - 60, (col.shelvesMm[0] ?? 0) + 120);
-              return (
-                <g key={col.id}>
-                  {col.shelvesMm.length > 0 && (
-                    <line
-                      x1={colXPx}
-                      y1={col.shelvesMm[0] * scale}
-                      x2={colXPx + colWPx}
-                      y2={col.shelvesMm[0] * scale}
-                      stroke="#0891b2"
-                      strokeWidth="3"
-                    />
-                  )}
-                  {/* Hanging rod symbol */}
-                  <line x1={colXPx + 8} y1={rodYMm * scale} x2={colXPx + colWPx - 8} y2={rodYMm * scale} stroke="#64748b" strokeWidth="2.5" />
-                  <circle cx={colXPx + 8} cy={rodYMm * scale} r="3" fill="#64748b" />
-                  <circle cx={colXPx + colWPx - 8} cy={rodYMm * scale} r="3" fill="#64748b" />
-                  {/* A couple of hanger glyphs for readability */}
-                  {Array.from({ length: Math.max(1, Math.floor(colWPx / 26)) }).map((_, hIdx, arr) => {
-                    const hx = colXPx + ((hIdx + 1) * colWPx) / (arr.length + 1);
-                    return (
-                      <path
-                        key={hIdx}
-                        d={`M ${hx - 7} ${rodYMm * scale + 14} L ${hx} ${rodYMm * scale + 4} L ${hx + 7} ${rodYMm * scale + 14}`}
-                        stroke="#94a3b8"
-                        strokeWidth="1.3"
-                        fill="none"
-                      />
-                    );
-                  })}
-                </g>
-              );
-            }
-
             const sortedShelves = [...col.shelvesMm].sort((a, b) => a - b);
             const bounds = [0, ...sortedShelves, innerHeightMm];
 
             return (
               <g key={col.id}>
-                {/* Compartments - drawer ones get a tinted fill + a drawer-pull
-                    line, split ones get a mid-height vertical sub-divider and
-                    two independent half-width drawer toggles instead of one. */}
+                {/* Compartments - a rod one gets the hanging-rod symbol, a
+                    drawer one gets a tinted fill + a drawer-pull line, a
+                    split one gets a mid-height vertical sub-divider and two
+                    independent half-width drawer toggles instead of one. */}
                 {bounds.slice(0, -1).map((top, compIdx) => {
                   const bottom = bounds[compIdx + 1];
                   const compHeightMm = Math.round(bottom - top);
-                  const isSplit = (col.splitCompartments ?? []).includes(compIdx);
-                  const isDrawer = !isSplit && col.drawerCompartments.includes(compIdx);
+                  const isRod = col.rodCompartments.includes(compIdx);
+                  const isSplit = !isRod && (col.splitCompartments ?? []).includes(compIdx);
+                  const isDrawer = !isRod && !isSplit && col.drawerCompartments.includes(compIdx);
                   const compMidY = ((top + bottom) / 2) * scale;
                   const midXPx = colXPx + colWPx / 2;
                   const gapLabel = (
@@ -358,6 +337,44 @@ export const ClosetInteriorEditor: React.FC<ClosetInteriorEditorProps> = ({ item
                       {compHeightMm}mm
                     </text>
                   );
+
+                  if (isRod) {
+                    const rodYMm = Math.min(bottom - 60, top + 120);
+                    return (
+                      <g key={compIdx}>
+                        <line x1={colXPx + 8} y1={rodYMm * scale} x2={colXPx + colWPx - 8} y2={rodYMm * scale} stroke="#64748b" strokeWidth="2.5" />
+                        <circle cx={colXPx + 8} cy={rodYMm * scale} r="3" fill="#64748b" />
+                        <circle cx={colXPx + colWPx - 8} cy={rodYMm * scale} r="3" fill="#64748b" />
+                        {/* A couple of hanger glyphs for readability */}
+                        {Array.from({ length: Math.max(1, Math.floor(colWPx / 26)) }).map((_, hIdx, arr) => {
+                          const hx = colXPx + ((hIdx + 1) * colWPx) / (arr.length + 1);
+                          return (
+                            <path
+                              key={hIdx}
+                              d={`M ${hx - 7} ${rodYMm * scale + 14} L ${hx} ${rodYMm * scale + 4} L ${hx + 7} ${rodYMm * scale + 14}`}
+                              stroke="#94a3b8"
+                              strokeWidth="1.3"
+                              fill="none"
+                            />
+                          );
+                        })}
+                        {/* Un-rod toggle, top-left */}
+                        <g
+                          className="cursor-pointer"
+                          role="button"
+                          aria-label={`Remove hanging rod, compartment ${compIdx + 1}, column ${colIdx + 1}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleRod(colIdx, compIdx);
+                          }}
+                        >
+                          <circle cx={colXPx + 12} cy={top * scale + 12} r="7" fill="#fff7ed" stroke="#92400e" strokeWidth="1.3" />
+                          <Shirt x={colXPx + 7} y={top * scale + 7} width={10} height={10} color="#92400e" />
+                        </g>
+                        {gapLabel}
+                      </g>
+                    );
+                  }
 
                   if (isSplit) {
                     const leftDrawer = (col.drawerSubCells ?? []).includes(`${compIdx}:0`);
@@ -458,22 +475,36 @@ export const ClosetInteriorEditor: React.FC<ClosetInteriorEditorProps> = ({ item
                         <circle cx={colXPx + colWPx - 12} cy={top * scale + 12} r="8" fill="#fff" stroke={isDrawer ? '#db2777' : '#0891b2'} strokeWidth="1.3" />
                         <Archive x={colXPx + colWPx - 17} y={top * scale + 7} width={10} height={10} color={isDrawer ? '#db2777' : '#0891b2'} />
                       </g>
-                      {/* Split-into-two toggle, top-left - only offered for a
-                          plain open/shelf compartment (a whole drawer or an
-                          already-split cell hides this). */}
+                      {/* Split-into-two toggle, top-left, and make-hanging-rod
+                          toggle, top-center - only offered for a plain
+                          open/shelf compartment (a whole drawer hides both). */}
                       {!isDrawer && (
-                        <g
-                          className="cursor-pointer"
-                          role="button"
-                          aria-label={`Split compartment ${compIdx + 1}, column ${colIdx + 1}`}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            toggleSplit(colIdx, compIdx);
-                          }}
-                        >
-                          <circle cx={colXPx + 12} cy={top * scale + 12} r="7" fill="#fff" stroke="#64748b" strokeWidth="1.3" />
-                          <SplitSquareHorizontal x={colXPx + 7} y={top * scale + 7} width={10} height={10} color="#64748b" />
-                        </g>
+                        <>
+                          <g
+                            className="cursor-pointer"
+                            role="button"
+                            aria-label={`Split compartment ${compIdx + 1}, column ${colIdx + 1}`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleSplit(colIdx, compIdx);
+                            }}
+                          >
+                            <circle cx={colXPx + 12} cy={top * scale + 12} r="7" fill="#fff" stroke="#64748b" strokeWidth="1.3" />
+                            <SplitSquareHorizontal x={colXPx + 7} y={top * scale + 7} width={10} height={10} color="#64748b" />
+                          </g>
+                          <g
+                            className="cursor-pointer"
+                            role="button"
+                            aria-label={`Make hanging rod, compartment ${compIdx + 1}, column ${colIdx + 1}`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleRod(colIdx, compIdx);
+                            }}
+                          >
+                            <circle cx={colXPx + colWPx / 2} cy={top * scale + 12} r="7" fill="#fff" stroke="#92400e" strokeWidth="1.3" />
+                            <Shirt x={colXPx + colWPx / 2 - 5} y={top * scale + 7} width={10} height={10} color="#92400e" />
+                          </g>
+                        </>
                       )}
                       {gapLabel}
                     </g>
@@ -535,32 +566,6 @@ export const ClosetInteriorEditor: React.FC<ClosetInteriorEditorProps> = ({ item
             );
           })}
 
-          {/* Column headers - type toggle + remove, drawn above the box */}
-          {layout.columns.map((col, colIdx) => {
-            const colXMm = colOffsets[colIdx];
-            const colXPx = colXMm * scale;
-            const colWPx = col.widthMm * scale;
-            return (
-              <g key={`header-${col.id}`}>
-                <g
-                  className="cursor-pointer"
-                  role="button"
-                  aria-label={`Switch column ${colIdx + 1} between Shelves and Hanging Rod (currently ${col.type === 'hanging_rod' ? 'Hanging Rod' : 'Shelves'})`}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    toggleColumnType(colIdx);
-                  }}
-                >
-                  <rect x={colXPx + colWPx / 2 - 11} y={-2} width={22} height={18} rx={4} fill="#fff" stroke="#92400e" strokeWidth="1" />
-                  {col.type === 'hanging_rod' ? (
-                    <Shirt x={colXPx + colWPx / 2 - 7} y={2} width={14} height={14} color="#92400e" />
-                  ) : (
-                    <Rows x={colXPx + colWPx / 2 - 7} y={2} width={14} height={14} color="#92400e" />
-                  )}
-                </g>
-              </g>
-            );
-          })}
         </svg>
       </div>
 
@@ -572,19 +577,16 @@ export const ClosetInteriorEditor: React.FC<ClosetInteriorEditorProps> = ({ item
           <Plus className="w-3 h-3" />
           Add Column
         </button>
-        {layout.columns.map(
-          (col, colIdx) =>
-            col.type === 'shelves' && (
-              <button
-                key={col.id}
-                onClick={() => addShelf(colIdx)}
-                className="flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1.5 rounded-lg bg-cyan-100 hover:bg-cyan-200 text-cyan-800 transition"
-              >
-                <Plus className="w-3 h-3" />
-                Shelf in Col {colIdx + 1}
-              </button>
-            )
-        )}
+        {layout.columns.map((col, colIdx) => (
+          <button
+            key={col.id}
+            onClick={() => addShelf(colIdx)}
+            className="flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1.5 rounded-lg bg-cyan-100 hover:bg-cyan-200 text-cyan-800 transition"
+          >
+            <Plus className="w-3 h-3" />
+            Shelf in Col {colIdx + 1}
+          </button>
+        ))}
         {layout.columns.length > 1 && (
           <select
             value=""
@@ -597,7 +599,7 @@ export const ClosetInteriorEditor: React.FC<ClosetInteriorEditorProps> = ({ item
             <option value="">Remove column…</option>
             {layout.columns.map((col, idx) => (
               <option key={col.id} value={idx}>
-                Column {idx + 1} ({col.type === 'hanging_rod' ? 'Rod' : 'Shelves'})
+                Column {idx + 1}
               </option>
             ))}
           </select>
@@ -606,16 +608,16 @@ export const ClosetInteriorEditor: React.FC<ClosetInteriorEditorProps> = ({ item
 
       <div className="flex items-center gap-3 flex-wrap text-[10px] text-slate-500">
         <span className="flex items-center gap-1">
-          <Shirt className="w-3 h-3 text-amber-700" /> Hanging rod column
+          Drag a shelf line ↕, click × to remove it
         </span>
         <span className="flex items-center gap-1">
-          <Rows className="w-3 h-3 text-cyan-700" /> Shelves column (drag shelf ↕, click × to remove)
+          <Archive className="w-3 h-3 text-rose-700" /> Make Drawer / Shelf
         </span>
         <span className="flex items-center gap-1">
-          <Archive className="w-3 h-3 text-rose-700" /> Click a compartment's icon to toggle Drawer / Shelf
+          <Shirt className="w-3 h-3 text-amber-700" /> Make Hanging Rod bay
         </span>
         <span className="flex items-center gap-1">
-          <SplitSquareHorizontal className="w-3 h-3 text-slate-600" /> Split a compartment with a vertical shelf (left/right drawers)
+          <SplitSquareHorizontal className="w-3 h-3 text-slate-600" /> Split with a vertical shelf (left/right drawers)
         </span>
       </div>
     </div>

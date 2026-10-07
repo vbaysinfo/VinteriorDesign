@@ -1069,42 +1069,30 @@ export const Cad2DViewer: React.FC<Cad2DViewerProps> = ({
                                 />
                               );
 
-                              if (col.type === 'hanging_rod') {
-                                const rodYMm = Math.min(innerHeightMm - 60, (col.shelvesMm[0] ?? 0) + 120);
-                                return (
-                                  <g key={`cs-col-${colIdx}`}>
-                                    {col.shelvesMm.length > 0 && (
-                                      <line
-                                        x1={colXPx}
-                                        y1={itemY + insetY + col.shelvesMm[0] * scaleY}
-                                        x2={colXPx + colWPx}
-                                        y2={itemY + insetY + col.shelvesMm[0] * scaleY}
-                                        stroke={interiorLineColor}
-                                        strokeWidth="2"
-                                      />
-                                    )}
-                                    <line
-                                      x1={colXPx + 6}
-                                      y1={itemY + insetY + rodYMm * scaleY}
-                                      x2={colXPx + colWPx - 6}
-                                      y2={itemY + insetY + rodYMm * scaleY}
-                                      stroke={interiorLineColor}
-                                      strokeWidth="2"
-                                      opacity="0.7"
-                                    />
-                                    {boundaryEl}
-                                  </g>
-                                );
-                              }
-
                               const sortedShelves = [...col.shelvesMm].sort((a, b) => a - b);
                               const bounds = [0, ...sortedShelves, innerHeightMm];
+                              const rodSet = new Set(col.rodCompartments);
                               const splitSet = new Set(col.splitCompartments ?? []);
                               const subCellDrawerSet = new Set(col.drawerSubCells ?? []);
                               return (
                                 <g key={`cs-col-${colIdx}`}>
                                   {bounds.slice(0, -1).map((top, compIdx) => {
                                     const bottom = bounds[compIdx + 1];
+                                    if (rodSet.has(compIdx)) {
+                                      const rodYMm = Math.min(bottom - 60, top + 120);
+                                      return (
+                                        <line
+                                          key={`cs-rod-${colIdx}-${compIdx}`}
+                                          x1={colXPx + 6}
+                                          y1={itemY + insetY + rodYMm * scaleY}
+                                          x2={colXPx + colWPx - 6}
+                                          y2={itemY + insetY + rodYMm * scaleY}
+                                          stroke={interiorLineColor}
+                                          strokeWidth="2"
+                                          opacity="0.7"
+                                        />
+                                      );
+                                    }
                                     if (splitSet.has(compIdx)) {
                                       const midXPx = colXPx + colWPx / 2;
                                       return (
