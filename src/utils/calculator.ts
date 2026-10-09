@@ -308,11 +308,41 @@ export function getAutoClosetLayout(widthMm: number, heightMm: number): ClosetLa
   return { columns };
 }
 
+// Fills in any array field a saved ClosetColumn is missing, so a layout
+// saved by an EARLIER version of this app - back when a column had a single
+// `type: 'shelves' | 'hanging_rod'` instead of a per-compartment
+// rodCompartments flag, and before splitCompartments/drawerSubCells existed
+// at all - still loads instead of throwing when every consumer here (the
+// editor, the 2D/3D/print views, the cut list) reads col.rodCompartments
+// as a plain array. A whole-column 'hanging_rod' migrates to exactly what
+// it used to render as: an overhead shelf (if it had one) then one tall rod
+// bay occupying the rest of the column, now expressed as that column's
+// single rodCompartments entry.
+function normalizeClosetColumn(col: any): ClosetColumn {
+  const shelvesMm = Array.isArray(col?.shelvesMm) ? col.shelvesMm : [];
+  let rodCompartments = Array.isArray(col?.rodCompartments) ? col.rodCompartments : undefined;
+  if (rodCompartments === undefined) {
+    rodCompartments = col?.type === 'hanging_rod' ? [shelvesMm.length > 0 ? 1 : 0] : [];
+  }
+  return {
+    id: typeof col?.id === 'string' ? col.id : makeClosetColumnId(),
+    widthMm: typeof col?.widthMm === 'number' ? col.widthMm : 0,
+    shelvesMm,
+    drawerCompartments: Array.isArray(col?.drawerCompartments) ? col.drawerCompartments : [],
+    rodCompartments,
+    splitCompartments: Array.isArray(col?.splitCompartments) ? col.splitCompartments : [],
+    drawerSubCells: Array.isArray(col?.drawerSubCells) ? col.drawerSubCells : [],
+  };
+}
+
 // The item's real closet interior - its own saved layout if it has one
 // (even a deliberately stripped-down one), otherwise an auto-generated
-// default from its current width/height.
+// default from its current width/height. Always normalized (see
+// normalizeClosetColumn) so every consumer can trust every array field is
+// actually present, regardless of which app version first saved it.
 export function getEffectiveClosetLayout(item: ModularItem): ClosetLayout {
-  return item.closetLayout ?? getAutoClosetLayout(item.widthMm, item.heightMm);
+  const layout = item.closetLayout ?? getAutoClosetLayout(item.widthMm, item.heightMm);
+  return { columns: layout.columns.map(normalizeClosetColumn) };
 }
 
 // Whether an item has doors drawn/cut at all - excludes drawer-only units
