@@ -1,5 +1,5 @@
 import React from 'react';
-import { ModularItem, ProjectType, FactoryRates, DoorType } from '../types';
+import { ModularItem, ProjectType, FactoryRates, DoorType, UnitCategory } from '../types';
 import {
   generateCutListForItem,
   mmToFt,
@@ -11,6 +11,7 @@ import {
   resolveEffectiveProjectType,
   getAutoShutterCount,
   isClosetEligible,
+  CATEGORY_LABELS,
 } from '../utils/calculator';
 import { X, Box, Layers, Scissors, Check, Sliders, DoorOpen } from 'lucide-react';
 import { NumberField } from './NumberField';
@@ -108,6 +109,40 @@ export const ItemInspectorDrawer: React.FC<ItemInspectorDrawerProps> = ({
               Wall: {item.wall.toUpperCase()}
             </span>
           </div>
+
+          {/* Category - auto-detected from the description at upload time
+              (sniffed for keywords like "wardrobe"/"dressing"/"loft"), which
+              silently falls back to "Other" for a typo'd or unrecognized
+              wording - that quietly disables the closet interior editor
+              below, hardware rules, and everything else keyed off category,
+              with no error shown anywhere. Always fixable by hand here. */}
+          <div className="flex items-center justify-between pb-1">
+            <span className="text-[11px] font-semibold text-slate-600">Category</span>
+            <select
+              value={item.category}
+              onChange={(e) => onUpdateItem({ ...item, category: e.target.value as UnitCategory })}
+              className={`text-[11px] font-bold rounded-lg px-2.5 py-1 border ${
+                item.category === 'other'
+                  ? 'bg-red-50 border-red-300 text-red-800'
+                  : 'bg-white border-slate-300 text-slate-700'
+              }`}
+            >
+              {(Object.keys(CATEGORY_LABELS) as UnitCategory[]).map((cat) => (
+                <option key={cat} value={cat}>
+                  {CATEGORY_LABELS[cat]}
+                </option>
+              ))}
+            </select>
+          </div>
+          {item.category === 'other' && (
+            <div className="flex items-start gap-1.5 text-[11px] text-red-700 bg-red-50 border border-red-200 rounded-lg px-2.5 py-2">
+              <span>
+                ⚠ Category is "Other" - usually means the description didn't match a known keyword at upload (a typo like
+                "Wardrone" instead of "Wardrobe"). Pick the right category above to restore its closet editor, hardware rules,
+                and cut list behavior.
+              </span>
+            </div>
+          )}
 
           <div className="grid grid-cols-3 gap-2 text-center">
             <div className="p-2 bg-white rounded-lg border border-slate-200">

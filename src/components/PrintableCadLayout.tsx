@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { ModularItem, WallType, ProjectType } from '../types';
+import { ModularItem, CutListPart, WallType, ProjectType } from '../types';
 import {
   getShutterLayout,
   hasShutterDoors,
@@ -7,10 +7,12 @@ import {
   resolveEffectiveProjectType,
   isClosetEligible,
   getEffectiveClosetLayout,
+  calculateMaterialUsage,
 } from '../utils/calculator';
 
 interface PrintableCadLayoutProps {
   items: ModularItem[];
+  cutList: CutListPart[];
   projectName: string;
   projectType: ProjectType;
   active: boolean;
@@ -50,7 +52,7 @@ const isOverheadCategory = (i: ModularItem) => i.category === 'kitchen_overhead'
 // the units below it, not beside them, so summing every item's width into
 // one row would double-count the same wall footprint and wildly overstate
 // the wall's real width.
-export const PrintableCadLayout: React.FC<PrintableCadLayoutProps> = ({ items, projectName, projectType, active }) => {
+export const PrintableCadLayout: React.FC<PrintableCadLayoutProps> = ({ items, cutList, projectName, projectType, active }) => {
   const rooms = useMemo(() => {
     const seen: string[] = [];
     items.forEach((i) => {
@@ -59,8 +61,52 @@ export const PrintableCadLayout: React.FC<PrintableCadLayoutProps> = ({ items, p
     return seen;
   }, [items]);
 
+  // Project-wide high-level summary - printed once at the very top, ahead
+  // of every room's own elevation drawings, so whoever's holding the
+  // printout (factory floor, client sign-off) sees the whole job's scale
+  // before drilling into any one room. Total Sq.ft mirrors the Analytics
+  // Report's own definition (every item's elevation face area, not panel
+  // material); Total Sheets comes from the exact same cut list the Cutting
+  // List tab nests, so it matches that tab exactly.
+  const totalAreaSqFt = useMemo(
+    () => Number(items.reduce((s, i) => s + i.widthFt * i.heightFt * (i.quantity || 1), 0).toFixed(1)),
+    [items]
+  );
+  const totalSheets = useMemo(() => calculateMaterialUsage(cutList).totalSheets, [cutList]);
+
   return (
     <div className={active ? 'hidden print:block bg-white text-slate-900' : 'hidden'}>
+      {/* High-Level Project Summary - its own page, before the first room */}
+      <div className="break-after-page p-8">
+        <h1 className="text-2xl font-black text-slate-900">{projectName}</h1>
+        <p className="text-sm text-slate-500 mt-1">
+          Project CAD Layout - {projectType === 'semi' ? 'Semi Modular (Civil-built)' : 'Full Modular (Factory prefab)'} mode
+        </p>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-6">
+          <div className="border border-slate-300 rounded-xl p-4">
+            <div className="text-[11px] font-bold uppercase tracking-wide text-slate-400">Rooms</div>
+            <div className="text-3xl font-black text-slate-900 mt-1">{rooms.length}</div>
+          </div>
+          <div className="border border-slate-300 rounded-xl p-4">
+            <div className="text-[11px] font-bold uppercase tracking-wide text-slate-400">Total Units</div>
+            <div className="text-3xl font-black text-slate-900 mt-1">{items.length}</div>
+          </div>
+          <div className="border border-slate-300 rounded-xl p-4">
+            <div className="text-[11px] font-bold uppercase tracking-wide text-slate-400">Total Sq.ft</div>
+            <div className="text-3xl font-black text-slate-900 mt-1">{totalAreaSqFt.toLocaleString()}</div>
+            <div className="text-[10px] text-slate-400 mt-0.5">Cabinet face area, not panel material</div>
+          </div>
+          <div className="border border-slate-300 rounded-xl p-4">
+            <div className="text-[11px] font-bold uppercase tracking-wide text-slate-400">Total Sheets</div>
+            <div className="text-3xl font-black text-slate-900 mt-1">{totalSheets}</div>
+            <div className="text-[10px] text-slate-400 mt-0.5">8x4ft boards, from the real cut list</div>
+          </div>
+        </div>
+        <div className="mt-6 text-xs text-slate-500">
+          <span className="font-bold text-slate-700">Rooms in this project:</span> {rooms.join(', ')}
+        </div>
+      </div>
+
       {rooms.map((room, roomIdx) => {
         const roomItems = items.filter((i) => i.room === room);
         const walls = WALL_ORDER.filter((w) => roomItems.some((i) => i.wall === w));

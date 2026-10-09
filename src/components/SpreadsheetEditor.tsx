@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
-import { ModularItem, CutListPart, WallType, ProjectType } from '../types';
-import { ftToMm, mmToFt, recalculateItemMetrics, isDepthRequiredButMissing, resolveEffectiveProjectType, hasShutterDoors, getAutoShutterCount } from '../utils/calculator';
+import { ModularItem, CutListPart, WallType, ProjectType, UnitCategory } from '../types';
+import { ftToMm, mmToFt, recalculateItemMetrics, isDepthRequiredButMissing, resolveEffectiveProjectType, hasShutterDoors, getAutoShutterCount, CATEGORY_LABELS } from '../utils/calculator';
 import { exportCutListFactoryFormat } from '../utils/excelParser';
 import { Plus, Trash2, Copy, Search, Filter, ArrowUpDown, FileSpreadsheet, Download } from 'lucide-react';
 import { NumberField } from './NumberField';
@@ -242,6 +242,9 @@ export const SpreadsheetEditor: React.FC<SpreadsheetEditorProps> = ({
               <th className="py-2.5 px-3 border-r border-slate-600 w-28">Room</th>
               <th className="py-2.5 px-2 border-r border-slate-600 text-center w-20">Wall</th>
               <th className="py-2.5 px-3 border-r border-slate-600 min-w-[180px]">Item / Furniture Description</th>
+              <th className="py-2.5 px-2 border-r border-slate-600 text-center min-w-[150px]">
+                Category <span className="text-[9px] font-normal block lowercase opacity-80">auto-detected, fix if wrong</span>
+              </th>
               <th className="py-2.5 px-2 border-r border-slate-600 text-center bg-cyan-950/80 w-18">
                 Width (ft) <span className="text-[9px] font-normal block lowercase opacity-80">semi + full</span>
               </th>
@@ -321,6 +324,30 @@ export const SpreadsheetEditor: React.FC<SpreadsheetEditorProps> = ({
                       onChange={(e) => handleCellChange(item.id, 'description', e.target.value)}
                       className="w-full bg-transparent text-slate-900 font-medium focus:bg-white focus:ring-1 focus:ring-cyan-500 rounded px-1"
                     />
+                  </td>
+
+                  {/* Category - auto-detected from the description at upload
+                      time (see categorizeDescription), which silently falls
+                      back to "Other" for a typo'd or unrecognized wording
+                      (e.g. "Wardrone" never matches "wardrobe"), quietly
+                      disabling the closet interior editor and everything
+                      else that keys off category - always fixable here. */}
+                  <td className="py-1.5 px-2 border-r border-slate-200 text-center" onClick={(e) => e.stopPropagation()}>
+                    <select
+                      value={item.category}
+                      onChange={(e) => handleCellChange(item.id, 'category', e.target.value as UnitCategory)}
+                      className={`text-[10px] font-sans font-bold px-1 py-0.5 rounded focus:outline-hidden ${
+                        item.category === 'other'
+                          ? 'bg-red-100 text-red-800 ring-1 ring-red-300'
+                          : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                      }`}
+                    >
+                      {(Object.keys(CATEGORY_LABELS) as UnitCategory[]).map((cat) => (
+                        <option key={cat} value={cat}>
+                          {CATEGORY_LABELS[cat]}
+                        </option>
+                      ))}
+                    </select>
                   </td>
 
                   {/* Width ft */}

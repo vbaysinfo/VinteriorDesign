@@ -230,6 +230,34 @@ export function isClosetEligible(item: ModularItem): boolean {
   return CLOSET_CATEGORIES.includes(item.category);
 }
 
+// Category is assigned once, at Excel-upload time, by sniffing keywords out
+// of the item's own description text (see categorizeDescription in
+// excelParser.ts) - a typo or an unrecognized wording (e.g. "Wardrone"
+// instead of "Wardrobe") silently falls through to 'other' with no error,
+// which quietly disables the closet interior editor, hardware rules, and
+// everything else that keys off category for that one row. This label map
+// backs an editable Category dropdown (Excel Format Editor + Item
+// Inspector) so that's always fixable by hand afterwards, instead of only
+// by re-uploading a corrected sheet.
+export const CATEGORY_LABELS: Record<UnitCategory, string> = {
+  wardrobe_shutter: 'Wardrobe (Shutter)',
+  single_wardrobe: 'Single Wardrobe',
+  dressing_unit: 'Dressing Unit',
+  loft: 'Loft',
+  sitting_box: 'Sitting Box',
+  expo: 'Expo (Flat Panel)',
+  dummy: 'Dummy (Flat Panel)',
+  profile_door: 'Profile / Glass Door',
+  shelves: 'Shelves (Open Display)',
+  tv_panel: 'TV Panel / Louvre',
+  partition: 'Partition',
+  kitchen_base: 'Kitchen Base Unit',
+  kitchen_overhead: 'Kitchen Overhead Unit',
+  kitchen_loft: 'Kitchen Loft',
+  tandem_box: 'Tandem Box (Drawer Unit)',
+  other: 'Other / Uncategorized',
+};
+
 export const CLOSET_DIVIDER_THICKNESS_MM = 18;
 const CLOSET_TARGET_COLUMN_WIDTH_MM = 650; // a comfortable hanging/shelf column width
 const CLOSET_TARGET_SHELF_SPACING_MM = 350; // typical shelf-to-shelf clearance
