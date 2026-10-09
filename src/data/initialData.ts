@@ -1,7 +1,7 @@
 import { ModularItem, FactoryRates, ProjectInfo } from '../types';
 
 export const DEFAULT_PROJECT_INFO: ProjectInfo = {
-  projectName: 'Avina Luxury Residence Interior',
+  projectName: 'Vbay Interiors',
   clientName: 'Modern Villa Client',
   clientEmail: 'avinainteriors@gmail.com',
   clientPhone: '+91 98450 12345',
