@@ -7,6 +7,15 @@ export type ProjectType = 'semi' | 'full';
 // width ladder. See getAutoShutterCount() in calculator.ts.
 export type DoorType = 'hinged' | 'sliding';
 
+// How an item's drawers are built. 'standard' (the default/undefined) is a
+// plain soft-close drawer box; 'tandem' is the deeper, heavier-duty pot/pan
+// channel system common in kitchen base units - same Drawer Front/Side/
+// Bottom construction either way (drawerCount still auto-divides the
+// item's own Width/Height/Depth into that many equal tiers), it only
+// changes which drawer channel hardware gets priced (see
+// calculateHardwareBOM / calculateMaterialUsage).
+export type DrawerType = 'standard' | 'tandem';
+
 export type WallType = 'front' | 'left' | 'right' | 'back';
 
 // The closed set of cut-part types a modular item can generate. Shared
@@ -119,6 +128,7 @@ export interface ModularItem {
   shutterCount: number;
   doorType?: DoorType; // blank/undefined = hinged (open/close); 'sliding' = track-mounted, never drawn with a hinge swing
   drawerCount: number;
+  drawerType?: DrawerType; // blank/undefined = standard soft-close drawer; 'tandem' = tandem box (pot/pan) channel hardware instead
   shelfCount: number;
   // Wardrobe/dressing-unit interior closet design (vertical partitions +
   // horizontal shelves) - only meaningful for a closet-eligible category
@@ -199,6 +209,11 @@ export interface CutListPart {
   // lets hardware calculation charge a sliding track/rollers instead of
   // hinges for that panel, without having to look the item back up.
   doorType?: DoorType;
+  // Copied from the originating item, only ever set on a 'Drawer Front'
+  // part - lets hardware calculation charge tandem box channels instead of
+  // standard soft-close channels for that drawer, without having to look
+  // the item back up.
+  drawerType?: DrawerType;
   sheetNumber?: string;
   edgeL1: boolean;
   edgeL2: boolean;

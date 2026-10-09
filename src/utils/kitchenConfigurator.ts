@@ -1,4 +1,4 @@
-import { ModularItem, WallType } from '../types';
+import { ModularItem, WallType, DrawerType } from '../types';
 import { ftToMm, recalculateItemMetrics } from './calculator';
 
 export type KitchenLayoutShape = 'straight' | 'l_shape' | 'u_shape' | 'parallel' | 'island';
@@ -40,6 +40,12 @@ export interface KitchenConfiguratorOptions {
   includeOverhead: boolean;
   includeLoft: boolean;
   drawersPerRun: number; // 0 = no drawer bank in the base run
+  // 'tandem' auto-divides the base run's own Height into drawersPerRun
+  // equal tiers exactly like 'standard' does - the only difference is
+  // which drawer channel hardware gets priced (tandem box channel instead
+  // of a plain soft-close channel), matching the deeper pot/pan drawers a
+  // real kitchen base run almost always actually has.
+  drawerType: DrawerType;
   coreMaterial: ModularItem['coreMaterial'];
   finishType: ModularItem['finishType'];
   laminateColorCode?: string;
@@ -50,6 +56,7 @@ export const DEFAULT_KITCHEN_OPTIONS: Omit<KitchenConfiguratorOptions, 'shape' |
   includeOverhead: true,
   includeLoft: false,
   drawersPerRun: 0,
+  drawerType: 'standard',
   coreMaterial: 'BWR Commercial Ply',
   finishType: 'Laminate',
   laminateColorCode: '',
@@ -122,6 +129,7 @@ export function generateKitchenLayout(options: KitchenConfiguratorOptions, exist
         heightFt: BASE_HEIGHT_FT,
         depthFt: BASE_DEPTH_FT,
         drawerCount: options.drawersPerRun,
+        drawerType: options.drawerType === 'tandem' ? 'tandem' : undefined,
       },
       options
     );

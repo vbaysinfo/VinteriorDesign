@@ -426,6 +426,47 @@ export const ItemInspectorDrawer: React.FC<ItemInspectorDrawerProps> = ({
             )}
           </div>
 
+          {/* Drawer Type - Standard soft-close vs Tandem Box (the deeper
+              pot/pan channel system common in kitchen base units). The
+              drawer count above already auto-divides this item's own
+              Width/Height/Depth into that many equal tiers (same as a
+              shutter's width ladder), so switching style here is purely a
+              hardware choice, not a resize - the quick "2 Tandem"/"3
+              Tandem" buttons just set both the count and the style in one
+              click, matching the common kitchen base pattern. */}
+          {item.drawerCount > 0 && (
+            <div>
+              <label className="block text-slate-600 font-medium mb-1">Drawer Type</label>
+              <div className="flex items-center gap-2">
+                <select
+                  value={item.drawerType === 'tandem' ? 'tandem' : 'standard'}
+                  onChange={(e) => onUpdateItem({ ...item, drawerType: e.target.value === 'tandem' ? 'tandem' : undefined })}
+                  className="flex-1 bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 font-bold"
+                >
+                  <option value="standard">Standard (Soft-Close)</option>
+                  <option value="tandem">Tandem Box (Pot/Pan Channel)</option>
+                </select>
+                <button
+                  onClick={() => onUpdateItem({ ...item, drawerType: 'tandem', drawerCount: 2 })}
+                  className="px-2 py-1.5 text-[11px] font-bold rounded-lg bg-slate-100 hover:bg-amber-100 text-slate-700 hover:text-amber-800 transition"
+                >
+                  2 Tandem
+                </button>
+                <button
+                  onClick={() => onUpdateItem({ ...item, drawerType: 'tandem', drawerCount: 3 })}
+                  className="px-2 py-1.5 text-[11px] font-bold rounded-lg bg-slate-100 hover:bg-amber-100 text-slate-700 hover:text-amber-800 transition"
+                >
+                  3 Tandem
+                </button>
+              </div>
+              <span className="text-[10px] text-slate-400 mt-0.5 block">
+                {item.drawerType === 'tandem'
+                  ? `${item.drawerCount} tandem box channel(s) - each tier sized from this item's own Width/Height/Depth above`
+                  : `${item.drawerCount} standard soft-close drawer(s)`}
+              </span>
+            </div>
+          )}
+
           {isCloset && <ClosetInteriorEditor item={item} onUpdateItem={onUpdateItem} />}
 
           {/* Fabric and shutter color are two different material rules -

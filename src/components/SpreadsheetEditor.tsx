@@ -92,6 +92,8 @@ export const SpreadsheetEditor: React.FC<SpreadsheetEditorProps> = ({
         const doorType = value === 'sliding' ? 'sliding' : undefined;
         newItem.doorType = doorType;
         newItem.shutterCount = getAutoShutterCount(newItem.widthMm, doorType);
+      } else if (field === 'drawerType') {
+        newItem.drawerType = value === 'tandem' ? 'tandem' : undefined;
       }
 
       return recalculateItemMetrics(newItem);
@@ -264,6 +266,9 @@ export const SpreadsheetEditor: React.FC<SpreadsheetEditorProps> = ({
               <th className="py-2.5 px-2 border-r border-slate-600 text-center w-16">Qty</th>
               <th className="py-2.5 px-2 border-r border-slate-600 text-center w-28">
                 Door Type <span className="text-[9px] font-normal block lowercase opacity-80">auto-sets panel count</span>
+              </th>
+              <th className="py-2.5 px-2 border-r border-slate-600 text-center w-28">
+                Drawer Type <span className="text-[9px] font-normal block lowercase opacity-80">tandem = kitchen channel</span>
               </th>
               <th className="py-2.5 px-2 border-r border-slate-600 text-center w-28">
                 Type Override <span className="text-[9px] font-normal block lowercase opacity-80">blank=inherit</span>
@@ -449,6 +454,25 @@ export const SpreadsheetEditor: React.FC<SpreadsheetEditorProps> = ({
                       >
                         <option value="hinged">Hinged</option>
                         <option value="sliding">Sliding</option>
+                      </select>
+                    ) : (
+                      <span className="text-slate-300">—</span>
+                    )}
+                  </td>
+
+                  {/* Drawer Type - Standard (default) soft-close drawer channel;
+                      Tandem Box is the deeper pot/pan channel system common in
+                      kitchen base units. Only meaningful once there's at least
+                      one drawer to build. */}
+                  <td className="py-1.5 px-2 border-r border-slate-200 text-center" onClick={(e) => e.stopPropagation()}>
+                    {item.drawerCount > 0 ? (
+                      <select
+                        value={item.drawerType === 'tandem' ? 'tandem' : 'standard'}
+                        onChange={(e) => handleCellChange(item.id, 'drawerType', e.target.value)}
+                        className="text-[10px] font-sans font-bold uppercase bg-slate-100 hover:bg-slate-200 px-1 py-0.5 rounded text-slate-700 focus:outline-hidden w-full"
+                      >
+                        <option value="standard">Standard</option>
+                        <option value="tandem">Tandem</option>
                       </select>
                     ) : (
                       <span className="text-slate-300">—</span>

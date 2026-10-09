@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { ModularItem } from '../types';
+import { ModularItem, DrawerType } from '../types';
 import {
   KitchenLayoutShape,
   KitchenConfiguratorOptions,
@@ -38,6 +38,7 @@ export const KitchenConfigurator: React.FC<KitchenConfiguratorProps> = ({ items,
   const [includeOverhead, setIncludeOverhead] = useState(DEFAULT_KITCHEN_OPTIONS.includeOverhead);
   const [includeLoft, setIncludeLoft] = useState(DEFAULT_KITCHEN_OPTIONS.includeLoft);
   const [drawersPerRun, setDrawersPerRun] = useState(DEFAULT_KITCHEN_OPTIONS.drawersPerRun);
+  const [drawerType, setDrawerType] = useState<DrawerType>(DEFAULT_KITCHEN_OPTIONS.drawerType);
   const [coreMaterial, setCoreMaterial] = useState<ModularItem['coreMaterial']>(DEFAULT_KITCHEN_OPTIONS.coreMaterial);
   const [finishType, setFinishType] = useState<ModularItem['finishType']>(DEFAULT_KITCHEN_OPTIONS.finishType);
   const [laminateColorCode, setLaminateColorCode] = useState('');
@@ -58,6 +59,7 @@ export const KitchenConfigurator: React.FC<KitchenConfiguratorProps> = ({ items,
     includeOverhead,
     includeLoft: includeOverhead && includeLoft,
     drawersPerRun,
+    drawerType,
     coreMaterial,
     finishType,
     laminateColorCode,
@@ -70,6 +72,7 @@ export const KitchenConfigurator: React.FC<KitchenConfiguratorProps> = ({ items,
     includeOverhead,
     includeLoft,
     drawersPerRun,
+    drawerType,
     coreMaterial,
     finishType,
     laminateColorCode,
@@ -156,7 +159,7 @@ export const KitchenConfigurator: React.FC<KitchenConfiguratorProps> = ({ items,
             </div>
             <div>
               <label className="block text-xs font-bold text-slate-600 uppercase tracking-wide mb-1">
-                Drawers per Base Run
+                {drawerType === 'tandem' ? 'Tandem Boxes per Base Run' : 'Drawers per Base Run'}
               </label>
               <input
                 type="number"
@@ -168,6 +171,55 @@ export const KitchenConfigurator: React.FC<KitchenConfiguratorProps> = ({ items,
               />
             </div>
           </div>
+
+          {/* Drawer Style - Standard soft-close vs Tandem Box, the deeper
+              pot/pan channel system most real kitchen base runs actually
+              use. The count above already auto-divides each base run's own
+              Height into that many equal tiers either way (same as a
+              shutter's width ladder) - this only changes which drawer
+              channel hardware gets priced. The 2/3 Tandem chips are the
+              common kitchen pattern, set both fields in one click. */}
+          {drawersPerRun > 0 && (
+            <div>
+              <label className="block text-xs font-bold text-slate-600 uppercase tracking-wide mb-2">Drawer Style</label>
+              <div className="flex flex-wrap items-center gap-2">
+                <select
+                  value={drawerType}
+                  onChange={(e) => setDrawerType(e.target.value === 'tandem' ? 'tandem' : 'standard')}
+                  className="bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-800"
+                >
+                  <option value="standard">Standard (Soft-Close)</option>
+                  <option value="tandem">Tandem Box (Pot/Pan Channel)</option>
+                </select>
+                <button
+                  onClick={() => {
+                    setDrawerType('tandem');
+                    setDrawersPerRun(2);
+                  }}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition ${
+                    drawerType === 'tandem' && drawersPerRun === 2
+                      ? 'bg-orange-600 border-orange-700 text-white'
+                      : 'bg-white border-slate-300 text-slate-700 hover:border-orange-400'
+                  }`}
+                >
+                  2 Tandem
+                </button>
+                <button
+                  onClick={() => {
+                    setDrawerType('tandem');
+                    setDrawersPerRun(3);
+                  }}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition ${
+                    drawerType === 'tandem' && drawersPerRun === 3
+                      ? 'bg-orange-600 border-orange-700 text-white'
+                      : 'bg-white border-slate-300 text-slate-700 hover:border-orange-400'
+                  }`}
+                >
+                  3 Tandem
+                </button>
+              </div>
+            </div>
+          )}
 
           <div className="flex flex-wrap gap-4">
             <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">

@@ -18,6 +18,7 @@ import {
   MaterialReuseSummary,
   QuickAreaEstimate,
   DoorType,
+  DrawerType,
   ClosetLayout,
   ClosetColumn,
   UnitCategory,
@@ -572,6 +573,7 @@ export function generateCutListForItem(item: ModularItem, globalProjectType: Pro
       // No fabric on a shutter-type panel (Drawer Front is a visible face
       // just like a Shutter) - Color/Laminate only.
       backMaterialCategory: 'Color/Laminate',
+      drawerType: item.drawerType,
       edgeL1: true,
       edgeL2: true,
       edgeW1: true,
@@ -1460,7 +1462,15 @@ export function calculateMaterialUsage(cutList: CutListPart[], rules: HardwareRu
       handles += part.qty;
     } else if (part.partName === 'Drawer Front') {
       handles += part.qty;
-      if (part.itemName.toLowerCase().includes('tandom') || part.itemName.toLowerCase().includes('tandem')) {
+      // The explicit Drawer Type (Standard/Tandem Box) is the real source
+      // of truth now - the item-name sniff only covers drawers saved
+      // before that field existed, where the description itself happened
+      // to say "Tandem".
+      if (
+        part.drawerType === 'tandem' ||
+        (part.drawerType === undefined &&
+          (part.itemName.toLowerCase().includes('tandom') || part.itemName.toLowerCase().includes('tandem')))
+      ) {
         tandemBoxChannels += part.qty;
       } else {
         drawerChannels += part.qty;
@@ -1624,7 +1634,11 @@ export function calculateHardwareBOM(cutList: CutListPart[], rules: HardwareRule
           });
         }
       } else if (part.partName === 'Drawer Front') {
-        const isTandem = moduleName.toLowerCase().includes('tandom') || moduleName.toLowerCase().includes('tandem');
+        // Same explicit-flag-first rule as calculateMaterialUsage above.
+        const isTandem =
+          part.drawerType === 'tandem' ||
+          (part.drawerType === undefined &&
+            (moduleName.toLowerCase().includes('tandom') || moduleName.toLowerCase().includes('tandem')));
         push({
           componentId: part.id,
           componentType: 'Drawer',
