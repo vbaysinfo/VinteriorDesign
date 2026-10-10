@@ -285,121 +285,330 @@ export const PrintableCadLayout: React.FC<PrintableCadLayoutProps> = ({ items, c
               );
             })}
 
-            {/* Closet Interior Layouts - a wardrobe/dressing unit built with a
-                real box gets its own interior diagram printed here (vertical
-                dividers + horizontal shelves), separate from the closed-door
-                elevation above, so the factory floor has the actual interior
-                cutting/assembly intent on paper, not just the exterior look. */}
+            {/* Wardrobe Design Sheets - a wardrobe/dressing unit built with a
+                real box gets its own factory-style design sheet printed here:
+                an Outer View (shutter/drawer front elevation, as closed) and
+                an Inner View (hanger rod/shelf/drawer layout, as open) for
+                the SAME unit stacked together, each fully dimensioned - the
+                overall box width/height/depth ("outer" measurements, same
+                numbers as the Outer View and the schedule table below) and
+                every column's own width plus what each of its compartments
+                actually is ("inner" measurements) - so the factory floor has
+                both the exterior look and the real interior cutting/assembly
+                intent on one sheet, not just a plain box outline. */}
             {(() => {
               const closetItems = roomItems.filter((item) => {
                 const pType = resolveEffectiveProjectType(item, projectType);
                 return isClosetEligible(item) && pType === 'full' && item.depthMm > 0;
               });
               if (closetItems.length === 0) return null;
-              const DIAGRAM_WIDTH = 220;
+              const SHEET_WIDTH = 480; // both Outer and Inner views share this width, so they line up
+              const DIM_GUTTER = 34; // left-side height-dimension gutter, shared by both views
+              const LABEL_GUTTER = 70; // right-side room/depth callout gutter, shared by both views
+
               return (
                 <div className="mt-4 break-inside-avoid">
                   <h3 className="text-sm font-bold uppercase tracking-wide mb-2 text-slate-700 border-t-2 border-slate-900 pt-3">
-                    Closet Interior Layouts
+                    Wardrobe Design Sheets - Outer (Shutter) &amp; Inner (Closet) Views
                   </h3>
-                  <div className="flex flex-wrap gap-4">
+                  <div className="flex flex-col gap-6">
                     {closetItems.map((item) => {
+                      const dScale = SHEET_WIDTH / item.widthMm;
+                      const boxHeightPx = item.heightMm * dScale;
+                      const innerX = 18 * dScale;
+                      const innerY = 18 * dScale;
                       const innerW = Math.max(100, item.widthMm - 36);
                       const innerH = Math.max(100, item.heightMm - 36);
-                      const dScale = DIAGRAM_WIDTH / innerW;
-                      const dHeight = innerH * dScale;
                       const layout = getEffectiveClosetLayout(item);
-                      let colAcc = 0;
-                      return (
-                        <div key={item.id} className="text-center">
-                          <svg width={DIAGRAM_WIDTH} height={dHeight} viewBox={`0 0 ${DIAGRAM_WIDTH} ${dHeight}`} className="border border-slate-400">
-                            <rect x={0} y={0} width={DIAGRAM_WIDTH} height={dHeight} fill="#fffbeb" stroke="#0f172a" strokeWidth={1} />
-                            {layout.columns.map((col, colIdx) => {
-                              const colX = colAcc * dScale;
-                              const colW = col.widthMm * dScale;
-                              const isLast = colIdx === layout.columns.length - 1;
-                              colAcc += col.widthMm;
-                              const boundary = !isLast && (
-                                <line key={`bnd-${colIdx}`} x1={colX + colW} y1={0} x2={colX + colW} y2={dHeight} stroke="#0f172a" strokeWidth={1.2} />
-                              );
-                              const sortedShelves = [...col.shelvesMm].sort((a, b) => a - b);
-                              const bounds = [0, ...sortedShelves, innerH];
-                              const rodSet = new Set(col.rodCompartments);
-                              const splitSet = new Set(col.splitCompartments ?? []);
-                              const subCellDrawerSet = new Set(col.drawerSubCells ?? []);
+                      const showsShutters = hasShutterDoors(item) && item.drawerCount === 0;
+                      const { count: shutterCount, widths: shutterWidths, gapMm } = getShutterLayout(item);
+
+                      // Height dimension bracket on the left of a drawing -
+                      // matches the reference sheet's own left-side "2330"
+                      // style total-height callout.
+                      const heightDim = (totalHeightPx: number, labelMm: number) => (
+                        <g>
+                          <line x1={DIM_GUTTER - 6} y1={0} x2={DIM_GUTTER - 6} y2={totalHeightPx} stroke="#0f172a" strokeWidth={0.8} />
+                          <line x1={DIM_GUTTER - 9} y1={0} x2={DIM_GUTTER - 3} y2={0} stroke="#0f172a" strokeWidth={0.8} />
+                          <line x1={DIM_GUTTER - 9} y1={totalHeightPx} x2={DIM_GUTTER - 3} y2={totalHeightPx} stroke="#0f172a" strokeWidth={0.8} />
+                          <text
+                            x={DIM_GUTTER - 11}
+                            y={totalHeightPx / 2}
+                            textAnchor="middle"
+                            fontSize="8"
+                            fontWeight="bold"
+                            fill="#0f172a"
+                            transform={`rotate(-90, ${DIM_GUTTER - 11}, ${totalHeightPx / 2})`}
+                          >
+                            {labelMm}
+                          </text>
+                        </g>
+                      );
+
+                      // Width dimension row under a drawing, broken into one
+                      // segment per value passed in - matches the reference
+                      // sheet's "100 | 2100 | 660" style breakdown line.
+                      const widthDim = (segmentsMm: number[], atY: number, originX: number) => {
+                        let acc = 0;
+                        return (
+                          <g>
+                            {segmentsMm.map((segMm, i) => {
+                              const x1 = originX + acc * dScale;
+                              acc += segMm;
+                              const x2 = originX + acc * dScale;
                               return (
-                                <g key={col.id}>
-                                  {bounds.slice(0, -1).map((top, compIdx) => {
-                                    const bottom = bounds[compIdx + 1];
-                                    if (rodSet.has(compIdx)) {
-                                      const rodY = Math.min(bottom - 60, top + 120);
-                                      return (
-                                        <line
-                                          key={`rod-${colIdx}-${compIdx}`}
-                                          x1={colX + 4}
-                                          y1={rodY * dScale}
-                                          x2={colX + colW - 4}
-                                          y2={rodY * dScale}
-                                          stroke="#0f172a"
-                                          strokeWidth={1}
-                                          opacity={0.6}
-                                        />
-                                      );
-                                    }
-                                    if (splitSet.has(compIdx)) {
-                                      const midX = colX + colW / 2;
-                                      return (
-                                        <g key={`split-${colIdx}-${compIdx}`}>
-                                          <line x1={midX} y1={top * dScale + 1} x2={midX} y2={bottom * dScale - 1} stroke="#0f172a" strokeWidth={1} opacity={0.7} />
-                                          {([0, 1] as const).map((subIdx) => {
-                                            if (!subCellDrawerSet.has(`${compIdx}:${subIdx}`)) return null;
-                                            const cellX = subIdx === 0 ? colX : midX;
-                                            return (
-                                              <rect
-                                                key={`subdrw-${colIdx}-${compIdx}-${subIdx}`}
-                                                x={cellX + 2}
-                                                y={top * dScale + 2}
-                                                width={Math.max(0, colW / 2 - 4)}
-                                                height={Math.max(0, (bottom - top) * dScale - 4)}
-                                                fill="none"
-                                                stroke="#0f172a"
-                                                strokeDasharray="3,3"
-                                                strokeWidth={0.8}
-                                                opacity={0.6}
-                                              />
-                                            );
-                                          })}
-                                        </g>
-                                      );
-                                    }
-                                    if (!col.drawerCompartments.includes(compIdx)) return null;
-                                    return (
-                                      <rect
-                                        key={`drw-${colIdx}-${compIdx}`}
-                                        x={colX + 2}
-                                        y={top * dScale + 2}
-                                        width={Math.max(0, colW - 4)}
-                                        height={Math.max(0, (bottom - top) * dScale - 4)}
-                                        fill="none"
-                                        stroke="#0f172a"
-                                        strokeDasharray="3,3"
-                                        strokeWidth={0.8}
-                                        opacity={0.6}
-                                      />
-                                    );
-                                  })}
-                                  {sortedShelves.map((yMm, idx) => (
-                                    <line key={`h-${colIdx}-${idx}`} x1={colX} y1={yMm * dScale} x2={colX + colW} y2={yMm * dScale} stroke="#0f172a" strokeWidth={0.8} />
-                                  ))}
-                                  {boundary}
+                                <g key={i}>
+                                  <line x1={x1} y1={atY} x2={x2} y2={atY} stroke="#0f172a" strokeWidth={0.8} />
+                                  <line x1={x1} y1={atY - 3} x2={x1} y2={atY + 3} stroke="#0f172a" strokeWidth={0.8} />
+                                  <line x1={x2} y1={atY - 3} x2={x2} y2={atY + 3} stroke="#0f172a" strokeWidth={0.8} />
+                                  <text x={(x1 + x2) / 2} y={atY + 11} textAnchor="middle" fontSize="7.5" fill="#334155">
+                                    {segMm}
+                                  </text>
                                 </g>
                               );
                             })}
-                          </svg>
-                          <div className="text-[9px] font-semibold text-slate-700 mt-1">{item.description}</div>
-                          <div className="text-[8px] text-slate-500">
-                            {item.widthMm}×{item.heightMm}mm · {layout.columns.length} column(s)
+                          </g>
+                        );
+                      };
+
+                      // Room + Depth callout, matching the reference sheet's
+                      // bold red "GBR D 450+20" side label.
+                      const roomDepthLabel = (atY: number) => (
+                        <text
+                          x={DIM_GUTTER + SHEET_WIDTH + 14}
+                          y={atY}
+                          fontSize="10"
+                          fontWeight="bold"
+                          fill="#dc2626"
+                          transform={`rotate(-90, ${DIM_GUTTER + SHEET_WIDTH + 14}, ${atY})`}
+                        >
+                          {item.room} · D {item.depthMm}
+                        </text>
+                      );
+
+                      // ---- OUTER VIEW (shutter/drawer front, as closed) ----
+                      const outerDimY = boxHeightPx + 16;
+                      const outerSvgH = outerDimY + 14;
+                      const outerSvgW = DIM_GUTTER + SHEET_WIDTH + LABEL_GUTTER;
+
+                      // ---- INNER VIEW (open closet layout) ----
+                      const innerDimY = boxHeightPx + 16;
+                      const innerSvgH = innerDimY + 14;
+                      const innerSvgW = outerSvgW;
+
+                      return (
+                        <div key={item.id}>
+                          <div className="text-[10px] font-bold text-slate-800">
+                            #{item.sNo} {item.description} - {item.widthMm}×{item.heightMm}×{item.depthMm}mm
                           </div>
+
+                          {/* Outer View */}
+                          <div className="text-[8px] font-bold uppercase tracking-wide text-slate-500 mt-1">Outer View (Shutter/Drawer Front, Closed)</div>
+                          <svg width={outerSvgW} height={outerSvgH} viewBox={`0 0 ${outerSvgW} ${outerSvgH}`} className="border border-slate-300">
+                            <g transform={`translate(${DIM_GUTTER}, 0)`}>
+                              <rect x={0} y={0} width={SHEET_WIDTH} height={boxHeightPx} fill="#ffffff" stroke="#0f172a" strokeWidth={1.2} />
+                              {showsShutters &&
+                                (() => {
+                                  let acc = 0;
+                                  return Array.from({ length: shutterCount }).map((_, sIdx) => {
+                                    const shutterWidthMm = shutterWidths[sIdx];
+                                    const sx = acc * dScale;
+                                    const spx = shutterWidthMm * dScale;
+                                    acc += shutterWidthMm + gapMm;
+                                    return (
+                                      <g key={sIdx}>
+                                        {sIdx > 0 && <line x1={sx} y1={0} x2={sx} y2={boxHeightPx} stroke="#0f172a" strokeWidth={0.8} />}
+                                        <text x={sx + spx / 2} y={boxHeightPx / 2} textAnchor="middle" fontSize="8" fontWeight="bold" fill="#334155">
+                                          SHUTTER
+                                        </text>
+                                        <text x={sx + spx / 2} y={boxHeightPx / 2 + 11} textAnchor="middle" fontSize="7" fill="#64748b">
+                                          {shutterWidthMm}×{item.heightMm - 20}
+                                        </text>
+                                      </g>
+                                    );
+                                  });
+                                })()}
+                              {item.drawerCount > 0 &&
+                                Array.from({ length: item.drawerCount }).map((_, dIdx) => {
+                                  const drawerHpx = boxHeightPx / item.drawerCount;
+                                  const drawerHmm = Math.round(item.heightMm / item.drawerCount);
+                                  const dy = dIdx * drawerHpx;
+                                  return (
+                                    <g key={dIdx}>
+                                      {dIdx > 0 && <line x1={0} y1={dy} x2={SHEET_WIDTH} y2={dy} stroke="#0f172a" strokeWidth={0.8} />}
+                                      <text x={SHEET_WIDTH / 2} y={dy + drawerHpx / 2} textAnchor="middle" fontSize="8" fontWeight="bold" fill="#334155">
+                                        {item.drawerType === 'tandem' ? 'TANDEM BOX' : 'DRAWER'}
+                                      </text>
+                                      <text x={SHEET_WIDTH / 2} y={dy + drawerHpx / 2 + 11} textAnchor="middle" fontSize="7" fill="#64748b">
+                                        {item.widthMm}×{drawerHmm}
+                                      </text>
+                                    </g>
+                                  );
+                                })}
+                              {widthDim([item.widthMm], outerDimY, 0)}
+                            </g>
+                            {heightDim(boxHeightPx, item.heightMm)}
+                            {roomDepthLabel(boxHeightPx / 2)}
+                          </svg>
+
+                          {/* Inner View */}
+                          <div className="text-[8px] font-bold uppercase tracking-wide text-slate-500 mt-2">Inner View (Hanger Rod / Shelf / Drawer Layout, Open)</div>
+                          <svg width={innerSvgW} height={innerSvgH} viewBox={`0 0 ${innerSvgW} ${innerSvgH}`} className="border border-slate-300">
+                            <g transform={`translate(${DIM_GUTTER}, 0)`}>
+                              <rect x={0} y={0} width={SHEET_WIDTH} height={boxHeightPx} fill="#ffffff" stroke="#0f172a" strokeWidth={1.2} />
+                              <rect x={innerX} y={innerY} width={innerW * dScale} height={innerH * dScale} fill="#fffbeb" stroke="#92400e" strokeWidth={0.8} />
+                              {(() => {
+                                let colAcc = 0;
+                                return layout.columns.map((col, colIdx) => {
+                                  const colX = innerX + colAcc * dScale;
+                                  const colW = col.widthMm * dScale;
+                                  const isLast = colIdx === layout.columns.length - 1;
+                                  colAcc += col.widthMm;
+                                  const boundary = !isLast && (
+                                    <line
+                                      key={`bnd-${colIdx}`}
+                                      x1={colX + colW}
+                                      y1={innerY}
+                                      x2={colX + colW}
+                                      y2={innerY + innerH * dScale}
+                                      stroke="#0f172a"
+                                      strokeWidth={1.2}
+                                    />
+                                  );
+                                  const sortedShelves = [...col.shelvesMm].sort((a, b) => a - b);
+                                  const bounds = [0, ...sortedShelves, innerH];
+                                  const rodSet = new Set(col.rodCompartments);
+                                  const splitSet = new Set(col.splitCompartments ?? []);
+                                  const subCellDrawerSet = new Set(col.drawerSubCells ?? []);
+                                  const drawerSet = new Set(col.drawerCompartments);
+
+                                  const compLabel = (
+                                    labelX: number,
+                                    topMm: number,
+                                    bottomMm: number,
+                                    text: string,
+                                    rotate: boolean
+                                  ) => {
+                                    const compHpx = (bottomMm - topMm) * dScale;
+                                    if (compHpx < 16) return null; // too short a band to letter without overlap
+                                    const midY = innerY + ((topMm + bottomMm) / 2) * dScale;
+                                    return (
+                                      <text
+                                        x={labelX}
+                                        y={midY}
+                                        textAnchor="middle"
+                                        fontSize="6.5"
+                                        fontWeight="bold"
+                                        fill="#78350f"
+                                        transform={rotate ? `rotate(-90, ${labelX}, ${midY})` : undefined}
+                                      >
+                                        {text}
+                                      </text>
+                                    );
+                                  };
+
+                                  return (
+                                    <g key={col.id}>
+                                      {bounds.slice(0, -1).map((top, compIdx) => {
+                                        const bottom = bounds[compIdx + 1];
+                                        if (rodSet.has(compIdx)) {
+                                          const rodY = Math.min(bottom - 60, top + 120);
+                                          return (
+                                            <g key={`rod-${colIdx}-${compIdx}`}>
+                                              <line
+                                                x1={colX + 4}
+                                                y1={innerY + rodY * dScale}
+                                                x2={colX + colW - 4}
+                                                y2={innerY + rodY * dScale}
+                                                stroke="#0f172a"
+                                                strokeWidth={1}
+                                                opacity={0.6}
+                                              />
+                                              {compLabel(colX + colW / 2, top, bottom, 'HANGER ROD', colW < 70)}
+                                            </g>
+                                          );
+                                        }
+                                        if (splitSet.has(compIdx)) {
+                                          const midX = colX + colW / 2;
+                                          return (
+                                            <g key={`split-${colIdx}-${compIdx}`}>
+                                              <line
+                                                x1={midX}
+                                                y1={innerY + top * dScale + 1}
+                                                x2={midX}
+                                                y2={innerY + bottom * dScale - 1}
+                                                stroke="#0f172a"
+                                                strokeWidth={1}
+                                                opacity={0.7}
+                                              />
+                                              {([0, 1] as const).map((subIdx) => {
+                                                const cellX = subIdx === 0 ? colX : midX;
+                                                const isDrawer = subCellDrawerSet.has(`${compIdx}:${subIdx}`);
+                                                return (
+                                                  <g key={subIdx}>
+                                                    {isDrawer && (
+                                                      <rect
+                                                        x={cellX + 2}
+                                                        y={innerY + top * dScale + 2}
+                                                        width={Math.max(0, colW / 2 - 4)}
+                                                        height={Math.max(0, (bottom - top) * dScale - 4)}
+                                                        fill="#fce7f3"
+                                                        stroke="#db2777"
+                                                        strokeDasharray="3,3"
+                                                        strokeWidth={0.8}
+                                                      />
+                                                    )}
+                                                    {compLabel(cellX + colW / 4, top, bottom, isDrawer ? 'DRAWER' : 'SHELF', true)}
+                                                  </g>
+                                                );
+                                              })}
+                                            </g>
+                                          );
+                                        }
+                                        const isDrawer = drawerSet.has(compIdx);
+                                        return (
+                                          <g key={`comp-${colIdx}-${compIdx}`}>
+                                            {isDrawer && (
+                                              <rect
+                                                x={colX + 2}
+                                                y={innerY + top * dScale + 2}
+                                                width={Math.max(0, colW - 4)}
+                                                height={Math.max(0, (bottom - top) * dScale - 4)}
+                                                fill="#fce7f3"
+                                                stroke="#db2777"
+                                                strokeDasharray="3,3"
+                                                strokeWidth={0.8}
+                                              />
+                                            )}
+                                            {compLabel(colX + colW / 2, top, bottom, isDrawer ? 'DRAWER' : 'SHELF', colW < 70)}
+                                          </g>
+                                        );
+                                      })}
+                                      {sortedShelves.map((yMm, idx) => (
+                                        <line
+                                          key={`h-${colIdx}-${idx}`}
+                                          x1={colX}
+                                          y1={innerY + yMm * dScale}
+                                          x2={colX + colW}
+                                          y2={innerY + yMm * dScale}
+                                          stroke="#0f172a"
+                                          strokeWidth={0.8}
+                                        />
+                                      ))}
+                                      {boundary}
+                                    </g>
+                                  );
+                                });
+                              })()}
+                              {widthDim(
+                                layout.columns.map((c) => c.widthMm),
+                                innerDimY,
+                                innerX
+                              )}
+                            </g>
+                            {heightDim(boxHeightPx, item.heightMm)}
+                            {roomDepthLabel(boxHeightPx / 2)}
+                          </svg>
                         </div>
                       );
                     })}
