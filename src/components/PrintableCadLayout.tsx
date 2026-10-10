@@ -43,7 +43,12 @@ const isOverheadCategory = (i: ModularItem) => i.category === 'kitchen_overhead'
 // wall elevation (they're thin strips, not real cabinet modules) - pulled
 // out of every room's main drawing and printed together on one dedicated
 // page at the end instead.
-const isFillerPanel = (i: ModularItem) => i.category === 'dummy' || i.description.toLowerCase().includes('skirting');
+// Matches the common misspelling "skerting" too, alongside the correct
+// "skirting" - factory sheets and site staff use both interchangeably.
+const isFillerPanel = (i: ModularItem) => {
+  const desc = i.description.toLowerCase();
+  return i.category === 'dummy' || desc.includes('skirting') || desc.includes('skerting');
+};
 
 // A light-theme, room-by-room AutoCAD-style elevation drawing meant only for
 // printing: every room's units, grouped by wall, drawn to scale with
@@ -309,6 +314,11 @@ export const PrintableCadLayout: React.FC<PrintableCadLayoutProps> = ({ items, c
                                         {sIdx > 0 && (
                                           <line x1={sx} y1={doorTopY} x2={sx} y2={boxY + h} stroke="#0f172a" strokeWidth={0.6} />
                                         )}
+                                        {w > 40 && doorHeightPx > 34 && (
+                                          <text x={sx + shutterWpx / 2} y={doorTopY + 11} textAnchor="middle" fontSize="6" fontWeight="bold" fill="#0f172a" letterSpacing="0.3">
+                                            SHUTTER
+                                          </text>
+                                        )}
                                         {w > 40 && (
                                           <text x={sx + shutterWpx / 2} y={doorTopY + doorHeightPx - 5} textAnchor="middle" fontSize="6.5" fill="#334155">
                                             {shutterWidthMm}×{doorHeight}
@@ -325,9 +335,15 @@ export const PrintableCadLayout: React.FC<PrintableCadLayoutProps> = ({ items, c
                                     const drawerHpx = h / item.drawerCount;
                                     const drawerHmm = Math.round(item.heightMm / item.drawerCount);
                                     const dy = boxY + dIdx * drawerHpx;
+                                    const drawerLabel = item.drawerType === 'tandem' ? 'TANDEM BOX' : 'DRAWER';
                                     return (
                                       <g key={dIdx}>
                                         {dIdx > 0 && <line x1={boxX} y1={dy} x2={boxX + w} y2={dy} stroke="#0f172a" strokeWidth={0.6} />}
+                                        {w > 50 && drawerHpx > 24 && (
+                                          <text x={boxX + w / 2} y={dy + 9} textAnchor="middle" fontSize="6" fontWeight="bold" fill="#0f172a" letterSpacing="0.3">
+                                            {drawerLabel}
+                                          </text>
+                                        )}
                                         {h > 20 && (
                                           <text x={boxX + w / 2} y={dy + drawerHpx / 2 + 2} textAnchor="middle" fontSize="6.5" fill="#334155">
                                             {item.widthMm}×{drawerHmm}
@@ -345,6 +361,16 @@ export const PrintableCadLayout: React.FC<PrintableCadLayoutProps> = ({ items, c
                                   {item.widthMm} × {item.heightMm}
                                   {item.depthMm > 0 ? ` × ${item.depthMm}` : ''} mm
                                 </text>
+                                {/* This unit is a wardrobe/dressing category but won't get a
+                                    box fabricated (Semi Modular with no Depth entered, or an
+                                    explicit per-item Semi override) - flag it right here so it's
+                                    obvious why no "Wardrobe Design Sheet" / inner closet view is
+                                    printed for it below, instead of it just silently missing. */}
+                                {isClosetEligible(item) && !(pType === 'full' && item.depthMm > 0) && (
+                                  <text x={boxX + w / 2} y={floorLineY + 20} textAnchor="middle" fontSize="6.5" fontWeight="bold" fill="#b45309">
+                                    ⚠ No Depth - shutter only, no inner closet view
+                                  </text>
+                                )}
                               </g>
                             );
                           })}
