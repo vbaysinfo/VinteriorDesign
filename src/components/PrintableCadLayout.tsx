@@ -183,19 +183,24 @@ export const PrintableCadLayout: React.FC<PrintableCadLayoutProps> = ({ items, c
               let rowTopY = 10;
 
               // Loft/Overhead sits directly above the Floor unit on the real
-              // wall, so the figure that actually matters for checking it
-              // fits the room (slab-to-floor clear height) is every present
-              // row's own height ADDED together, not each row's number read
-              // separately - a combined dimension bracket spans the whole
-              // drawing showing that total, on top of the per-row captions
-              // already under each box.
-              const totalHeightMm = rows.reduce((s, r) => s + Math.max(...r.items.map((i) => i.heightMm)), 0);
-              const totalDimBottomY = (() => {
+              // wall - a single summed number told you the stack's total
+              // height but not which part of it was which, so this is now a
+              // segmented dimension instead: one bracket per row, each
+              // labeled with just that row's own height, stacked top to
+              // bottom in the same order they're actually drawn - matching
+              // a real factory elevation's own "Loft height / Wardrobe
+              // height" split dimension line, on top of the per-row W×H×D
+              // captions already under each box.
+              const rowDims: { topY: number; bottomY: number; heightMm: number; label: string }[] = [];
+              {
                 let y = 10;
-                for (const h of rowHeightsPx) y += h;
-                y += ROW_GAP_PX * (rows.length - 1);
-                return y - 14; // align with the last row's own floor line
-              })();
+                rows.forEach((r, i) => {
+                  const bottomY = y + rowHeightsPx[i] - 14;
+                  rowDims.push({ topY: y, bottomY, heightMm: Math.max(...r.items.map((it) => it.heightMm)), label: r.label });
+                  y += rowHeightsPx[i] + ROW_GAP_PX;
+                });
+              }
+              const totalHeightMm = rowDims.reduce((s, r) => s + r.heightMm, 0);
 
               return (
                 <div key={wall} className="mb-6 break-inside-avoid">
@@ -203,26 +208,33 @@ export const PrintableCadLayout: React.FC<PrintableCadLayoutProps> = ({ items, c
                     {WALL_LABEL[wall]} — {wallItems.length} unit(s)
                   </h3>
                   <svg
-                    width={rows.length > 1 ? svgWidth + 34 : svgWidth}
+                    width={rows.length > 1 ? svgWidth + 60 : svgWidth}
                     height={svgHeight}
-                    viewBox={`0 0 ${rows.length > 1 ? svgWidth + 34 : svgWidth} ${svgHeight}`}
+                    viewBox={`0 0 ${rows.length > 1 ? svgWidth + 60 : svgWidth} ${svgHeight}`}
                     className="border border-slate-400"
                   >
                     {rows.length > 1 && (
                       <g>
-                        <line x1={svgWidth + 10} y1={10} x2={svgWidth + 10} y2={totalDimBottomY} stroke="#dc2626" strokeWidth={0.8} />
-                        <line x1={svgWidth + 7} y1={10} x2={svgWidth + 13} y2={10} stroke="#dc2626" strokeWidth={0.8} />
-                        <line x1={svgWidth + 7} y1={totalDimBottomY} x2={svgWidth + 13} y2={totalDimBottomY} stroke="#dc2626" strokeWidth={0.8} />
-                        <text
-                          x={svgWidth + 22}
-                          y={(10 + totalDimBottomY) / 2}
-                          textAnchor="middle"
-                          fontSize="8"
-                          fontWeight="bold"
-                          fill="#dc2626"
-                          transform={`rotate(-90, ${svgWidth + 22}, ${(10 + totalDimBottomY) / 2})`}
-                        >
-                          {rows.map((r) => r.label).join('+')} = {totalHeightMm}mm
+                        {rowDims.map((rd, i) => (
+                          <g key={i}>
+                            <line x1={svgWidth + 10} y1={rd.topY} x2={svgWidth + 10} y2={rd.bottomY} stroke="#dc2626" strokeWidth={0.8} />
+                            <line x1={svgWidth + 7} y1={rd.topY} x2={svgWidth + 13} y2={rd.topY} stroke="#dc2626" strokeWidth={0.8} />
+                            <line x1={svgWidth + 7} y1={rd.bottomY} x2={svgWidth + 13} y2={rd.bottomY} stroke="#dc2626" strokeWidth={0.8} />
+                            <text
+                              x={svgWidth + 22}
+                              y={(rd.topY + rd.bottomY) / 2}
+                              textAnchor="middle"
+                              fontSize="8"
+                              fontWeight="bold"
+                              fill="#dc2626"
+                              transform={`rotate(-90, ${svgWidth + 22}, ${(rd.topY + rd.bottomY) / 2})`}
+                            >
+                              {rd.label} {rd.heightMm}
+                            </text>
+                          </g>
+                        ))}
+                        <text x={svgWidth + 22} y={svgHeight - 4} textAnchor="middle" fontSize="7" fill="#64748b">
+                          Total {totalHeightMm}mm
                         </text>
                       </g>
                     )}
