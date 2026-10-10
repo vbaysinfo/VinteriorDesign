@@ -182,12 +182,50 @@ export const PrintableCadLayout: React.FC<PrintableCadLayoutProps> = ({ items, c
 
               let rowTopY = 10;
 
+              // Loft/Overhead sits directly above the Floor unit on the real
+              // wall, so the figure that actually matters for checking it
+              // fits the room (slab-to-floor clear height) is every present
+              // row's own height ADDED together, not each row's number read
+              // separately - a combined dimension bracket spans the whole
+              // drawing showing that total, on top of the per-row captions
+              // already under each box.
+              const totalHeightMm = rows.reduce((s, r) => s + Math.max(...r.items.map((i) => i.heightMm)), 0);
+              const totalDimBottomY = (() => {
+                let y = 10;
+                for (const h of rowHeightsPx) y += h;
+                y += ROW_GAP_PX * (rows.length - 1);
+                return y - 14; // align with the last row's own floor line
+              })();
+
               return (
                 <div key={wall} className="mb-6 break-inside-avoid">
                   <h3 className="text-sm font-bold uppercase tracking-wide mb-1 text-slate-700">
                     {WALL_LABEL[wall]} — {wallItems.length} unit(s)
                   </h3>
-                  <svg width={svgWidth} height={svgHeight} viewBox={`0 0 ${svgWidth} ${svgHeight}`} className="border border-slate-400">
+                  <svg
+                    width={rows.length > 1 ? svgWidth + 34 : svgWidth}
+                    height={svgHeight}
+                    viewBox={`0 0 ${rows.length > 1 ? svgWidth + 34 : svgWidth} ${svgHeight}`}
+                    className="border border-slate-400"
+                  >
+                    {rows.length > 1 && (
+                      <g>
+                        <line x1={svgWidth + 10} y1={10} x2={svgWidth + 10} y2={totalDimBottomY} stroke="#dc2626" strokeWidth={0.8} />
+                        <line x1={svgWidth + 7} y1={10} x2={svgWidth + 13} y2={10} stroke="#dc2626" strokeWidth={0.8} />
+                        <line x1={svgWidth + 7} y1={totalDimBottomY} x2={svgWidth + 13} y2={totalDimBottomY} stroke="#dc2626" strokeWidth={0.8} />
+                        <text
+                          x={svgWidth + 22}
+                          y={(10 + totalDimBottomY) / 2}
+                          textAnchor="middle"
+                          fontSize="8"
+                          fontWeight="bold"
+                          fill="#dc2626"
+                          transform={`rotate(-90, ${svgWidth + 22}, ${(10 + totalDimBottomY) / 2})`}
+                        >
+                          {rows.map((r) => r.label).join('+')} = {totalHeightMm}mm
+                        </text>
+                      </g>
+                    )}
                     {rows.map((row, rowIdx) => {
                       const rowHeightPx = rowHeightsPx[rowIdx];
                       const floorLineY = rowTopY + rowHeightPx - 14;
