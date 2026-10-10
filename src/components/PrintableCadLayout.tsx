@@ -302,9 +302,17 @@ export const PrintableCadLayout: React.FC<PrintableCadLayoutProps> = ({ items, c
                 return isClosetEligible(item) && pType === 'full' && item.depthMm > 0;
               });
               if (closetItems.length === 0) return null;
-              const SHEET_WIDTH = 480; // both Outer and Inner views share this width, so they line up
-              const DIM_GUTTER = 34; // left-side height-dimension gutter, shared by both views
-              const LABEL_GUTTER = 70; // right-side room/depth callout gutter, shared by both views
+              // Both views are capped on width AND height (not just width)
+              // so a tall narrow wardrobe still fits two views side by side
+              // on one screen/page instead of one of them running off the
+              // bottom - a real CAD sheet never lets a single elevation
+              // dictate the whole page.
+              const MAX_VIEW_WIDTH = 300;
+              const MAX_VIEW_HEIGHT = 560;
+              const DIM_GUTTER = 30; // left-side height-dimension gutter, shared by both views
+              const LABEL_GUTTER = 56; // right-side room/depth callout gutter, shared by both views
+              const ROOF_DEPTH = 16; // pseudo-3D isometric top sliver, like a real cabinet drawing's receding top edge
+              const ROOF_SKEW = 12;
 
               return (
                 <div className="mt-4 break-inside-avoid">
@@ -313,7 +321,8 @@ export const PrintableCadLayout: React.FC<PrintableCadLayoutProps> = ({ items, c
                   </h3>
                   <div className="flex flex-col gap-6">
                     {closetItems.map((item) => {
-                      const dScale = SHEET_WIDTH / item.widthMm;
+                      const dScale = Math.min(MAX_VIEW_WIDTH / item.widthMm, MAX_VIEW_HEIGHT / item.heightMm);
+                      const SHEET_WIDTH = item.widthMm * dScale;
                       const boxHeightPx = item.heightMm * dScale;
                       const innerX = 18 * dScale;
                       const innerY = 18 * dScale;
@@ -386,26 +395,46 @@ export const PrintableCadLayout: React.FC<PrintableCadLayoutProps> = ({ items, c
                         </text>
                       );
 
+                      // Pseudo-3D isometric top sliver - a cabinet's real
+                      // top deck receding up and to the right, same visual
+                      // trick the reference sheet's own drawings use to
+                      // read as a real 3D box instead of a flat rectangle.
+                      const roofShape = (
+                        <polygon
+                          points={`0,0 ${SHEET_WIDTH},0 ${SHEET_WIDTH + ROOF_SKEW},${-ROOF_DEPTH} ${ROOF_SKEW},${-ROOF_DEPTH}`}
+                          fill="#e2e8f0"
+                          stroke="#0f172a"
+                          strokeWidth={0.8}
+                        />
+                      );
+
                       // ---- OUTER VIEW (shutter/drawer front, as closed) ----
                       const outerDimY = boxHeightPx + 16;
-                      const outerSvgH = outerDimY + 14;
+                      const outerSvgH = ROOF_DEPTH + outerDimY + 14;
                       const outerSvgW = DIM_GUTTER + SHEET_WIDTH + LABEL_GUTTER;
 
                       // ---- INNER VIEW (open closet layout) ----
                       const innerDimY = boxHeightPx + 16;
-                      const innerSvgH = innerDimY + 14;
+                      const innerSvgH = ROOF_DEPTH + innerDimY + 14;
                       const innerSvgW = outerSvgW;
 
                       return (
-                        <div key={item.id}>
+                        <div key={item.id} className="break-inside-avoid">
                           <div className="text-[10px] font-bold text-slate-800">
                             #{item.sNo} {item.description} - {item.widthMm}×{item.heightMm}×{item.depthMm}mm
                           </div>
 
-                          {/* Outer View */}
-                          <div className="text-[8px] font-bold uppercase tracking-wide text-slate-500 mt-1">Outer View (Shutter/Drawer Front, Closed)</div>
+                          {/* Outer + Inner views side by side, so the whole
+                              design sheet for one wardrobe fits in a single
+                              screen/page instead of the two views stacking
+                              across a page break. */}
+                          <div className="flex flex-row flex-wrap gap-6 mt-1">
+                          <div>
+                          <div className="text-[8px] font-bold uppercase tracking-wide text-slate-500">Outer View (Shutter/Drawer Front, Closed)</div>
                           <svg width={outerSvgW} height={outerSvgH} viewBox={`0 0 ${outerSvgW} ${outerSvgH}`} className="border border-slate-300">
+                            <g transform={`translate(0, ${ROOF_DEPTH})`}>
                             <g transform={`translate(${DIM_GUTTER}, 0)`}>
+                              {roofShape}
                               <rect x={0} y={0} width={SHEET_WIDTH} height={boxHeightPx} fill="#ffffff" stroke="#0f172a" strokeWidth={1.2} />
                               {showsShutters &&
                                 (() => {
@@ -449,12 +478,17 @@ export const PrintableCadLayout: React.FC<PrintableCadLayoutProps> = ({ items, c
                             </g>
                             {heightDim(boxHeightPx, item.heightMm)}
                             {roomDepthLabel(boxHeightPx / 2)}
+                            </g>
                           </svg>
+                          </div>
 
                           {/* Inner View */}
-                          <div className="text-[8px] font-bold uppercase tracking-wide text-slate-500 mt-2">Inner View (Hanger Rod / Shelf / Drawer Layout, Open)</div>
+                          <div>
+                          <div className="text-[8px] font-bold uppercase tracking-wide text-slate-500">Inner View (Hanger Rod / Shelf / Drawer Layout, Open)</div>
                           <svg width={innerSvgW} height={innerSvgH} viewBox={`0 0 ${innerSvgW} ${innerSvgH}`} className="border border-slate-300">
+                            <g transform={`translate(0, ${ROOF_DEPTH})`}>
                             <g transform={`translate(${DIM_GUTTER}, 0)`}>
+                              {roofShape}
                               <rect x={0} y={0} width={SHEET_WIDTH} height={boxHeightPx} fill="#ffffff" stroke="#0f172a" strokeWidth={1.2} />
                               <rect x={innerX} y={innerY} width={innerW * dScale} height={innerH * dScale} fill="#fffbeb" stroke="#92400e" strokeWidth={0.8} />
                               {(() => {
@@ -608,7 +642,10 @@ export const PrintableCadLayout: React.FC<PrintableCadLayoutProps> = ({ items, c
                             </g>
                             {heightDim(boxHeightPx, item.heightMm)}
                             {roomDepthLabel(boxHeightPx / 2)}
+                            </g>
                           </svg>
+                          </div>
+                          </div>
                         </div>
                       );
                     })}
