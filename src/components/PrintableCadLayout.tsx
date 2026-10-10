@@ -33,12 +33,17 @@ const WALL_LABEL: Record<WallType, string> = {
 // the user last left the interactive canvas at).
 const SCALE = 0.12;
 const CANVAS_MAX_WIDTH = 1000;
-const ROW_GAP_PX = 24; // vertical gap between the loft/overhead/floor rows
+const ROW_GAP_PX = 0; // Loft/Overhead/Floor sit directly on top of each other on the real wall, flush with no gap
 const LABEL_SPACE_PX = 26; // room for the item name above + dims below each box
 const ITEM_GAP_MM = 40;
 
 const isLoftCategory = (i: ModularItem) => i.category === 'loft' || i.category === 'kitchen_loft';
 const isOverheadCategory = (i: ModularItem) => i.category === 'kitchen_overhead';
+// Skirting/pelmet runners and dummy filler panels clutter a wardrobe's own
+// wall elevation (they're thin strips, not real cabinet modules) - pulled
+// out of every room's main drawing and printed together on one dedicated
+// page at the end instead.
+const isFillerPanel = (i: ModularItem) => i.category === 'dummy' || i.description.toLowerCase().includes('skirting');
 
 // A light-theme, room-by-room AutoCAD-style elevation drawing meant only for
 // printing: every room's units, grouped by wall, drawn to scale with
@@ -62,6 +67,8 @@ export const PrintableCadLayout: React.FC<PrintableCadLayoutProps> = ({ items, c
     });
     return seen;
   }, [items]);
+
+  const fillerItems = useMemo(() => items.filter(isFillerPanel), [items]);
 
   // Project-wide high-level summary - printed once at the very top, ahead
   // of every room's own elevation drawings, so whoever's holding the
@@ -149,11 +156,15 @@ export const PrintableCadLayout: React.FC<PrintableCadLayoutProps> = ({ items, c
       </div>
 
       {rooms.map((room, roomIdx) => {
-        const roomItems = items.filter((i) => i.room === room);
+        const roomItems = items.filter((i) => i.room === room && !isFillerPanel(i));
         const walls = WALL_ORDER.filter((w) => roomItems.some((i) => i.wall === w));
 
         return (
-          <div key={room} style={{ pageBreakAfter: roomIdx < rooms.length - 1 ? 'always' : 'auto' }} className="p-6">
+          <div
+            key={room}
+            style={{ pageBreakAfter: roomIdx < rooms.length - 1 || fillerItems.length > 0 ? 'always' : 'auto' }}
+            className="p-6"
+          >
             <div className="flex items-baseline justify-between border-b-2 border-slate-900 pb-2 mb-4">
               <h1 className="text-xl font-bold">{projectName}</h1>
               <h2 className="text-lg font-bold">Room: {room}</h2>
@@ -178,9 +189,17 @@ export const PrintableCadLayout: React.FC<PrintableCadLayoutProps> = ({ items, c
 
               const rowHeightsPx = rows.map((r) => Math.max(...r.items.map((i) => i.heightMm)) * scaleX + LABEL_SPACE_PX);
               const svgWidth = drawWidth + 40;
-              const svgHeight = rowHeightsPx.reduce((s, h) => s + h, 0) + ROW_GAP_PX * (rows.length - 1) + 20;
+              // Pseudo-3D isometric top sliver on the stack's topmost row -
+              // the same "receding top deck" cue used on the Wardrobe Design
+              // Sheets, so the whole attached Loft+Wardrobe stack reads as
+              // one real 3D cabinet instead of a flat rectangle.
+              const ROOF_DEPTH = 14;
+              const ROOF_SKEW = 10;
+              const TOP_Y = 10 + ROOF_DEPTH;
+              const svgHeight = rowHeightsPx.reduce((s, h) => s + h, 0) + ROW_GAP_PX * (rows.length - 1) + 20 + ROOF_DEPTH;
+              const topRowWidthPx = rowWidthMm(rows[0].items) * scaleX;
 
-              let rowTopY = 10;
+              let rowTopY = TOP_Y;
 
               // Loft/Overhead sits directly above the Floor unit on the real
               // wall - a single summed number told you the stack's total
@@ -193,7 +212,7 @@ export const PrintableCadLayout: React.FC<PrintableCadLayoutProps> = ({ items, c
               // captions already under each box.
               const rowDims: { topY: number; bottomY: number; heightMm: number; label: string }[] = [];
               {
-                let y = 10;
+                let y = TOP_Y;
                 rows.forEach((r, i) => {
                   const bottomY = y + rowHeightsPx[i] - 14;
                   rowDims.push({ topY: y, bottomY, heightMm: Math.max(...r.items.map((it) => it.heightMm)), label: r.label });
@@ -213,6 +232,12 @@ export const PrintableCadLayout: React.FC<PrintableCadLayoutProps> = ({ items, c
                     viewBox={`0 0 ${rows.length > 1 ? svgWidth + 60 : svgWidth} ${svgHeight}`}
                     className="border border-slate-400"
                   >
+                    <polygon
+                      points={`20,${TOP_Y} ${20 + topRowWidthPx},${TOP_Y} ${20 + topRowWidthPx + ROOF_SKEW},${TOP_Y - ROOF_DEPTH} ${20 + ROOF_SKEW},${TOP_Y - ROOF_DEPTH}`}
+                      fill="#e2e8f0"
+                      stroke="#0f172a"
+                      strokeWidth={0.8}
+                    />
                     {rows.length > 1 && (
                       <g>
                         {rowDims.map((rd, i) => (
@@ -751,6 +776,70 @@ export const PrintableCadLayout: React.FC<PrintableCadLayoutProps> = ({ items, c
           </div>
         );
       })}
+
+      {/* Skirting & Filler Panels - thin pelmet/skirting runners and dummy
+          cover panels pulled out of every room's own wall elevation above
+          (they're not real cabinet modules, just strips), listed together
+          on one dedicated page instead of cluttering each wardrobe's
+          drawing. */}
+      {fillerItems.length > 0 && (
+        <div className="p-6">
+          <div className="flex items-baseline justify-between border-b-2 border-slate-900 pb-2 mb-4">
+            <h1 className="text-xl font-bold">{projectName}</h1>
+            <h2 className="text-lg font-bold">Skirting &amp; Filler Panels</h2>
+          </div>
+          <div className="flex flex-wrap gap-6">
+            {fillerItems.map((item) => {
+              const fScale = Math.min(260 / Math.max(item.widthMm, 1), 80 / Math.max(item.heightMm, 1), 0.3);
+              const fw = item.widthMm * fScale;
+              const fh = Math.max(6, item.heightMm * fScale);
+              return (
+                <div key={item.id} className="text-center">
+                  <svg width={fw + 20} height={fh + 30} viewBox={`0 0 ${fw + 20} ${fh + 30}`}>
+                    <rect x={10} y={10} width={fw} height={fh} fill="#f1f5f9" stroke="#0f172a" strokeWidth={1} />
+                  </svg>
+                  <div className="text-[9px] font-semibold text-slate-700 mt-1">
+                    #{item.sNo} {item.description}
+                  </div>
+                  <div className="text-[8px] text-slate-500">
+                    {item.room} · {item.wall.toUpperCase()} · {item.widthMm}×{item.heightMm}
+                    {item.depthMm > 0 ? `×${item.depthMm}` : ''}mm
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <table className="w-full text-[10px] border-collapse mt-6">
+            <thead>
+              <tr className="border-b-2 border-slate-900">
+                <th className="text-left py-1 pr-2">#</th>
+                <th className="text-left py-1 pr-2">Room</th>
+                <th className="text-left py-1 pr-2">Item / Panel Description</th>
+                <th className="text-left py-1 pr-2">Wall</th>
+                <th className="text-right py-1 pr-2">Width (mm)</th>
+                <th className="text-right py-1 pr-2">Length (mm)</th>
+                <th className="text-right py-1">Depth (mm)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {fillerItems.map((item) => (
+                <tr key={item.id} className="border-b border-slate-300">
+                  <td className="py-1 pr-2">{item.sNo}</td>
+                  <td className="py-1 pr-2">{item.room}</td>
+                  <td className="py-1 pr-2">{item.description}</td>
+                  <td className="py-1 pr-2 uppercase">{item.wall}</td>
+                  <td className="py-1 pr-2 text-right font-mono">{item.widthMm}</td>
+                  <td className="py-1 pr-2 text-right font-mono">{item.heightMm}</td>
+                  <td className="py-1 text-right font-mono">{item.depthMm > 0 ? item.depthMm : '-'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          <p className="text-[9px] text-slate-400 mt-3">Printed {new Date().toLocaleDateString()}</p>
+        </div>
+      )}
     </div>
   );
 };
