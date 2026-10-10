@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { ModularItem, CutListPart, WallType, ProjectType } from '../types';
+import { ModularItem, CutListPart, HardwareBOMLine, WallType, ProjectType } from '../types';
 import {
   getShutterLayout,
   hasShutterDoors,
@@ -8,11 +8,13 @@ import {
   isClosetEligible,
   getEffectiveClosetLayout,
   calculateMaterialUsage,
+  aggregateHardwareBOM,
 } from '../utils/calculator';
 
 interface PrintableCadLayoutProps {
   items: ModularItem[];
   cutList: CutListPart[];
+  hardwareBOM: HardwareBOMLine[];
   projectName: string;
   projectType: ProjectType;
   active: boolean;
@@ -52,7 +54,7 @@ const isOverheadCategory = (i: ModularItem) => i.category === 'kitchen_overhead'
 // the units below it, not beside them, so summing every item's width into
 // one row would double-count the same wall footprint and wildly overstate
 // the wall's real width.
-export const PrintableCadLayout: React.FC<PrintableCadLayoutProps> = ({ items, cutList, projectName, projectType, active }) => {
+export const PrintableCadLayout: React.FC<PrintableCadLayoutProps> = ({ items, cutList, hardwareBOM, projectName, projectType, active }) => {
   const rooms = useMemo(() => {
     const seen: string[] = [];
     items.forEach((i) => {
@@ -73,6 +75,13 @@ export const PrintableCadLayout: React.FC<PrintableCadLayoutProps> = ({ items, c
     [items]
   );
   const totalSheets = useMemo(() => calculateMaterialUsage(cutList).totalSheets, [cutList]);
+
+  // Complete hardware details (hinges, handles, drawer/tandem channels,
+  // shelf supports, minifix, skirting clips, sliding track, dowels, ...) -
+  // the exact same per-hardware-code aggregation the Hardware BOM tab
+  // itself shows, so the printed totals always match that tab precisely
+  // instead of drifting out of sync with a separately-maintained list.
+  const hardwareSummary = useMemo(() => aggregateHardwareBOM(hardwareBOM), [hardwareBOM]);
 
   return (
     <div className={active ? 'hidden print:block bg-white text-slate-900' : 'hidden'}>
@@ -105,6 +114,38 @@ export const PrintableCadLayout: React.FC<PrintableCadLayoutProps> = ({ items, c
         <div className="mt-6 text-xs text-slate-500">
           <span className="font-bold text-slate-700">Rooms in this project:</span> {rooms.join(', ')}
         </div>
+
+        {/* Complete Hardware Details - hinges, handles, drawer/tandem
+            channels, shelf supports, minifix, skirting clips, sliding
+            track, dowels, etc. - everything the factory needs to pull
+            hardware stock for the whole job before cutting even starts. */}
+        {hardwareSummary.length > 0 && (
+          <div className="mt-8">
+            <h2 className="text-sm font-black uppercase tracking-wide text-slate-700 border-b-2 border-slate-900 pb-1.5">
+              Complete Hardware Details
+            </h2>
+            <table className="w-full text-xs mt-3 border-collapse">
+              <thead>
+                <tr className="text-left text-[10px] uppercase tracking-wide text-slate-400 border-b border-slate-300">
+                  <th className="py-1.5 pr-3">Hardware</th>
+                  <th className="py-1.5 pr-3">Code</th>
+                  <th className="py-1.5 text-right">Quantity</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {hardwareSummary.map((h) => (
+                  <tr key={`${h.hardwareCode}-${h.unit}`}>
+                    <td className="py-1.5 pr-3 font-semibold text-slate-800">{h.hardwareName}</td>
+                    <td className="py-1.5 pr-3 font-mono text-slate-400">{h.hardwareCode}</td>
+                    <td className="py-1.5 text-right font-mono font-bold text-slate-900">
+                      {h.totalQuantity.toLocaleString()} {h.unit}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       {rooms.map((room, roomIdx) => {

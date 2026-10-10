@@ -524,7 +524,7 @@ export default function App() {
     {/* Print-only output: the interactive app above is hidden via
         print:hidden, and this light-theme, room-by-room CAD layout is the
         only thing that appears in the printed/PDF output. */}
-    <PrintableCadLayout items={items} cutList={cutList} projectName={projectInfo.projectName} projectType={projectType} active={printTarget === 'cad'} />
+    <PrintableCadLayout items={items} cutList={cutList} hardwareBOM={hardwareBOM} projectName={projectInfo.projectName} projectType={projectType} active={printTarget === 'cad'} />
     <PrintableCuttingList
       cutList={cutList}
       projectName={projectInfo.projectName}
