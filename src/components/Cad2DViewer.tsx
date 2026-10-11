@@ -282,9 +282,14 @@ export const Cad2DViewer: React.FC<Cad2DViewerProps> = ({
     };
   }, [wallItems]);
 
-  // Padding around elevation drawing to guarantee datums and dimension strings never clip
-  const paddingLeft = 520;
-  const paddingRight = 400;
+  // Padding around elevation drawing to guarantee datums and dimension strings never clip.
+  // Both the left-side datum flags (±0.00 FFL / LINTEL / OVERHEAD SILL / SLAB CEILING) and
+  // the right-side ladder (H: ...mm CARCASS / LOFT / LINTEL, ...mm SLAB CLEAR) grow with
+  // fontScale - their font size AND their fixed pixel offset from the wall both scale with
+  // it - so a fixed padding only held up at the smallest size and clipped text at the larger
+  // font presets; both paddings now scale the same way.
+  const paddingLeft = 580 * fontScale;
+  const paddingRight = 750 * fontScale;
   const paddingTop = 150;
   const paddingBottom = 170;
   const viewBoxW = wallWidth + paddingLeft + paddingRight;
