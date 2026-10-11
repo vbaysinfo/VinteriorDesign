@@ -461,6 +461,8 @@ export const PrintableCadLayout: React.FC<PrintableCadLayoutProps> = ({ items, c
                           {Array.from({ length: loftPanelCount }).map((_, pIdx) => {
                             const panelWpx = SHEET_WIDTH / loftPanelCount;
                             const px = pIdx * panelWpx;
+                            const isHingeLeft = pIdx % 2 === 0;
+                            const handleH = Math.min(18, loftHeightPx * 0.4);
                             return (
                               <g key={pIdx}>
                                 {pIdx > 0 && <line x1={px} y1={0} x2={px} y2={loftHeightPx} stroke="#0f172a" strokeWidth={0.8} />}
@@ -468,6 +470,17 @@ export const PrintableCadLayout: React.FC<PrintableCadLayoutProps> = ({ items, c
                                   <text x={px + panelWpx / 2} y={loftHeightPx / 2} textAnchor="middle" fontSize="6.5" fontWeight="bold" fill="#334155">
                                     SHUTTER
                                   </text>
+                                )}
+                                {loftHeightPx > 20 && panelWpx > 18 && (
+                                  <rect
+                                    x={isHingeLeft ? px + panelWpx - 5 : px + 3}
+                                    y={loftHeightPx / 2 - handleH / 2}
+                                    width={1.4}
+                                    height={handleH}
+                                    rx={0.7}
+                                    fill="#0f172a"
+                                    opacity={0.8}
+                                  />
                                 )}
                               </g>
                             );
@@ -626,12 +639,22 @@ export const PrintableCadLayout: React.FC<PrintableCadLayoutProps> = ({ items, c
                               <rect x={0} y={0} width={SHEET_WIDTH} height={boxHeightPx} fill="#ffffff" stroke="#0f172a" strokeWidth={1.2} />
                               {showsShutters &&
                                 (() => {
+                                  const isSliding = item.doorType === 'sliding';
                                   let acc = 0;
                                   return Array.from({ length: shutterCount }).map((_, sIdx) => {
                                     const shutterWidthMm = shutterWidths[sIdx];
                                     const sx = acc * dScale;
                                     const spx = shutterWidthMm * dScale;
                                     acc += shutterWidthMm + gapMm;
+                                    // Alternating pull side per panel - adjacent
+                                    // doors hinge away from each other and meet
+                                    // in the middle, same convention as the
+                                    // interactive CAD elevation's own shutter
+                                    // handles, so which edge swings/slides is
+                                    // legible at a glance instead of every
+                                    // panel looking identical.
+                                    const isHingeLeft = sIdx % 2 === 0;
+                                    const handleH = Math.min(40, boxHeightPx * (isSliding ? 0.14 : 0.2));
                                     return (
                                       <g key={sIdx}>
                                         {sIdx > 0 && <line x1={sx} y1={0} x2={sx} y2={boxHeightPx} stroke="#0f172a" strokeWidth={0.8} />}
@@ -641,6 +664,17 @@ export const PrintableCadLayout: React.FC<PrintableCadLayoutProps> = ({ items, c
                                         <text x={sx + spx / 2} y={boxHeightPx / 2 + 11} textAnchor="middle" fontSize="7" fill="#64748b">
                                           {shutterWidthMm}×{item.heightMm - 20}
                                         </text>
+                                        {spx > 18 && (
+                                          <rect
+                                            x={isHingeLeft ? sx + spx - 6 : sx + 3}
+                                            y={boxHeightPx / 2 - handleH / 2}
+                                            width={1.6}
+                                            height={handleH}
+                                            rx={0.8}
+                                            fill="#0f172a"
+                                            opacity={isSliding ? 0.55 : 0.85}
+                                          />
+                                        )}
                                       </g>
                                     );
                                   });
@@ -653,6 +687,17 @@ export const PrintableCadLayout: React.FC<PrintableCadLayoutProps> = ({ items, c
                                   return (
                                     <g key={dIdx}>
                                       {dIdx > 0 && <line x1={0} y1={dy} x2={SHEET_WIDTH} y2={dy} stroke="#0f172a" strokeWidth={0.8} />}
+                                      {SHEET_WIDTH > 24 && (
+                                        <rect
+                                          x={SHEET_WIDTH / 2 - 14}
+                                          y={dy + drawerHpx / 2 - 10}
+                                          width={28}
+                                          height={1.6}
+                                          rx={0.8}
+                                          fill="#0f172a"
+                                          opacity={0.85}
+                                        />
+                                      )}
                                       <text x={SHEET_WIDTH / 2} y={dy + drawerHpx / 2} textAnchor="middle" fontSize="8" fontWeight="bold" fill="#334155">
                                         {item.drawerType === 'tandem' ? 'TANDEM BOX' : 'DRAWER'}
                                       </text>
