@@ -304,20 +304,24 @@ export const PrintableCadLayout: React.FC<PrintableCadLayoutProps> = ({ items, c
                                     cumulatively rather than assuming one fixed pitch. */}
                                 {hasShutterDoors(item) && item.drawerCount === 0 && (() => {
                                   const { count, widths, gapMm } = getShutterLayout(item);
+                                  const isSliding = item.doorType === 'sliding';
+                                  const isLiftTop = item.doorType === 'lift_top';
                                   let acc = 0;
                                   return Array.from({ length: count }).map((_, sIdx) => {
                                     const shutterWidthMm = widths[sIdx];
                                     const sx = boxX + acc * scaleX;
                                     const shutterWpx = shutterWidthMm * scaleX;
                                     acc += shutterWidthMm + gapMm;
+                                    const isHingeLeft = sIdx % 2 === 0;
                                     return (
                                       <g key={sIdx}>
                                         {sIdx > 0 && (
                                           <line x1={sx} y1={doorTopY} x2={sx} y2={boxY + h} stroke="#0f172a" strokeWidth={0.6} />
                                         )}
+                                        {isLiftTop && <line x1={sx} y1={doorTopY} x2={sx + shutterWpx} y2={doorTopY} stroke="#0f172a" strokeWidth={1.8} />}
                                         {w > 40 && doorHeightPx > 34 && (
                                           <text x={sx + shutterWpx / 2} y={doorTopY + 11} textAnchor="middle" fontSize="6" fontWeight="bold" fill="#0f172a" letterSpacing="0.3">
-                                            SHUTTER
+                                            {isLiftTop ? 'LIFT TOP' : 'SHUTTER'}
                                           </text>
                                         )}
                                         {w > 40 && (
@@ -325,6 +329,36 @@ export const PrintableCadLayout: React.FC<PrintableCadLayoutProps> = ({ items, c
                                             {shutterWidthMm}×{doorHeight}
                                           </text>
                                         )}
+                                        {/* Handle - same convention as the Wardrobe Design Sheets'
+                                            Outer View: alternating side pull per panel for a hinged
+                                            door, a shorter one for sliding, centered horizontally for
+                                            a lift-top flap (its hinge is the whole top edge, not a
+                                            side) - kept at mid-height, same as the others, so it
+                                            never lands on top of the W×H caption printed right at
+                                            the panel's bottom edge. */}
+                                        {shutterWpx > 16 &&
+                                          doorHeightPx > 20 &&
+                                          (isLiftTop ? (
+                                            <rect
+                                              x={sx + shutterWpx / 2 - 10}
+                                              y={doorTopY + doorHeightPx / 2 - 0.7}
+                                              width={20}
+                                              height={1.4}
+                                              rx={0.7}
+                                              fill="#0f172a"
+                                              opacity={0.85}
+                                            />
+                                          ) : (
+                                            <rect
+                                              x={isHingeLeft ? sx + shutterWpx - 5 : sx + 2}
+                                              y={doorTopY + doorHeightPx / 2 - Math.min(16, doorHeightPx * (isSliding ? 0.12 : 0.18))}
+                                              width={1.3}
+                                              height={Math.min(32, doorHeightPx * (isSliding ? 0.24 : 0.36))}
+                                              rx={0.65}
+                                              fill="#0f172a"
+                                              opacity={isSliding ? 0.5 : 0.85}
+                                            />
+                                          ))}
                                       </g>
                                     );
                                   });
@@ -344,6 +378,22 @@ export const PrintableCadLayout: React.FC<PrintableCadLayoutProps> = ({ items, c
                                           <text x={boxX + w / 2} y={dy + 9} textAnchor="middle" fontSize="6" fontWeight="bold" fill="#0f172a" letterSpacing="0.3">
                                             {drawerLabel}
                                           </text>
+                                        )}
+                                        {/* Sits in the gap between the "DRAWER" label near the top
+                                            and the W×H caption just below center - only drawn once
+                                            that gap is tall enough to actually hold it clear of both,
+                                            same guard the shutter handle above uses against the
+                                            SHUTTER/LIFT TOP label and its own W×H caption. */}
+                                        {w > 40 && drawerHpx > 40 && (
+                                          <rect
+                                            x={boxX + w / 2 - 12}
+                                            y={dy + drawerHpx / 2 - 7}
+                                            width={24}
+                                            height={1.4}
+                                            rx={0.7}
+                                            fill="#0f172a"
+                                            opacity={0.85}
+                                          />
                                         )}
                                         {h > 20 && (
                                           <text x={boxX + w / 2} y={dy + drawerHpx / 2 + 2} textAnchor="middle" fontSize="6.5" fill="#334155">
@@ -455,6 +505,7 @@ export const PrintableCadLayout: React.FC<PrintableCadLayoutProps> = ({ items, c
                       // both the Outer and Inner views.
                       const loftItem = stackedLofts[0];
                       const loftPanelCount = loftItem && hasShutterDoors(loftItem) ? Math.max(1, getShutterLayout(loftItem).count) : 1;
+                      const loftIsLiftTop = loftItem?.doorType === 'lift_top';
                       const loftBox = loftHeightPx > 2 && (
                         <g>
                           <rect x={0} y={0} width={SHEET_WIDTH} height={loftHeightPx} fill="#f8fafc" stroke="#0f172a" strokeWidth={1.2} />
@@ -466,22 +517,36 @@ export const PrintableCadLayout: React.FC<PrintableCadLayoutProps> = ({ items, c
                             return (
                               <g key={pIdx}>
                                 {pIdx > 0 && <line x1={px} y1={0} x2={px} y2={loftHeightPx} stroke="#0f172a" strokeWidth={0.8} />}
+                                {loftIsLiftTop && <line x1={px} y1={1} x2={px + panelWpx} y2={1} stroke="#0f172a" strokeWidth={1.8} />}
                                 {loftHeightPx > 16 && panelWpx > 28 && (
                                   <text x={px + panelWpx / 2} y={loftHeightPx / 2} textAnchor="middle" fontSize="6.5" fontWeight="bold" fill="#334155">
-                                    SHUTTER
+                                    {loftIsLiftTop ? 'LIFT TOP' : 'SHUTTER'}
                                   </text>
                                 )}
-                                {loftHeightPx > 20 && panelWpx > 18 && (
-                                  <rect
-                                    x={isHingeLeft ? px + panelWpx - 5 : px + 3}
-                                    y={loftHeightPx / 2 - handleH / 2}
-                                    width={1.4}
-                                    height={handleH}
-                                    rx={0.7}
-                                    fill="#0f172a"
-                                    opacity={0.8}
-                                  />
-                                )}
+                                {loftIsLiftTop
+                                  ? loftHeightPx > 20 && panelWpx > 24 && (
+                                      <rect
+                                        x={px + panelWpx / 2 - 11}
+                                        y={loftHeightPx - 6}
+                                        width={22}
+                                        height={1.6}
+                                        rx={0.8}
+                                        fill="#0f172a"
+                                        opacity={0.8}
+                                      />
+                                    )
+                                  : loftHeightPx > 20 &&
+                                    panelWpx > 18 && (
+                                      <rect
+                                        x={isHingeLeft ? px + panelWpx - 5 : px + 3}
+                                        y={loftHeightPx / 2 - handleH / 2}
+                                        width={1.4}
+                                        height={handleH}
+                                        rx={0.7}
+                                        fill="#0f172a"
+                                        opacity={0.8}
+                                      />
+                                    )}
                               </g>
                             );
                           })}
@@ -640,6 +705,7 @@ export const PrintableCadLayout: React.FC<PrintableCadLayoutProps> = ({ items, c
                               {showsShutters &&
                                 (() => {
                                   const isSliding = item.doorType === 'sliding';
+                                  const isLiftTop = item.doorType === 'lift_top';
                                   let acc = 0;
                                   return Array.from({ length: shutterCount }).map((_, sIdx) => {
                                     const shutterWidthMm = shutterWidths[sIdx];
@@ -652,29 +718,47 @@ export const PrintableCadLayout: React.FC<PrintableCadLayoutProps> = ({ items, c
                                     // interactive CAD elevation's own shutter
                                     // handles, so which edge swings/slides is
                                     // legible at a glance instead of every
-                                    // panel looking identical.
+                                    // panel looking identical. A lift-top panel
+                                    // doesn't alternate - it always hinges along
+                                    // its own top edge, so its pull sits bottom-
+                                    // center on every panel instead.
                                     const isHingeLeft = sIdx % 2 === 0;
                                     const handleH = Math.min(40, boxHeightPx * (isSliding ? 0.14 : 0.2));
                                     return (
                                       <g key={sIdx}>
                                         {sIdx > 0 && <line x1={sx} y1={0} x2={sx} y2={boxHeightPx} stroke="#0f172a" strokeWidth={0.8} />}
+                                        {isLiftTop && (
+                                          <line x1={sx} y1={1} x2={sx + spx} y2={1} stroke="#0f172a" strokeWidth={2.2} />
+                                        )}
                                         <text x={sx + spx / 2} y={boxHeightPx / 2} textAnchor="middle" fontSize="8" fontWeight="bold" fill="#334155">
-                                          SHUTTER
+                                          {isLiftTop ? 'LIFT TOP' : 'SHUTTER'}
                                         </text>
                                         <text x={sx + spx / 2} y={boxHeightPx / 2 + 11} textAnchor="middle" fontSize="7" fill="#64748b">
                                           {shutterWidthMm}×{item.heightMm - 20}
                                         </text>
-                                        {spx > 18 && (
-                                          <rect
-                                            x={isHingeLeft ? sx + spx - 6 : sx + 3}
-                                            y={boxHeightPx / 2 - handleH / 2}
-                                            width={1.6}
-                                            height={handleH}
-                                            rx={0.8}
-                                            fill="#0f172a"
-                                            opacity={isSliding ? 0.55 : 0.85}
-                                          />
-                                        )}
+                                        {isLiftTop
+                                          ? spx > 24 && (
+                                              <rect
+                                                x={sx + spx / 2 - 14}
+                                                y={boxHeightPx - 8}
+                                                width={28}
+                                                height={1.8}
+                                                rx={0.9}
+                                                fill="#0f172a"
+                                                opacity={0.85}
+                                              />
+                                            )
+                                          : spx > 18 && (
+                                              <rect
+                                                x={isHingeLeft ? sx + spx - 6 : sx + 3}
+                                                y={boxHeightPx / 2 - handleH / 2}
+                                                width={1.6}
+                                                height={handleH}
+                                                rx={0.8}
+                                                fill="#0f172a"
+                                                opacity={isSliding ? 0.55 : 0.85}
+                                              />
+                                            )}
                                       </g>
                                     );
                                   });

@@ -69,6 +69,16 @@ export function getHingeCountForHeight(heightMm: number, hingeRules: HingeRule[]
   return sorted[sorted.length - 1]?.hinges ?? 2;
 }
 
+// A lift-top (flap) door's gas-strut stays are sized by its WIDTH, not
+// height, the opposite axis from a hinged door's rule table above - a wide
+// flap needs two stays to hold itself open evenly without racking, a
+// narrow one only needs one. Not run through the factory's own configurable
+// HingeRule table since a stay is a different part entirely, not a hinge
+// variant - this one fixed width break is the factory's standard practice.
+export function getLiftStayCountForWidth(widthMm: number): number {
+  return widthMm > 1000 ? 2 : 1;
+}
+
 // Resolves an item's REAL effective construction type - the one function
 // every calculation (cut list, box schedule, cost estimate, AI analysis)
 // reads, instead of each duplicating this precedence inline. Order:
@@ -1474,8 +1484,15 @@ export function calculateMaterialUsage(cutList: CutListPart[], rules: HardwareRu
     if (part.partName === 'Shutter') {
       // A sliding panel never hinges - it rides on a track instead (see
       // calculateHardwareBOM for the detailed track/roller lines). Still
-      // gets a handle/flush-pull either way.
-      if (part.doorType !== 'sliding') {
+      // gets a handle/flush-pull either way. A lift-top panel's gas-strut
+      // stays get folded into this same rough cost bucket too - the
+      // itemized Hardware BOM above is where it's actually broken out as
+      // its own "Lift-Up Stay" line; this aggregate only needs a
+      // comparable per-shutter opening-hardware cost, not a separate
+      // tracked field.
+      if (part.doorType === 'lift_top') {
+        softCloseHingesPairs += (getLiftStayCountForWidth(part.widthMm) / 2) * part.qty;
+      } else if (part.doorType !== 'sliding') {
         const hingesNeeded = getHingeCountForHeight(part.lengthMm, rules.hingeRules);
         softCloseHingesPairs += (hingesNeeded / 2) * part.qty;
       }
@@ -1629,8 +1646,21 @@ export function calculateHardwareBOM(cutList: CutListPart[], rules: HardwareRule
       if (part.partName === 'Shutter') {
         // A sliding panel rides on a track instead of hinging - its track
         // and rollers are charged once per item below (after this loop),
-        // not per panel like a hinge would be.
-        if (part.doorType !== 'sliding') {
+        // not per panel like a hinge would be. A lift-top (flap) panel
+        // hinges along its top edge and holds itself open on gas-strut
+        // stays instead of door hinges.
+        if (part.doorType === 'lift_top') {
+          const stays = getLiftStayCountForWidth(part.widthMm);
+          push({
+            componentId: part.id,
+            componentType: 'Shutter',
+            hardwareCode: 'STY-LFT',
+            hardwareName: 'Lift-Up Stay (Gas Strut)',
+            unit: 'Nos',
+            quantity: stays * part.qty,
+            calculationRule: `${stays} lift stay(s) per shutter up to ${part.widthMm}mm width`,
+          });
+        } else if (part.doorType !== 'sliding') {
           const hinges = getHingeCountForHeight(part.lengthMm, rules.hingeRules);
           push({
             componentId: part.id,
@@ -1643,14 +1673,16 @@ export function calculateHardwareBOM(cutList: CutListPart[], rules: HardwareRule
           });
         }
         if (rules.handlesPerShutter > 0) {
+          const handleCode = part.doorType === 'sliding' ? 'HDL-FLU' : part.doorType === 'lift_top' ? 'HDL-LFT' : 'HDL-01';
+          const handleName = part.doorType === 'sliding' ? 'Flush Pull Handle' : part.doorType === 'lift_top' ? 'Lift Handle' : 'Handle';
           push({
             componentId: part.id,
             componentType: 'Shutter',
-            hardwareCode: part.doorType === 'sliding' ? 'HDL-FLU' : 'HDL-01',
-            hardwareName: part.doorType === 'sliding' ? 'Flush Pull Handle' : 'Handle',
+            hardwareCode: handleCode,
+            hardwareName: handleName,
             unit: 'Nos',
             quantity: rules.handlesPerShutter * part.qty,
-            calculationRule: `${rules.handlesPerShutter} ${part.doorType === 'sliding' ? 'flush pull(s)' : 'handle(s)'} per shutter`,
+            calculationRule: `${rules.handlesPerShutter} ${handleName.toLowerCase()}(s) per shutter`,
           });
         }
       } else if (part.partName === 'Drawer Front') {

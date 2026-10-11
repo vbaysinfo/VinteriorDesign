@@ -1,4 +1,4 @@
-import { ModularItem, WallType, DrawerType } from '../types';
+import { ModularItem, WallType, DrawerType, DoorType } from '../types';
 import { ftToMm, recalculateItemMetrics } from './calculator';
 
 export type KitchenLayoutShape = 'straight' | 'l_shape' | 'u_shape' | 'parallel' | 'island';
@@ -46,6 +46,14 @@ export interface KitchenConfiguratorOptions {
   // of a plain soft-close channel), matching the deeper pot/pan drawers a
   // real kitchen base run almost always actually has.
   drawerType: DrawerType;
+  // 'hinged' (the default) swings open on the side like a base cabinet
+  // door; 'lift_top' hinges along its top edge and flips up on a gas-strut
+  // stay instead - the common choice for an overhead run, since a
+  // side-swinging door at counter-to-ceiling height constantly collides
+  // with whoever's standing at the counter. Applies to both the Overhead
+  // and (if included) Loft run - they're the same cabinet run stacked, so
+  // one door style choice covers both instead of asking twice.
+  overheadDoorType: DoorType;
   coreMaterial: ModularItem['coreMaterial'];
   finishType: ModularItem['finishType'];
   laminateColorCode?: string;
@@ -57,6 +65,7 @@ export const DEFAULT_KITCHEN_OPTIONS: Omit<KitchenConfiguratorOptions, 'shape' |
   includeLoft: false,
   drawersPerRun: 0,
   drawerType: 'standard',
+  overheadDoorType: 'hinged',
   coreMaterial: 'BWR Commercial Ply',
   finishType: 'Laminate',
   laminateColorCode: '',
@@ -147,6 +156,7 @@ export function generateKitchenLayout(options: KitchenConfiguratorOptions, exist
             widthFt: lengthFt,
             heightFt: OVERHEAD_HEIGHT_FT,
             depthFt: OVERHEAD_DEPTH_FT,
+            doorType: options.overheadDoorType === 'hinged' ? undefined : options.overheadDoorType,
           },
           options
         )
@@ -164,6 +174,7 @@ export function generateKitchenLayout(options: KitchenConfiguratorOptions, exist
               widthFt: lengthFt,
               heightFt: LOFT_HEIGHT_FT,
               depthFt: LOFT_DEPTH_FT,
+              doorType: options.overheadDoorType === 'hinged' ? undefined : options.overheadDoorType,
             },
             options
           )

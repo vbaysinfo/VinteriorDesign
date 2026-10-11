@@ -4,8 +4,12 @@ export type ProjectType = 'semi' | 'full';
 // hinges, one door per shutter slot; 'sliding' rides on a track and never
 // swings - its own panel count is auto-calculated from width (2 panels up
 // to a standard track width, 3 beyond it), separately from the hinged
-// width ladder. See getAutoShutterCount() in calculator.ts.
-export type DoorType = 'hinged' | 'sliding';
+// width ladder; 'lift_top' hinges along its TOP edge instead of a side and
+// flips up on a gas-strut stay instead of a hinge - the common kitchen
+// overhead/loft flap door, same hinged width ladder for panel count (still
+// swings open, just upward) but priced with lift stays instead of door
+// hinges. See getAutoShutterCount() in calculator.ts.
+export type DoorType = 'hinged' | 'sliding' | 'lift_top';
 
 // How an item's drawers are built. 'standard' (the default/undefined) is a
 // plain soft-close drawer box; 'tandem' is the deeper, heavier-duty pot/pan

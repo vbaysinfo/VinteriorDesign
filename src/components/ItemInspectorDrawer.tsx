@@ -376,16 +376,19 @@ export const ItemInspectorDrawer: React.FC<ItemInspectorDrawerProps> = ({
             <div>
               <label className="block text-slate-600 font-medium mb-1">Door Type</label>
               <select
-                value={item.doorType === 'sliding' ? 'sliding' : 'hinged'}
+                value={item.doorType === 'sliding' || item.doorType === 'lift_top' ? item.doorType : 'hinged'}
                 onChange={(e) => handleDoorTypeChange(e.target.value as DoorType)}
                 className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 font-bold"
               >
                 <option value="hinged">Hinged (Open/Close)</option>
                 <option value="sliding">Sliding</option>
+                <option value="lift_top">Lift Top (Flap)</option>
               </select>
               <span className="text-[10px] text-slate-400 mt-0.5 block">
                 {item.doorType === 'sliding'
                   ? 'Panel count auto-set from width (2 up to ~7ft, 3 beyond) - no hinge, track + rollers instead'
+                  : item.doorType === 'lift_top'
+                  ? 'Panel count auto-set from width (1 to 4 doors) - hinges along the top, held open on gas-strut lift stays'
                   : 'Panel count auto-set from width (1 to 4 doors) - swings open on hinges'}
               </span>
             </div>

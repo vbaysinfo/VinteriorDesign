@@ -1219,6 +1219,7 @@ export const Cad2DViewer: React.FC<Cad2DViewerProps> = ({
                           const isHingeLeft = sIdx % 2 === 0;
                           const shutterSelected = isShutterSelected(sIdx);
                           const isSliding = pos.item.doorType === 'sliding';
+                          const isLiftTop = pos.item.doorType === 'lift_top';
                           return (
                             <g key={`shutter-${sIdx}`}>
                               {/* Real reveal gap between adjacent HINGED shutters (matches cut list
@@ -1280,8 +1281,8 @@ export const Cad2DViewer: React.FC<Cad2DViewerProps> = ({
                                 }}
                               />
 
-                              {/* Architectural Door Swing Dashed Lines - hinged doors only */}
-                              {!isSliding && pos.h > 400 && pos.w > 200 && (
+                              {/* Architectural Door Swing Dashed Lines - side-hinged doors only */}
+                              {!isSliding && !isLiftTop && pos.h > 400 && pos.w > 200 && (
                                 <g opacity="0.35">
                                   {isHingeLeft ? (
                                     <polyline
@@ -1297,6 +1298,22 @@ export const Cad2DViewer: React.FC<Cad2DViewerProps> = ({
                                       fill="none"
                                       stroke={themeStyles.text}
                                       strokeWidth="1"
+                                      strokeDasharray="4,4"
+                                    />
+                                  )}
+                                </g>
+                              )}
+
+                              {/* Lift-Top hinge line + flip-up arc - a flap door pivots along its
+                                  TOP edge, not a side, so the swing indicator is a dashed arc
+                                  bowing upward from the bottom edge (where the open panel would
+                                  end up) instead of the side-hinge polyline above. */}
+                              {isLiftTop && (
+                                <g opacity="0.4" stroke={themeStyles.text} strokeWidth="1" fill="none">
+                                  <line x1={sx} y1={itemY} x2={sx + sw} y2={itemY} strokeWidth="2.5" />
+                                  {pos.h > 200 && sw > 80 && (
+                                    <path
+                                      d={`M ${sx + 6} ${itemY + pos.h} Q ${sx + sw / 2} ${itemY - pos.h * 0.35} ${sx + sw - 6} ${itemY + pos.h}`}
                                       strokeDasharray="4,4"
                                     />
                                   )}
@@ -1319,19 +1336,34 @@ export const Cad2DViewer: React.FC<Cad2DViewerProps> = ({
                                 );
                               })()}
 
-                              {/* Shutter Handle - a tall vertical pull for a hinged door, a short
-                                  recessed flush-pull groove along the overlap edge for sliding */}
-                              {pos.item.category !== 'expo' && (
-                                <rect
-                                  x={isHingeLeft ? sx + sw - 14 : sx + 10}
-                                  y={itemY + pos.h / 2 - (isSliding ? 20 : 35)}
-                                  width={isSliding ? 4 : 5}
-                                  height={isSliding ? 40 : 70}
-                                  rx="2"
-                                  fill={themeStyles.text}
-                                  opacity={isSliding ? 0.6 : 0.9}
-                                />
-                              )}
+                              {/* Shutter Handle - a tall vertical pull for a side-hinged door, a
+                                  short recessed flush-pull groove along the overlap edge for
+                                  sliding, or a horizontal pull centered along the BOTTOM edge for
+                                  a lift-top flap (the edge that comes toward you when it opens). */}
+                              {pos.item.category !== 'expo' &&
+                                (isLiftTop ? (
+                                  sw > 30 && (
+                                    <rect
+                                      x={sx + sw / 2 - 25}
+                                      y={itemY + pos.h - 14}
+                                      width={50}
+                                      height={4}
+                                      rx="2"
+                                      fill={themeStyles.text}
+                                      opacity={0.9}
+                                    />
+                                  )
+                                ) : (
+                                  <rect
+                                    x={isHingeLeft ? sx + sw - 14 : sx + 10}
+                                    y={itemY + pos.h / 2 - (isSliding ? 20 : 35)}
+                                    width={isSliding ? 4 : 5}
+                                    height={isSliding ? 40 : 70}
+                                    rx="2"
+                                    fill={themeStyles.text}
+                                    opacity={isSliding ? 0.6 : 0.9}
+                                  />
+                                ))}
                             </g>
                           );
                         })

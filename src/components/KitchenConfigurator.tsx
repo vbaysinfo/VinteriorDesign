@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { ModularItem, DrawerType } from '../types';
+import { ModularItem, DrawerType, DoorType } from '../types';
 import {
   KitchenLayoutShape,
   KitchenConfiguratorOptions,
@@ -39,6 +39,7 @@ export const KitchenConfigurator: React.FC<KitchenConfiguratorProps> = ({ items,
   const [includeLoft, setIncludeLoft] = useState(DEFAULT_KITCHEN_OPTIONS.includeLoft);
   const [drawersPerRun, setDrawersPerRun] = useState(DEFAULT_KITCHEN_OPTIONS.drawersPerRun);
   const [drawerType, setDrawerType] = useState<DrawerType>(DEFAULT_KITCHEN_OPTIONS.drawerType);
+  const [overheadDoorType, setOverheadDoorType] = useState<DoorType>(DEFAULT_KITCHEN_OPTIONS.overheadDoorType);
   const [coreMaterial, setCoreMaterial] = useState<ModularItem['coreMaterial']>(DEFAULT_KITCHEN_OPTIONS.coreMaterial);
   const [finishType, setFinishType] = useState<ModularItem['finishType']>(DEFAULT_KITCHEN_OPTIONS.finishType);
   const [laminateColorCode, setLaminateColorCode] = useState('');
@@ -60,6 +61,7 @@ export const KitchenConfigurator: React.FC<KitchenConfiguratorProps> = ({ items,
     includeLoft: includeOverhead && includeLoft,
     drawersPerRun,
     drawerType,
+    overheadDoorType,
     coreMaterial,
     finishType,
     laminateColorCode,
@@ -73,6 +75,7 @@ export const KitchenConfigurator: React.FC<KitchenConfiguratorProps> = ({ items,
     includeLoft,
     drawersPerRun,
     drawerType,
+    overheadDoorType,
     coreMaterial,
     finishType,
     laminateColorCode,
@@ -246,6 +249,26 @@ export const KitchenConfigurator: React.FC<KitchenConfiguratorProps> = ({ items,
               Include Loft (above Overhead)
             </label>
           </div>
+
+          {/* Door Style for the Overhead (and Loft, if included) run - a
+              side-hinged door at counter-to-ceiling height constantly
+              collides with whoever's at the counter, so Lift Top (a
+              gas-strut flap that hinges along the top edge instead) is the
+              common real-kitchen choice here, same door-type field every
+              other item in the app already has. */}
+          {includeOverhead && (
+            <div>
+              <label className="block text-xs font-bold text-slate-600 uppercase tracking-wide mb-2">Overhead Door Style</label>
+              <select
+                value={overheadDoorType}
+                onChange={(e) => setOverheadDoorType(e.target.value as DoorType)}
+                className="bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-800"
+              >
+                <option value="hinged">Hinged (Open/Close)</option>
+                <option value="lift_top">Lift Top (Flap, Gas Strut)</option>
+              </select>
+            </div>
+          )}
 
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-3 border-t border-slate-100">
             <div>

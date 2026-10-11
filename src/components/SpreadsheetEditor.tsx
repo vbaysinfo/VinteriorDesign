@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { ModularItem, CutListPart, WallType, ProjectType, UnitCategory } from '../types';
+import { ModularItem, CutListPart, WallType, ProjectType, UnitCategory, DoorType } from '../types';
 import { ftToMm, mmToFt, recalculateItemMetrics, isDepthRequiredButMissing, resolveEffectiveProjectType, hasShutterDoors, getAutoShutterCount, CATEGORY_LABELS } from '../utils/calculator';
 import { exportCutListFactoryFormat } from '../utils/excelParser';
 import { Plus, Trash2, Copy, Search, Filter, ArrowUpDown, FileSpreadsheet, Download } from 'lucide-react';
@@ -88,8 +88,9 @@ export const SpreadsheetEditor: React.FC<SpreadsheetEditorProps> = ({
       } else if (field === 'doorType') {
         // Switching Door Type immediately recalculates the panel count from
         // the current width (2/3 for Sliding, the 1-4 hinged ladder
-        // otherwise) - same auto-calc the Item Inspector's selector uses.
-        const doorType = value === 'sliding' ? 'sliding' : undefined;
+        // otherwise, Lift Top included) - same auto-calc the Item
+        // Inspector's selector uses.
+        const doorType = value === 'sliding' || value === 'lift_top' ? (value as DoorType) : undefined;
         newItem.doorType = doorType;
         newItem.shutterCount = getAutoShutterCount(newItem.widthMm, doorType);
       } else if (field === 'drawerType') {
@@ -448,12 +449,13 @@ export const SpreadsheetEditor: React.FC<SpreadsheetEditorProps> = ({
                   <td className="py-1.5 px-2 border-r border-slate-200 text-center" onClick={(e) => e.stopPropagation()}>
                     {hasShutterDoors(item) ? (
                       <select
-                        value={item.doorType === 'sliding' ? 'sliding' : 'hinged'}
+                        value={item.doorType === 'sliding' || item.doorType === 'lift_top' ? item.doorType : 'hinged'}
                         onChange={(e) => handleCellChange(item.id, 'doorType', e.target.value)}
                         className="text-[10px] font-sans font-bold uppercase bg-slate-100 hover:bg-slate-200 px-1 py-0.5 rounded text-slate-700 focus:outline-hidden w-full"
                       >
                         <option value="hinged">Hinged</option>
                         <option value="sliding">Sliding</option>
+                        <option value="lift_top">Lift Top</option>
                       </select>
                     ) : (
                       <span className="text-slate-300">—</span>
