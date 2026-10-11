@@ -423,16 +423,43 @@ export const PrintableCadLayout: React.FC<PrintableCadLayoutProps> = ({ items, c
                   </h3>
                   <div className="flex flex-col gap-6">
                     {closetItems.map((item) => {
-                      const dScale = Math.min(MAX_VIEW_WIDTH / item.widthMm, MAX_VIEW_HEIGHT / item.heightMm);
+                      // A Loft/Overhead sitting on the same wall is physically
+                      // the same cabinet run as the wardrobe below it - the
+                      // Wall Elevation already draws them attached as one
+                      // stack (see ROW_GAP_PX above), so this design sheet
+                      // draws and dimensions them as one combined unit too
+                      // instead of treating the wardrobe's own carcass as if
+                      // it were the whole wardrobe.
+                      const stackedLofts = roomItems.filter((o) => o.wall === item.wall && (isLoftCategory(o) || isOverheadCategory(o)));
+                      const loftHeightMm = stackedLofts.reduce((s, o) => s + o.heightMm, 0);
+                      const combinedHeightMm = item.heightMm + loftHeightMm;
+                      const dScale = Math.min(MAX_VIEW_WIDTH / item.widthMm, MAX_VIEW_HEIGHT / combinedHeightMm);
                       const SHEET_WIDTH = item.widthMm * dScale;
                       const boxHeightPx = item.heightMm * dScale;
+                      const loftHeightPx = loftHeightMm * dScale;
+                      const totalHeightPx = boxHeightPx + loftHeightPx;
                       const innerX = 18 * dScale;
-                      const innerY = 18 * dScale;
+                      const innerY = loftHeightPx + 18 * dScale;
                       const innerW = Math.max(100, item.widthMm - 36);
                       const innerH = Math.max(100, item.heightMm - 36);
                       const layout = getEffectiveClosetLayout(item);
                       const showsShutters = hasShutterDoors(item) && item.drawerCount === 0;
                       const { count: shutterCount, widths: shutterWidths, gapMm } = getShutterLayout(item);
+
+                      // The Loft/Overhead portion is just a plain closed box
+                      // on a real design sheet (it has no closet interior of
+                      // its own) - drawn once, shared by both the Outer and
+                      // Inner views below.
+                      const loftBox = loftHeightPx > 2 && (
+                        <g>
+                          <rect x={0} y={0} width={SHEET_WIDTH} height={loftHeightPx} fill="#f1f5f9" stroke="#0f172a" strokeWidth={1} strokeDasharray="4,3" />
+                          {loftHeightPx > 14 && (
+                            <text x={SHEET_WIDTH / 2} y={loftHeightPx / 2 + 3} textAnchor="middle" fontSize="7" fontWeight="bold" fill="#475569">
+                              LOFT {Math.round(loftHeightMm)}
+                            </text>
+                          )}
+                        </g>
+                      );
 
                       // Height dimension bracket on the left of a drawing -
                       // matches the reference sheet's own left-side "2330"
@@ -511,12 +538,12 @@ export const PrintableCadLayout: React.FC<PrintableCadLayoutProps> = ({ items, c
                       );
 
                       // ---- OUTER VIEW (shutter/drawer front, as closed) ----
-                      const outerDimY = boxHeightPx + 16;
+                      const outerDimY = totalHeightPx + 16;
                       const outerSvgH = ROOF_DEPTH + outerDimY + 14;
                       const outerSvgW = DIM_GUTTER + SHEET_WIDTH + LABEL_GUTTER;
 
                       // ---- INNER VIEW (open closet layout) ----
-                      const innerDimY = boxHeightPx + 16;
+                      const innerDimY = totalHeightPx + 16;
                       const innerSvgH = ROOF_DEPTH + innerDimY + 14;
                       const innerSvgW = outerSvgW;
 
@@ -524,6 +551,7 @@ export const PrintableCadLayout: React.FC<PrintableCadLayoutProps> = ({ items, c
                         <div key={item.id} className="break-inside-avoid">
                           <div className="text-[10px] font-bold text-slate-800">
                             #{item.sNo} {item.description} - {item.widthMm}×{item.heightMm}×{item.depthMm}mm
+                            {loftHeightMm > 0 && ` (+ Loft/Overhead ${Math.round(loftHeightMm)}mm = ${Math.round(combinedHeightMm)}mm total)`}
                           </div>
 
                           {/* Outer + Inner views side by side, so the whole
@@ -537,6 +565,8 @@ export const PrintableCadLayout: React.FC<PrintableCadLayoutProps> = ({ items, c
                             <g transform={`translate(0, ${ROOF_DEPTH})`}>
                             <g transform={`translate(${DIM_GUTTER}, 0)`}>
                               {roofShape}
+                              {loftBox}
+                              <g transform={`translate(0, ${loftHeightPx})`}>
                               <rect x={0} y={0} width={SHEET_WIDTH} height={boxHeightPx} fill="#ffffff" stroke="#0f172a" strokeWidth={1.2} />
                               {showsShutters &&
                                 (() => {
@@ -576,10 +606,11 @@ export const PrintableCadLayout: React.FC<PrintableCadLayoutProps> = ({ items, c
                                     </g>
                                   );
                                 })}
+                              </g>
                               {widthDim([item.widthMm], outerDimY, 0)}
                             </g>
-                            {heightDim(boxHeightPx, item.heightMm)}
-                            {roomDepthLabel(boxHeightPx / 2)}
+                            {heightDim(totalHeightPx, combinedHeightMm)}
+                            {roomDepthLabel(totalHeightPx / 2)}
                             </g>
                           </svg>
                           </div>
@@ -591,7 +622,8 @@ export const PrintableCadLayout: React.FC<PrintableCadLayoutProps> = ({ items, c
                             <g transform={`translate(0, ${ROOF_DEPTH})`}>
                             <g transform={`translate(${DIM_GUTTER}, 0)`}>
                               {roofShape}
-                              <rect x={0} y={0} width={SHEET_WIDTH} height={boxHeightPx} fill="#ffffff" stroke="#0f172a" strokeWidth={1.2} />
+                              {loftBox}
+                              <rect x={0} y={loftHeightPx} width={SHEET_WIDTH} height={boxHeightPx} fill="#ffffff" stroke="#0f172a" strokeWidth={1.2} />
                               <rect x={innerX} y={innerY} width={innerW * dScale} height={innerH * dScale} fill="#fffbeb" stroke="#92400e" strokeWidth={0.8} />
                               {(() => {
                                 let colAcc = 0;
@@ -765,8 +797,8 @@ export const PrintableCadLayout: React.FC<PrintableCadLayoutProps> = ({ items, c
                                 innerX
                               )}
                             </g>
-                            {heightDim(boxHeightPx, item.heightMm)}
-                            {roomDepthLabel(boxHeightPx / 2)}
+                            {heightDim(totalHeightPx, combinedHeightMm)}
+                            {roomDepthLabel(totalHeightPx / 2)}
                             </g>
                           </svg>
                           </div>
