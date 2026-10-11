@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { ModularItem, ClosetLayout, ClosetColumn } from '../types';
-import { getEffectiveClosetLayout, makeClosetColumnId } from '../utils/calculator';
+import { getEffectiveClosetLayout, makeClosetColumnId, getClosetCompartmentHeight } from '../utils/calculator';
 import { Plus, RotateCcw, Columns as ColumnsIcon, Shirt, Archive, SplitSquareHorizontal } from 'lucide-react';
 
 interface ClosetInteriorEditorProps {
@@ -326,7 +326,12 @@ export const ClosetInteriorEditor: React.FC<ClosetInteriorEditorProps> = ({ item
                     independent half-width drawer toggles instead of one. */}
                 {bounds.slice(0, -1).map((top, compIdx) => {
                   const bottom = bounds[compIdx + 1];
-                  const compHeightMm = Math.round(bottom - top);
+                  // The compartment's drag/visual extent still spans the raw
+                  // top-to-bottom gap (that's what makes dragging a shelf feel
+                  // right) - only the printed "XXXmm" label is corrected for
+                  // the shelf panel's own 18mm thickness eating into the
+                  // compartment below it, same as the real cut parts.
+                  const compHeightMm = Math.round(getClosetCompartmentHeight(bounds, compIdx));
                   const isRod = col.rodCompartments.includes(compIdx);
                   const isSplit = !isRod && (col.splitCompartments ?? []).includes(compIdx);
                   const isDrawer = !isRod && !isSplit && col.drawerCompartments.includes(compIdx);

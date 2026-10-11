@@ -264,6 +264,26 @@ const CLOSET_TARGET_COLUMN_WIDTH_MM = 650; // a comfortable hanging/shelf column
 const CLOSET_TARGET_SHELF_SPACING_MM = 350; // typical shelf-to-shelf clearance
 export const CLOSET_ROD_OVERHEAD_SHELF_MM = 280; // distance from a hanging-rod column's inner-top edge down to its overhead storage shelf
 
+// A column's compartments are bounded by `[0, ...sortedShelvesMm, innerHeight]`
+// - every consumer of a closet layout (cut list, the interior editor, the
+// 2D/3D viewers, the print design sheets) builds that same `bounds` array and
+// reads consecutive entries as a compartment's top/bottom. But every entry
+// strictly between 0 and innerHeight is itself a real 18mm shelf panel sitting
+// at that Y position, eating into the compartment below it - the raw gap
+// between two bounds overstates the compartment's actual clear height by one
+// shelf thickness. (The two outer bounds, 0 and innerHeight, are the carcass's
+// own top/bottom deck, already excluded from innerHeight - see innerHeight's
+// own `h - 36` in generateCutListForItem - so only an internal shelf boundary,
+// i.e. compIdx > 0, needs the deduction.) This is what sizes a drawer facia
+// or sub-divider that sits below a shelf, and what any on-screen "clear
+// height" dimension should read - so every one of those call sites shares
+// this instead of re-deriving it slightly differently each time.
+export function getClosetCompartmentHeight(bounds: number[], compIdx: number): number {
+  const top = bounds[compIdx] + (compIdx > 0 ? CLOSET_DIVIDER_THICKNESS_MM : 0);
+  const bottom = bounds[compIdx + 1];
+  return Math.max(0, bottom - top);
+}
+
 let closetColumnCounter = 0;
 export function makeClosetColumnId(): string {
   closetColumnCounter += 1;
@@ -910,7 +930,7 @@ export function generateCutListForItem(item: ModularItem, globalProjectType: Pro
       };
 
       for (let compIdx = 0; compIdx < bounds.length - 1; compIdx++) {
-        const compHeight = Math.max(80, bounds[compIdx + 1] - bounds[compIdx]);
+        const compHeight = Math.max(80, getClosetCompartmentHeight(bounds, compIdx));
 
         // An open hanging-rod bay - no physical part, just skip it.
         if (rodSet.has(compIdx)) continue;

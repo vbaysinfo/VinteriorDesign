@@ -9,6 +9,7 @@ import {
   getEffectiveClosetLayout,
   calculateMaterialUsage,
   aggregateHardwareBOM,
+  getClosetCompartmentHeight,
 } from '../utils/calculator';
 
 interface PrintableCadLayoutProps {
@@ -642,6 +643,26 @@ export const PrintableCadLayout: React.FC<PrintableCadLayoutProps> = ({ items, c
                                     );
                                   };
 
+                                  // The compartment's own clear height, same
+                                  // reference-drawing convention as "1123" /
+                                  // "950" on the GBR sheet: the raw gap between
+                                  // its two shelf bounds MINUS the 18mm shelf
+                                  // panel sitting at the upper bound (see
+                                  // getClosetCompartmentHeight) - printed
+                                  // small, tucked against the column's left
+                                  // edge so it doesn't collide with the
+                                  // HANGER ROD / SHELF / DRAWER label.
+                                  const compHeightLabel = (x: number, topMm: number, bottomMm: number, idx: number) => {
+                                    const compHpx = (bottomMm - topMm) * dScale;
+                                    if (compHpx < 20) return null;
+                                    const heightMm = Math.round(getClosetCompartmentHeight(bounds, idx));
+                                    return (
+                                      <text x={x} y={innerY + bottomMm * dScale - 3} fontSize="5.5" fill="#64748b">
+                                        {heightMm}
+                                      </text>
+                                    );
+                                  };
+
                                   return (
                                     <g key={col.id}>
                                       {bounds.slice(0, -1).map((top, compIdx) => {
@@ -660,6 +681,7 @@ export const PrintableCadLayout: React.FC<PrintableCadLayoutProps> = ({ items, c
                                                 opacity={0.6}
                                               />
                                               {compLabel(colX + colW / 2, top, bottom, 'HANGER ROD', colW < 70)}
+                                              {compHeightLabel(colX + 2, top, bottom, compIdx)}
                                             </g>
                                           );
                                         }
@@ -697,6 +719,7 @@ export const PrintableCadLayout: React.FC<PrintableCadLayoutProps> = ({ items, c
                                                   </g>
                                                 );
                                               })}
+                                              {compHeightLabel(colX + 2, top, bottom, compIdx)}
                                             </g>
                                           );
                                         }
@@ -716,6 +739,7 @@ export const PrintableCadLayout: React.FC<PrintableCadLayoutProps> = ({ items, c
                                               />
                                             )}
                                             {compLabel(colX + colW / 2, top, bottom, isDrawer ? 'DRAWER' : 'SHELF', colW < 70)}
+                                            {compHeightLabel(colX + 2, top, bottom, compIdx)}
                                           </g>
                                         );
                                       })}
