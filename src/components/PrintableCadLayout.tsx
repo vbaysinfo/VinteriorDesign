@@ -412,7 +412,7 @@ export const PrintableCadLayout: React.FC<PrintableCadLayoutProps> = ({ items, c
               const MAX_VIEW_WIDTH = 300;
               const MAX_VIEW_HEIGHT = 560;
               const DIM_GUTTER = 30; // left-side height-dimension gutter, shared by both views
-              const LABEL_GUTTER = 56; // right-side room/depth callout gutter, shared by both views
+              const LABEL_GUTTER = 80; // right-side room/depth callout gutter, shared by both views
               const ROOF_DEPTH = 16; // pseudo-3D isometric top sliver, like a real cabinet drawing's receding top edge
               const ROOF_SKEW = 12;
 
@@ -446,16 +446,35 @@ export const PrintableCadLayout: React.FC<PrintableCadLayoutProps> = ({ items, c
                       const showsShutters = hasShutterDoors(item) && item.drawerCount === 0;
                       const { count: shutterCount, widths: shutterWidths, gapMm } = getShutterLayout(item);
 
-                      // The Loft/Overhead portion is just a plain closed box
-                      // on a real design sheet (it has no closet interior of
-                      // its own) - drawn once, shared by both the Outer and
-                      // Inner views below.
+                      // The Loft/Overhead portion has no closet interior of
+                      // its own, so both views draw it identically - but it's
+                      // a real shuttered box, not a blank placeholder, so it
+                      // gets its own shutter-panel divisions here, drawn from
+                      // its own item's door count/type exactly like the
+                      // wardrobe's own Outer View does below it. Shared by
+                      // both the Outer and Inner views.
+                      const loftItem = stackedLofts[0];
+                      const loftPanelCount = loftItem && hasShutterDoors(loftItem) ? Math.max(1, getShutterLayout(loftItem).count) : 1;
                       const loftBox = loftHeightPx > 2 && (
                         <g>
-                          <rect x={0} y={0} width={SHEET_WIDTH} height={loftHeightPx} fill="#f1f5f9" stroke="#0f172a" strokeWidth={1} strokeDasharray="4,3" />
+                          <rect x={0} y={0} width={SHEET_WIDTH} height={loftHeightPx} fill="#f8fafc" stroke="#0f172a" strokeWidth={1.2} />
+                          {Array.from({ length: loftPanelCount }).map((_, pIdx) => {
+                            const panelWpx = SHEET_WIDTH / loftPanelCount;
+                            const px = pIdx * panelWpx;
+                            return (
+                              <g key={pIdx}>
+                                {pIdx > 0 && <line x1={px} y1={0} x2={px} y2={loftHeightPx} stroke="#0f172a" strokeWidth={0.8} />}
+                                {loftHeightPx > 16 && panelWpx > 28 && (
+                                  <text x={px + panelWpx / 2} y={loftHeightPx / 2} textAnchor="middle" fontSize="6.5" fontWeight="bold" fill="#334155">
+                                    SHUTTER
+                                  </text>
+                                )}
+                              </g>
+                            );
+                          })}
                           {loftHeightPx > 14 && (
-                            <text x={SHEET_WIDTH / 2} y={loftHeightPx / 2 + 3} textAnchor="middle" fontSize="7" fontWeight="bold" fill="#475569">
-                              LOFT {Math.round(loftHeightMm)}
+                            <text x={SHEET_WIDTH / 2} y={loftHeightPx - 4} textAnchor="middle" fontSize="6" fill="#64748b">
+                              LOFT {Math.round(loftHeightMm)}mm
                             </text>
                           )}
                         </g>
@@ -482,6 +501,40 @@ export const PrintableCadLayout: React.FC<PrintableCadLayoutProps> = ({ items, c
                           </text>
                         </g>
                       );
+
+                      // Loft/Wardrobe height breakdown, tucked just right of
+                      // the box - the same split the reference sheet shows as
+                      // two separate tick-arrows ("660" then "2100") rather
+                      // than only ever printing the combined total.
+                      const heightBreakdown = loftHeightPx > 2 && (() => {
+                        const segs = [
+                          { label: 'LOFT', mm: Math.round(loftHeightMm), topPx: 0, bottomPx: loftHeightPx },
+                          { label: 'WARDROBE', mm: item.heightMm, topPx: loftHeightPx, bottomPx: totalHeightPx },
+                        ];
+                        const x = SHEET_WIDTH + 10;
+                        return (
+                          <g>
+                            {segs.map((seg, i) => (
+                              <g key={i}>
+                                <line x1={x} y1={seg.topPx} x2={x} y2={seg.bottomPx} stroke="#dc2626" strokeWidth={0.8} />
+                                <line x1={x - 3} y1={seg.topPx} x2={x + 3} y2={seg.topPx} stroke="#dc2626" strokeWidth={0.8} />
+                                <line x1={x - 3} y1={seg.bottomPx} x2={x + 3} y2={seg.bottomPx} stroke="#dc2626" strokeWidth={0.8} />
+                                <text
+                                  x={x + 9}
+                                  y={(seg.topPx + seg.bottomPx) / 2}
+                                  textAnchor="middle"
+                                  fontSize="6.5"
+                                  fontWeight="bold"
+                                  fill="#dc2626"
+                                  transform={`rotate(-90, ${x + 9}, ${(seg.topPx + seg.bottomPx) / 2})`}
+                                >
+                                  {seg.label} {seg.mm}
+                                </text>
+                              </g>
+                            ))}
+                          </g>
+                        );
+                      })();
 
                       // Width dimension row under a drawing, broken into one
                       // segment per value passed in - matches the reference
@@ -510,15 +563,18 @@ export const PrintableCadLayout: React.FC<PrintableCadLayoutProps> = ({ items, c
                       };
 
                       // Room + Depth callout, matching the reference sheet's
-                      // bold red "GBR D 450+20" side label.
+                      // bold red "GBR D 450+20" side label - pushed further
+                      // right when the LOFT/WARDROBE height breakdown is also
+                      // printed in this gutter, so the two don't collide.
+                      const roomDepthLabelX = DIM_GUTTER + SHEET_WIDTH + (loftHeightPx > 2 ? 40 : 14);
                       const roomDepthLabel = (atY: number) => (
                         <text
-                          x={DIM_GUTTER + SHEET_WIDTH + 14}
+                          x={roomDepthLabelX}
                           y={atY}
                           fontSize="10"
                           fontWeight="bold"
                           fill="#dc2626"
-                          transform={`rotate(-90, ${DIM_GUTTER + SHEET_WIDTH + 14}, ${atY})`}
+                          transform={`rotate(-90, ${roomDepthLabelX}, ${atY})`}
                         >
                           {item.room} · D {item.depthMm}
                         </text>
@@ -608,6 +664,7 @@ export const PrintableCadLayout: React.FC<PrintableCadLayoutProps> = ({ items, c
                                 })}
                               </g>
                               {widthDim([item.widthMm], outerDimY, 0)}
+                              {heightBreakdown}
                             </g>
                             {heightDim(totalHeightPx, combinedHeightMm)}
                             {roomDepthLabel(totalHeightPx / 2)}
@@ -796,6 +853,7 @@ export const PrintableCadLayout: React.FC<PrintableCadLayoutProps> = ({ items, c
                                 innerDimY,
                                 innerX
                               )}
+                              {heightBreakdown}
                             </g>
                             {heightDim(totalHeightPx, combinedHeightMm)}
                             {roomDepthLabel(totalHeightPx / 2)}
