@@ -237,6 +237,25 @@ export function redistributeShutterWidths(item: ModularItem, editIndex: number, 
 // only furniture here with a genuine "closet" interior organization.
 export const CLOSET_CATEGORIES: UnitCategory[] = ['wardrobe_shutter', 'single_wardrobe', 'dressing_unit'];
 
+// The categories a plain door/shutter front is actually conventional for -
+// used to seed a sensible default Shutter count at Excel upload (see
+// excelParser.ts). Everything else (Sitting Box, Open Display Shelves, a
+// flat Expo/Dummy panel, TV Panel, Partition, Tandem Box, or an
+// unrecognized "Other" row) defaults to zero instead of guessing doors onto
+// a unit that conventionally doesn't have any - the upload sheet having a
+// Shutter column filled in for one wardrobe row is not a reason to assume
+// every other row wants doors too.
+export const DEFAULT_SHUTTER_CATEGORIES: UnitCategory[] = [
+  'wardrobe_shutter',
+  'single_wardrobe',
+  'dressing_unit',
+  'loft',
+  'profile_door',
+  'kitchen_base',
+  'kitchen_overhead',
+  'kitchen_loft',
+];
+
 export function isClosetEligible(item: ModularItem): boolean {
   return CLOSET_CATEGORIES.includes(item.category);
 }
@@ -407,7 +426,12 @@ export function hasShutterDoors(item: ModularItem): boolean {
     item.shutterCount !== 0 &&
     item.category !== 'tv_panel' &&
     item.category !== 'partition' &&
-    item.category !== 'tandem_box'
+    item.category !== 'tandem_box' &&
+    // Open Display Shelves is the one category whose entire point is having
+    // no doors at all - excluded here regardless of shutterCount so a stray
+    // nonzero value (e.g. a row the user hasn't re-categorized yet) never
+    // puts doors on what's meant to be fully open.
+    item.category !== 'shelves'
   );
 }
 
@@ -562,8 +586,16 @@ export function generateCutListForItem(item: ModularItem, globalProjectType: Pro
   const autoLoftHeightMm = autoSplitLoft ? h - LOFT_SPLIT_HEIGHT_MM : 0;
   if (autoSplitLoft) h = LOFT_SPLIT_HEIGHT_MM;
 
-  // 1. Shutter / Doors / Front Paneling
-  if (hasShutterDoors(item)) {
+  // 1. Shutter / Doors / Front Paneling - never alongside Section 2's
+  // drawers below. Both sections build their own panel spanning the item's
+  // FULL height/width independently (there's no height-split between them),
+  // so an item with both counts set would otherwise get two complete,
+  // physically overlapping front panels cut for the same one opening - the
+  // same reason the Wall Elevation drawing already only ever shows one or
+  // the other, never both, for a plain (non-closet) item. A real "shutters
+  // on top, drawers below" combo front belongs in the closet interior's own
+  // per-compartment system (Section 4), not these two top-level counts.
+  if (hasShutterDoors(item) && item.drawerCount === 0) {
     const { widths: shutterWidths } = getShutterLayout(item);
     // The two construction methods are never mixed: a Semi Modular item is
     // always Frame + Shutter, full height, regardless of any depth value

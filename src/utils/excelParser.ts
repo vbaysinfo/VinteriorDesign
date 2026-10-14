@@ -1,6 +1,6 @@
 import * as XLSX from 'xlsx';
 import { ModularItem, CutListPart, WallType, UnitCategory } from '../types';
-import { ftToMm, recalculateItemMetrics } from './calculator';
+import { ftToMm, recalculateItemMetrics, DEFAULT_SHUTTER_CATEGORIES } from './calculator';
 
 // Helper to determine category from description
 export function categorizeDescription(desc: string): UnitCategory {
@@ -192,8 +192,13 @@ export async function parseExcelFile(file: File): Promise<ModularItem[]> {
             projectType: projectTypeOverride,
             // A flat panel has no doors or drawers of its own - it IS the
             // visible face - so it never gets the generic width-based
-            // shutter guess or a drawer count.
-            shutterCount: isFlatPanel ? 0 : wFt > 6 ? 4 : wFt > 3 ? 2 : 1,
+            // shutter guess or a drawer count. Beyond that, the width-based
+            // guess itself only applies to a category doors are actually
+            // conventional for (see DEFAULT_SHUTTER_CATEGORIES) - a Sitting
+            // Box, Open Display Shelves, Tandem Box, etc. default to 0
+            // rather than getting doors guessed onto them just because
+            // some OTHER row's category wants them.
+            shutterCount: isFlatPanel || !DEFAULT_SHUTTER_CATEGORIES.includes(category) ? 0 : wFt > 6 ? 4 : wFt > 3 ? 2 : 1,
             drawerCount: isFlatPanel ? 0 : category === 'tandem_box' ? 3 : category === 'sitting_box' ? 2 : 0,
             // Not read from any Excel column - there isn't one for this.
             // An Expo/Shelves/Dummy unit defaults to 0 (no assumed
