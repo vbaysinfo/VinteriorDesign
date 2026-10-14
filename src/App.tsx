@@ -501,6 +501,7 @@ export default function App() {
       {inspectedItem && (
         <ItemInspectorDrawer
           item={inspectedItem}
+          items={items}
           projectType={projectType}
           rates={rates}
           currency={projectInfo.currency}

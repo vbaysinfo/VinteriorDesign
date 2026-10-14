@@ -241,6 +241,28 @@ export function isClosetEligible(item: ModularItem): boolean {
   return CLOSET_CATEGORIES.includes(item.category);
 }
 
+// A single continuous shutter/gable past 7ft (2134mm, the standard door
+// height) isn't something a real factory actually builds as one box - a
+// Full Modular wardrobe entered floor-to-ceiling is always actually
+// fabricated as two stacked carcasses: the main wardrobe body up to this
+// height, then a separate loft box for whatever height remains above it.
+export const LOFT_SPLIT_HEIGHT_MM = 2134;
+
+// True when `item`'s own entered Height should auto-split into that Floor
+// carcass (capped at LOFT_SPLIT_HEIGHT_MM) + an automatic Loft box for the
+// rest, instead of one unrealistic full-height box - only once the user
+// hasn't already modeled this wall's loft themselves as a real separate
+// Loft/Kitchen Loft row (their explicit entry always wins; this never
+// stacks an automatic loft on top of one they already added by hand).
+export function shouldAutoSplitLoft(item: ModularItem, effectiveProjectType: ProjectType, allItems: ModularItem[]): boolean {
+  if (!isClosetEligible(item)) return false;
+  if (effectiveProjectType !== 'full') return false;
+  if (item.heightMm <= LOFT_SPLIT_HEIGHT_MM) return false;
+  return !allItems.some(
+    (o) => o.id !== item.id && o.room === item.room && o.wall === item.wall && (o.category === 'loft' || o.category === 'kitchen_loft')
+  );
+}
+
 // Category is assigned once, at Excel-upload time, by sniffing keywords out
 // of the item's own description text (see categorizeDescription in
 // excelParser.ts) - a typo or an unrecognized wording (e.g. "Wardrone"
@@ -470,12 +492,12 @@ function finalizeParts(parts: CutListPart[], item: ModularItem): void {
 }
 
 // Generate real-time cut list parts for an item
-export function generateCutListForItem(item: ModularItem, globalProjectType: ProjectType): CutListPart[] {
+export function generateCutListForItem(item: ModularItem, globalProjectType: ProjectType, allItems: ModularItem[] = [item]): CutListPart[] {
   const parts: CutListPart[] = [];
   const pType = resolveEffectiveProjectType(item, globalProjectType);
 
   const w = item.widthMm;
-  const h = item.heightMm;
+  let h = item.heightMm;
 
   // EXPO ("exposed/visible") and DUMMY ("dummy/filler/cover") pieces are
   // both flat 2D panels per the factory's own rule: Length x Width only,
@@ -529,6 +551,16 @@ export function generateCutListForItem(item: ModularItem, globalProjectType: Pro
   // rather than silently assuming a category-standard depth. See
   // isDepthRequiredButMissing() for flagging that blocked state in the UI.
   const canBuildBox = isFullModular && d > 0;
+
+  // A Full Modular wardrobe/dressing unit entered floor-to-ceiling (taller
+  // than the standard 7ft door height) auto-splits into this Floor carcass
+  // - everything below, built from here on with `h` capped at
+  // LOFT_SPLIT_HEIGHT_MM - plus a separate automatic Loft box for the
+  // remainder, appended near the end of this function. See
+  // shouldAutoSplitLoft() for exactly when this does and doesn't apply.
+  const autoSplitLoft = canBuildBox && shouldAutoSplitLoft(item, pType, allItems);
+  const autoLoftHeightMm = autoSplitLoft ? h - LOFT_SPLIT_HEIGHT_MM : 0;
+  if (autoSplitLoft) h = LOFT_SPLIT_HEIGHT_MM;
 
   // 1. Shutter / Doors / Front Paneling
   if (hasShutterDoors(item)) {
@@ -1191,6 +1223,41 @@ export function generateCutListForItem(item: ModularItem, globalProjectType: Pro
 
   finalizeParts(parts, item);
 
+  // The automatic Loft box for the remainder above LOFT_SPLIT_HEIGHT_MM -
+  // built by recursing on a synthetic Loft-category item instead of
+  // duplicating the carcass/shutter construction above, so it's exactly
+  // the same cut list a real Loft row of that size would get. `quantity: 1`
+  // here because the copies scaling below applies once, to the floor AND
+  // loft parts together - the recursive call would otherwise double it.
+  if (autoSplitLoft && autoLoftHeightMm > 0) {
+    const loftItem: ModularItem = {
+      ...item,
+      id: `${item.id}-autoloft`,
+      category: 'loft',
+      heightMm: autoLoftHeightMm,
+      heightFt: mmToFt(autoLoftHeightMm),
+      drawerCount: 0,
+      quantity: 1,
+    };
+    const loftParts = generateCutListForItem(loftItem, globalProjectType, allItems);
+    for (const p of loftParts) {
+      parts.push({
+        ...p,
+        id: `${item.id}-autoloft-${p.id}`,
+        itemId: item.id,
+        // partName stays the real CutListPartName ('Shutter', 'Top Deck', ...)
+        // so every material/edge-banding/hardware rule keyed off it still
+        // applies normally - the "this is the loft portion" distinction lives
+        // in itemName/notes instead, same as any other auto-generated detail
+        // in this app (see the "No Depth" warning etc.).
+        itemName: `${item.description} (Loft)`,
+        notes: p.notes
+          ? `Auto-split loft (above ${LOFT_SPLIT_HEIGHT_MM}mm): ${p.notes}`
+          : `Auto-split loft (above ${LOFT_SPLIT_HEIGHT_MM}mm)`,
+      });
+    }
+  }
+
   // Scale every part by how many identical copies of this item are needed.
   const copies = Math.max(1, Math.round(item.quantity || 1));
   if (copies > 1) {
@@ -1206,7 +1273,7 @@ export function generateCutListForItem(item: ModularItem, globalProjectType: Pro
 
 // Generate all cut list parts for all items
 export function generateAllCutLists(items: ModularItem[], globalProjectType: ProjectType): CutListPart[] {
-  return items.flatMap((item) => generateCutListForItem(item, globalProjectType));
+  return items.flatMap((item) => generateCutListForItem(item, globalProjectType, items));
 }
 
 // Room-wise factory carcass box breakdown for every item, evaluated under a

@@ -19,6 +19,7 @@ import { ClosetInteriorEditor } from './ClosetInteriorEditor';
 
 interface ItemInspectorDrawerProps {
   item: ModularItem | null;
+  items: ModularItem[];
   projectType: ProjectType;
   rates: FactoryRates;
   currency: string;
@@ -28,6 +29,7 @@ interface ItemInspectorDrawerProps {
 
 export const ItemInspectorDrawer: React.FC<ItemInspectorDrawerProps> = ({
   item,
+  items,
   projectType,
   rates,
   currency,
@@ -36,7 +38,7 @@ export const ItemInspectorDrawer: React.FC<ItemInspectorDrawerProps> = ({
 }) => {
   if (!item) return null;
 
-  const cutListParts = generateCutListForItem(item, projectType);
+  const cutListParts = generateCutListForItem(item, projectType, items);
   const effectiveType = resolveEffectiveProjectType(item, projectType);
   const depthMissing = isDepthRequiredButMissing(item, effectiveType);
   // A real closet interior (vertical partitions + per-section shelves)

@@ -1329,9 +1329,9 @@ export const Isometric3DViewer: React.FC<Isometric3DViewerProps> = ({
   // rather than guessing from the part type alone.
   const selectedPart = useMemo(() => {
     if (!selectedItem || !selectedPartName) return undefined;
-    const partsForItem = generateCutListForItem(selectedItem, projectType);
+    const partsForItem = generateCutListForItem(selectedItem, projectType, items);
     return partsForItem.find((p) => p.partName === selectedPartName);
-  }, [selectedItem, selectedPartName, projectType]);
+  }, [selectedItem, selectedPartName, projectType, items]);
 
   const handleSetPartMaterial = (material: 'Fabric' | 'Color/Laminate') => {
     if (!selectedItem || !selectedPartName || !onUpdateItem) return;
