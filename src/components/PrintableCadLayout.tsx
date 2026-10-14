@@ -10,6 +10,8 @@ import {
   calculateMaterialUsage,
   aggregateHardwareBOM,
   getClosetCompartmentHeight,
+  shouldAutoSplitLoft,
+  LOFT_SPLIT_HEIGHT_MM,
 } from '../utils/calculator';
 
 interface PrintableCadLayoutProps {
@@ -481,18 +483,37 @@ export const PrintableCadLayout: React.FC<PrintableCadLayoutProps> = ({ items, c
                       // instead of treating the wardrobe's own carcass as if
                       // it were the whole wardrobe.
                       const stackedLofts = roomItems.filter((o) => o.wall === item.wall && (isLoftCategory(o) || isOverheadCategory(o)));
-                      const loftHeightMm = stackedLofts.reduce((s, o) => s + o.heightMm, 0);
-                      const combinedHeightMm = item.heightMm + loftHeightMm;
+                      const realLoftHeightMm = stackedLofts.reduce((s, o) => s + o.heightMm, 0);
+                      // No real separate Loft item on this wall, but the
+                      // item's OWN entered height is past the 7ft door
+                      // height - same auto-split the cut list itself applies
+                      // (see shouldAutoSplitLoft / LOFT_SPLIT_HEIGHT_MM):
+                      // this sheet draws it as a Floor box capped there plus
+                      // an automatic Loft box for the rest, instead of one
+                      // unrealistic full-height box with a single giant
+                      // shutter/gable that was never actually going to be
+                      // built that way.
+                      const pTypeForItem = resolveEffectiveProjectType(item, projectType);
+                      const autoSplits = realLoftHeightMm === 0 && shouldAutoSplitLoft(item, pTypeForItem, roomItems);
+                      const loftHeightMm = realLoftHeightMm > 0 ? realLoftHeightMm : autoSplits ? item.heightMm - LOFT_SPLIT_HEIGHT_MM : 0;
+                      const floorHeightMm = autoSplits ? LOFT_SPLIT_HEIGHT_MM : item.heightMm;
+                      const combinedHeightMm = floorHeightMm + loftHeightMm;
                       const dScale = Math.min(MAX_VIEW_WIDTH / item.widthMm, MAX_VIEW_HEIGHT / combinedHeightMm);
                       const SHEET_WIDTH = item.widthMm * dScale;
-                      const boxHeightPx = item.heightMm * dScale;
+                      const boxHeightPx = floorHeightMm * dScale;
                       const loftHeightPx = loftHeightMm * dScale;
                       const totalHeightPx = boxHeightPx + loftHeightPx;
                       const innerX = 18 * dScale;
                       const innerY = loftHeightPx + 18 * dScale;
                       const innerW = Math.max(100, item.widthMm - 36);
-                      const innerH = Math.max(100, item.heightMm - 36);
-                      const layout = getEffectiveClosetLayout(item);
+                      const innerH = Math.max(100, floorHeightMm - 36);
+                      // The Floor box's own geometry (closet interior, shutter
+                      // height) is built from its own capped height once this
+                      // auto-splits - a synthetic stand-in exactly like the
+                      // cut list's own synthetic Loft item, just the other
+                      // carcass of the same pair.
+                      const floorItem = autoSplits ? { ...item, heightMm: floorHeightMm } : item;
+                      const layout = getEffectiveClosetLayout(floorItem);
                       const showsShutters = hasShutterDoors(item) && item.drawerCount === 0;
                       const { count: shutterCount, widths: shutterWidths, gapMm } = getShutterLayout(item);
 
@@ -500,10 +521,12 @@ export const PrintableCadLayout: React.FC<PrintableCadLayoutProps> = ({ items, c
                       // its own, so both views draw it identically - but it's
                       // a real shuttered box, not a blank placeholder, so it
                       // gets its own shutter-panel divisions here, drawn from
-                      // its own item's door count/type exactly like the
+                      // a real sibling Loft item's door count/type if there is
+                      // one, else the auto-split's own (same item, same door
+                      // style, just the portion above 7ft) - exactly like the
                       // wardrobe's own Outer View does below it. Shared by
                       // both the Outer and Inner views.
-                      const loftItem = stackedLofts[0];
+                      const loftItem = stackedLofts[0] ?? (autoSplits ? item : undefined);
                       const loftPanelCount = loftItem && hasShutterDoors(loftItem) ? Math.max(1, getShutterLayout(loftItem).count) : 1;
                       const loftIsLiftTop = loftItem?.doorType === 'lift_top';
                       const loftBox = loftHeightPx > 2 && (
@@ -587,7 +610,7 @@ export const PrintableCadLayout: React.FC<PrintableCadLayoutProps> = ({ items, c
                       const heightBreakdown = loftHeightPx > 2 && (() => {
                         const segs = [
                           { label: 'LOFT', mm: Math.round(loftHeightMm), topPx: 0, bottomPx: loftHeightPx },
-                          { label: 'WARDROBE', mm: item.heightMm, topPx: loftHeightPx, bottomPx: totalHeightPx },
+                          { label: 'WARDROBE', mm: Math.round(floorHeightMm), topPx: loftHeightPx, bottomPx: totalHeightPx },
                         ];
                         const x = SHEET_WIDTH + 10;
                         return (
@@ -685,7 +708,10 @@ export const PrintableCadLayout: React.FC<PrintableCadLayoutProps> = ({ items, c
                         <div key={item.id} className="break-inside-avoid">
                           <div className="text-[10px] font-bold text-slate-800">
                             #{item.sNo} {item.description} - {item.widthMm}×{item.heightMm}×{item.depthMm}mm
-                            {loftHeightMm > 0 && ` (+ Loft/Overhead ${Math.round(loftHeightMm)}mm = ${Math.round(combinedHeightMm)}mm total)`}
+                            {realLoftHeightMm > 0 &&
+                              ` (+ Loft/Overhead ${Math.round(loftHeightMm)}mm = ${Math.round(combinedHeightMm)}mm total)`}
+                            {autoSplits &&
+                              ` (Floor ${Math.round(floorHeightMm)}mm + Auto Loft above 7ft: ${Math.round(loftHeightMm)}mm)`}
                           </div>
 
                           {/* Outer + Inner views side by side, so the whole
@@ -734,7 +760,7 @@ export const PrintableCadLayout: React.FC<PrintableCadLayoutProps> = ({ items, c
                                           {isLiftTop ? 'LIFT TOP' : 'SHUTTER'}
                                         </text>
                                         <text x={sx + spx / 2} y={boxHeightPx / 2 + 11} textAnchor="middle" fontSize="7" fill="#64748b">
-                                          {shutterWidthMm}×{item.heightMm - 20}
+                                          {shutterWidthMm}×{Math.round(floorHeightMm) - 20}
                                         </text>
                                         {isLiftTop
                                           ? spx > 24 && (
@@ -766,7 +792,7 @@ export const PrintableCadLayout: React.FC<PrintableCadLayoutProps> = ({ items, c
                               {item.drawerCount > 0 &&
                                 Array.from({ length: item.drawerCount }).map((_, dIdx) => {
                                   const drawerHpx = boxHeightPx / item.drawerCount;
-                                  const drawerHmm = Math.round(item.heightMm / item.drawerCount);
+                                  const drawerHmm = Math.round(floorHeightMm / item.drawerCount);
                                   const dy = dIdx * drawerHpx;
                                   return (
                                     <g key={dIdx}>
