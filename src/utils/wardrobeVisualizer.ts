@@ -66,6 +66,12 @@ export interface WardrobeDesign {
   secondaryColor: string; // hex, used only when shutterStyle === 'two_color'
   laminateColorName: string;
   secondaryColorName: string;
+  // A customer-uploaded laminate/texture photo (data URL) - when set, the
+  // live preview paints the shutter surface with this image instead of the
+  // picked swatch color, so "upload your own laminate and see how it
+  // looks" works without a backend: the image never leaves the browser.
+  customTextureUrl?: string;
+  customTextureName?: string;
 }
 
 export function defaultWardrobeDesign(templateKey: WardrobeTemplateKey = 'two_door'): WardrobeDesign {
@@ -181,6 +187,25 @@ export function deleteSavedDesign(id: string): SavedWardrobeDesign[] {
     // See saveDesign - best effort only.
   }
   return next;
+}
+
+// ---- Upload a custom laminate/texture photo (browser-local, no backend) ----
+
+const MAX_CUSTOM_TEXTURE_BYTES = 4 * 1024 * 1024; // 4MB - generous for a phone photo, still localStorage-safe
+
+export function readImageAsDataUrl(file: File): Promise<string> {
+  if (!file.type.startsWith('image/')) {
+    return Promise.reject(new Error('Please choose an image file (JPG, PNG, or WEBP).'));
+  }
+  if (file.size > MAX_CUSTOM_TEXTURE_BYTES) {
+    return Promise.reject(new Error('Image is too large - please use one under 4MB.'));
+  }
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () => reject(new Error('Could not read that image file.'));
+    reader.readAsDataURL(file);
+  });
 }
 
 // ---- Download the live preview as a PNG ----
@@ -341,6 +366,9 @@ export function generateWardrobeQuotationPDF(design: WardrobeDesign, contact: Qu
   ];
   if (design.shutterStyle === 'two_color') {
     specs.push(['Accent Laminate Color', design.secondaryColorName]);
+  }
+  if (design.customTextureUrl) {
+    specs.push(['Custom Laminate Upload', design.customTextureName || 'Customer-supplied image']);
   }
 
   doc.setFontSize(9);

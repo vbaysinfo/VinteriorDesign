@@ -16,9 +16,48 @@ import {
   svgToPngDataUrl,
   generateWardrobeQuotationPDF,
   QuotationContact,
+  readImageAsDataUrl,
 } from '../utils/wardrobeVisualizer';
 import { WardrobePreviewSvg } from './WardrobePreviewSvg';
-import { Wand2, Save, Download, FileText, Trash2, FolderOpen, ArrowRight, CheckCircle2, X } from 'lucide-react';
+import {
+  Wand2,
+  Save,
+  Download,
+  FileText,
+  Trash2,
+  FolderOpen,
+  ArrowRight,
+  CheckCircle2,
+  X,
+  DoorOpen,
+  Upload,
+  ImageOff,
+  Minus,
+  Circle,
+  GripVertical,
+  Ban,
+} from 'lucide-react';
+
+const TEXTURE_SWATCH_STYLE: Record<TextureStyle, React.CSSProperties> = {
+  matte: { background: '#cbd5e1' },
+  gloss: { background: 'linear-gradient(135deg, #cbd5e1 35%, #ffffff 50%, #cbd5e1 65%)' },
+  wood_grain: {
+    background:
+      'repeating-linear-gradient(0deg, #c9a66b 0px, #c9a66b 3px, #b08b52 3px, #b08b52 6px)',
+  },
+  suede: {
+    background: '#a8a29e',
+    backgroundImage: 'radial-gradient(circle, rgba(0,0,0,0.25) 1px, transparent 1px)',
+    backgroundSize: '5px 5px',
+  },
+};
+
+const HANDLE_ICONS: Record<HandleStyle, React.ComponentType<{ className?: string }>> = {
+  bar: Minus,
+  knob: Circle,
+  profile: GripVertical,
+  none: Ban,
+};
 
 interface WardrobeVisualizerProps {
   items: ModularItem[];
@@ -35,7 +74,10 @@ export const WardrobeVisualizer: React.FC<WardrobeVisualizerProps> = ({ items, o
   const [justAdded, setJustAdded] = useState<number | null>(null);
   const [busy, setBusy] = useState<'download' | 'quote' | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const [showInterior, setShowInterior] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const svgRef = useRef<SVGSVGElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const flash = (msg: string) => {
     setToast(msg);
@@ -57,6 +99,24 @@ export const WardrobeVisualizer: React.FC<WardrobeVisualizerProps> = ({ items, o
   };
   const pickSecondaryColor = (name: string, hex: string) => {
     setDesign((prev) => ({ ...prev, secondaryColorName: name, secondaryColor: hex }));
+  };
+
+  const handleUploadTexture = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setUploadError(null);
+    try {
+      const dataUrl = await readImageAsDataUrl(file);
+      setDesign((prev) => ({ ...prev, customTextureUrl: dataUrl, customTextureName: file.name }));
+      flash('Custom laminate applied to the preview.');
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : 'Could not use that image.');
+    }
+  };
+
+  const clearCustomTexture = () => {
+    setDesign((prev) => ({ ...prev, customTextureUrl: undefined, customTextureName: undefined }));
   };
 
   const handleAddToProject = () => {
@@ -217,32 +277,73 @@ export const WardrobeVisualizer: React.FC<WardrobeVisualizerProps> = ({ items, o
 
             <div>
               <label className="block text-xs font-bold text-slate-600 uppercase tracking-wide mb-2">Texture</label>
-              <select
-                value={design.textureStyle}
-                onChange={(e) => update('textureStyle', e.target.value as TextureStyle)}
-                className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-sm text-slate-800"
-              >
-                {TEXTURE_OPTIONS.map((t) => (
-                  <option key={t.key} value={t.key}>
-                    {t.label}
-                  </option>
-                ))}
-              </select>
+              <div className="grid grid-cols-2 gap-1.5">
+                {TEXTURE_OPTIONS.map((t) => {
+                  const active = design.textureStyle === t.key;
+                  return (
+                    <button
+                      key={t.key}
+                      onClick={() => update('textureStyle', t.key as TextureStyle)}
+                      className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg border transition ${
+                        active ? 'border-fuchsia-600 ring-1 ring-fuchsia-400 bg-fuchsia-50' : 'border-slate-300 hover:border-fuchsia-400'
+                      }`}
+                    >
+                      <span className="w-5 h-5 rounded border border-slate-300 shrink-0" style={TEXTURE_SWATCH_STYLE[t.key]} />
+                      <span className="text-[11px] font-semibold text-slate-700 truncate">{t.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             <div>
               <label className="block text-xs font-bold text-slate-600 uppercase tracking-wide mb-2">Handle</label>
-              <select
-                value={design.handleStyle}
-                onChange={(e) => update('handleStyle', e.target.value as HandleStyle)}
-                className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-sm text-slate-800"
-              >
-                {HANDLE_STYLE_OPTIONS.map((h) => (
-                  <option key={h.key} value={h.key}>
-                    {h.label}
-                  </option>
-                ))}
-              </select>
+              <div className="grid grid-cols-2 gap-1.5">
+                {HANDLE_STYLE_OPTIONS.map((h) => {
+                  const active = design.handleStyle === h.key;
+                  const Icon = HANDLE_ICONS[h.key as HandleStyle];
+                  return (
+                    <button
+                      key={h.key}
+                      onClick={() => update('handleStyle', h.key as HandleStyle)}
+                      className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg border transition ${
+                        active ? 'border-fuchsia-600 ring-1 ring-fuchsia-400 bg-fuchsia-50' : 'border-slate-300 hover:border-fuchsia-400'
+                      }`}
+                    >
+                      <Icon className="w-3.5 h-3.5 text-slate-600 shrink-0" />
+                      <span className="text-[11px] font-semibold text-slate-700 truncate">{h.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="sm:col-span-2">
+              <label className="block text-xs font-bold text-slate-600 uppercase tracking-wide mb-2">
+                Upload Your Own Laminate / Texture
+              </label>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="px-3 py-1.5 bg-white border border-slate-300 hover:border-fuchsia-400 text-slate-700 rounded-lg text-xs font-semibold flex items-center gap-1.5"
+                >
+                  <Upload className="w-3.5 h-3.5" /> Choose Image
+                </button>
+                <input ref={fileInputRef} type="file" accept="image/*" onChange={handleUploadTexture} className="hidden" />
+                {design.customTextureUrl && (
+                  <>
+                    <img src={design.customTextureUrl} alt="Uploaded laminate" className="w-8 h-8 rounded border border-slate-300 object-cover" />
+                    <span className="text-[11px] text-slate-500 truncate max-w-[140px]">{design.customTextureName}</span>
+                    <button onClick={clearCustomTexture} title="Remove" className="text-slate-400 hover:text-red-600">
+                      <ImageOff className="w-3.5 h-3.5" />
+                    </button>
+                  </>
+                )}
+              </div>
+              <p className="text-[10px] text-slate-400 mt-1">
+                Upload a photo of a laminate sheet or texture - it's applied to the preview instantly so you can check how it looks.
+              </p>
+              {uploadError && <p className="text-[10px] text-red-600 mt-1">{uploadError}</p>}
             </div>
           </div>
 
@@ -310,9 +411,20 @@ export const WardrobeVisualizer: React.FC<WardrobeVisualizerProps> = ({ items, o
         {/* Live preview + actions */}
         <div className="lg:col-span-2 space-y-4">
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
-            <h3 className="text-sm font-bold text-slate-900 mb-3">Live Preview</h3>
-            <div className="flex items-center justify-center bg-slate-50 rounded-lg border border-slate-200 p-4">
-              <WardrobePreviewSvg ref={svgRef} design={design} widthPx={300} />
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-bold text-slate-900">Live Preview</h3>
+              <button
+                onClick={() => setShowInterior((v) => !v)}
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition ${
+                  showInterior ? 'bg-fuchsia-600 border-fuchsia-700 text-white' : 'bg-white border-slate-300 text-slate-600 hover:border-fuchsia-400'
+                }`}
+                title="Automatically shows the closet interior (shelves, hanging rod, drawers) with the doors pushed open"
+              >
+                <DoorOpen className="w-3.5 h-3.5" /> {showInterior ? 'Doors Open' : 'Doors Closed'}
+              </button>
+            </div>
+            <div className="flex items-center justify-center bg-slate-50 rounded-lg border border-slate-200 p-4 overflow-x-auto">
+              <WardrobePreviewSvg ref={svgRef} design={design} widthPx={300} showInterior={showInterior} />
             </div>
             <div className="mt-3 text-[11px] text-slate-500 flex justify-between">
               <span>{WARDROBE_TEMPLATES[design.templateKey].label}</span>
