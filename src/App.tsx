@@ -18,6 +18,7 @@ import { HardwareBOMReport } from './components/HardwareBOMReport';
 import { MaterialReuseReport } from './components/MaterialReuseReport';
 import { KitchenConfigurator } from './components/KitchenConfigurator';
 import { WardrobeConfigurator } from './components/WardrobeConfigurator';
+import { WardrobeVisualizer } from './components/WardrobeVisualizer';
 import { RoomBoxSchedule } from './components/RoomBoxSchedule';
 import { AnalyticsReport } from './components/AnalyticsReport';
 import { AIAnalysisPage } from './components/AIAnalysisPage';
@@ -35,7 +36,7 @@ export default function App() {
   // header (onResetSampleData) to bring in INITIAL_ITEMS on demand.
   const [items, setItems] = useState<ModularItem[]>([]);
   const [selectedRoom, setSelectedRoom] = useState<string>('ALL');
-  const [activeTab, setActiveTab] = useState<'cad_layout' | 'spreadsheet' | 'cut_list' | 'box_schedule' | 'analytics' | 'ai_analysis' | 'pricing_bom' | 'hardware_bom' | 'material_reuse' | 'kitchen_configurator' | 'wardrobe_configurator'>('cad_layout');
+  const [activeTab, setActiveTab] = useState<'cad_layout' | 'spreadsheet' | 'cut_list' | 'box_schedule' | 'analytics' | 'ai_analysis' | 'pricing_bom' | 'hardware_bom' | 'material_reuse' | 'kitchen_configurator' | 'wardrobe_configurator' | 'wardrobe_visualizer'>('cad_layout');
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [rates, setRates] = useState<FactoryRates>(DEFAULT_FACTORY_RATES);
@@ -358,6 +359,17 @@ export default function App() {
             >
               Wardrobe Models
             </button>
+
+            <button
+              onClick={() => setActiveTab('wardrobe_visualizer')}
+              className={`px-3.5 py-2 rounded-lg text-xs font-bold transition ${
+                activeTab === 'wardrobe_visualizer'
+                  ? 'bg-slate-900 text-white shadow-xs'
+                  : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+              }`}
+            >
+              Wardrobe Visualizer
+            </button>
           </nav>
 
           {/* Right Controls: Full Width Toggle & Room Selector Dropdown */}
@@ -510,6 +522,14 @@ export default function App() {
 
         {activeTab === 'wardrobe_configurator' && (
           <WardrobeConfigurator
+            items={items}
+            onAddItems={handleAddItems}
+            onGoToLayout={() => setActiveTab('cad_layout')}
+          />
+        )}
+
+        {activeTab === 'wardrobe_visualizer' && (
+          <WardrobeVisualizer
             items={items}
             onAddItems={handleAddItems}
             onGoToLayout={() => setActiveTab('cad_layout')}

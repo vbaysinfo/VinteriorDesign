@@ -20,15 +20,34 @@ export type DoorType = 'hinged' | 'sliding' | 'lift_top';
 // calculateHardwareBOM / calculateMaterialUsage).
 export type DrawerType = 'standard' | 'tandem';
 
-// A shutter panel's own top-edge profile. 'plain' (the default/undefined) is
-// a flat rectangular panel; 'arch' routes a single elliptical arch across
+// A shutter panel's own face/profile style. 'plain' (the default/undefined)
+// is a flat rectangular panel; 'arch' routes a single elliptical arch across
 // the panel's full top edge after cutting - a traditional/classic wardrobe
-// look. Purely a visual/CNC-profile distinction: the panel is still cut
-// from the same rectangular blank at the same Width x Height as a plain
-// shutter (an arch is routed OUT of material already accounted for, not
-// added), so it changes nothing about the cut-list dimensions or hardware -
-// only how the Wall Elevation and Wardrobe Design Sheets draw it.
-export type ShutterStyle = 'plain' | 'arch';
+// look. The rest are the Wardrobe Visualizer's own surface-treatment
+// styles (fluted grooves, a recessed framed panel, a flatter shaker-style
+// recessed panel, a glass-and-aluminum-profile front, a mirror front, and a
+// two-color split front). Every style is still cut from the same
+// rectangular Width x Height blank as a plain shutter (an arch, flute, or
+// frame groove is routed OUT of material already accounted for, not added),
+// so none of this changes the cut-list dimensions or hardware - only how
+// the Wall Elevation, Wardrobe Design Sheets, and the Wardrobe Visualizer's
+// own live preview draw it.
+export type ShutterStyle = 'plain' | 'fluted' | 'framed' | 'shaker' | 'arch' | 'glass_profile' | 'mirror' | 'two_color';
+
+// The Wardrobe Visualizer's own surface-finish choice, layered on top of
+// whichever ShutterStyle is selected - 'matte' (default/undefined) is a flat
+// finish, 'gloss' adds a reflective sheen highlight, 'wood_grain' overlays a
+// wood-grain line pattern, 'suede' overlays a soft stippled fabric-look
+// texture. Cosmetic only, same as ShutterStyle above.
+export type TextureStyle = 'matte' | 'gloss' | 'wood_grain' | 'suede';
+
+// The Wardrobe Visualizer's own handle choice drawn on each shutter in the
+// live preview - 'bar' (default/undefined) is a straight pull handle, 'knob'
+// a round knob, 'profile' a handleless recessed J-channel groove, 'none'
+// draws no handle at all (a push-to-open front). Cosmetic only, same as
+// ShutterStyle above - the real Hardware BOM already prices a generic
+// "Handle" line per shutter regardless of its drawn shape.
+export type HandleStyle = 'bar' | 'knob' | 'profile' | 'none';
 
 export type WallType = 'front' | 'left' | 'right' | 'back';
 
@@ -142,7 +161,14 @@ export interface ModularItem {
   projectType?: ProjectType; // Optional per-item override; blank/undefined inherits the project-wide Semi/Full Modular toggle
   shutterCount: number;
   doorType?: DoorType; // blank/undefined = hinged (open/close); 'sliding' = track-mounted, never drawn with a hinge swing
-  shutterStyle?: ShutterStyle; // blank/undefined = plain rectangular panel; 'arch' = elliptical arch routed across the top edge
+  shutterStyle?: ShutterStyle; // blank/undefined = plain rectangular panel; see ShutterStyle for the rest
+  // The next three are cosmetic choices from the Wardrobe Visualizer -
+  // carried onto a real project item so a design saved/quoted there round-
+  // trips its look if it's ever added to the project, same as
+  // laminateColorCode already does.
+  textureStyle?: TextureStyle;
+  handleStyle?: HandleStyle;
+  secondaryLaminateColorCode?: string; // the accent color for a 'two_color' shutterStyle; unused otherwise
   drawerCount: number;
   drawerType?: DrawerType; // blank/undefined = standard soft-close drawer; 'tandem' = tandem box (pot/pan) channel hardware instead
   shelfCount: number;
