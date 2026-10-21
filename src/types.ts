@@ -36,6 +36,7 @@ export type CutListPartName =
   | 'Shutter'
   | 'Drawer Front'
   | 'Drawer Side'
+  | 'Drawer Back'
   | 'Drawer Bottom'
   | 'Pelmet/Skirting'
   | 'Expo/Dummy Panel';

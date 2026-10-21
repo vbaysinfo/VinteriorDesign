@@ -447,6 +447,7 @@ const PART_COLORS: Record<string, string> = {
   'Vertical Partition': '#0891b2', // darker cyan (closet interior divider)
   'Drawer Front': '#ec4899', // pink
   'Drawer Side': '#f43f5e', // rose
+  'Drawer Back': '#fb7185', // light rose (structural twin of Drawer Side)
   'Drawer Bottom': '#6366f1', // indigo
   'Pelmet/Skirting': '#14b8a6', // teal (skirting plinth & pelmet)
   'Expo/Dummy Panel': '#eab308', // yellow (flat exposed/filler panel)
@@ -706,6 +707,34 @@ export function generateCutListForItem(item: ModularItem, globalProjectType: Pro
         edgeW2: false,
         edgeThicknessMm: 0.8,
         areaSqMt: Number(((drawerDepth * Math.max(120, faciaHeight - 50) * dCount * 2) / 1_000_000).toFixed(3)),
+      });
+
+      // Drawer Back - closes the rear of the box and is what the two sides
+      // actually glue/staple to (a drawer box is never left open-backed in
+      // real construction); same width as the Bottom since it sits flush
+      // between the two sides, same height and material as the Sides since
+      // it's cut from the same board.
+      parts.push({
+        id: `${item.id}-drawer-back`,
+        itemId: item.id,
+        room: item.room,
+        itemName: item.description,
+        wall: item.wall,
+        partName: 'Drawer Back',
+        lengthMm: faciaWidth - 40,
+        widthMm: Math.max(120, faciaHeight - 50),
+        thicknessMm: 18,
+        qty: dCount,
+        material: '18mm Prelam / BWP',
+        materialCategory: 'Fabric',
+        backMaterialCategory: 'Fabric',
+        fabricBothSides: item.fabricBothSides ?? false,
+        edgeL1: true,
+        edgeL2: false,
+        edgeW1: false,
+        edgeW2: false,
+        edgeThicknessMm: 0.8,
+        areaSqMt: Number((((faciaWidth - 40) * Math.max(120, faciaHeight - 50) * dCount) / 1_000_000).toFixed(3)),
       });
 
       // Drawer Bottom (9mm Ply)
@@ -978,6 +1007,31 @@ export function generateCutListForItem(item: ModularItem, globalProjectType: Pro
           edgeW2: false,
           edgeThicknessMm: 0.8,
           areaSqMt: Number(((drawerDepth * Math.max(100, faciaHeight - 50) * 2) / 1_000_000).toFixed(3)),
+        });
+        // Drawer Back - closes the rear of the box, same material/height as
+        // the Sides it glues to (see the plain item-level drawer above for
+        // the same convention).
+        parts.push({
+          id: `${item.id}-closet-drawer-back-${colIdx}-${keySuffix}`,
+          itemId: item.id,
+          room: item.room,
+          itemName: item.description,
+          wall: item.wall,
+          partName: 'Drawer Back',
+          lengthMm: Math.max(100, faciaWidth - 40),
+          widthMm: Math.max(100, faciaHeight - 50),
+          thicknessMm: 18,
+          qty: 1,
+          material: '18mm Prelam / BWP',
+          materialCategory: 'Fabric',
+          backMaterialCategory: 'Fabric',
+          fabricBothSides: item.fabricBothSides ?? false,
+          edgeL1: true,
+          edgeL2: false,
+          edgeW1: false,
+          edgeW2: false,
+          edgeThicknessMm: 0.8,
+          areaSqMt: Number(((Math.max(100, faciaWidth - 40) * Math.max(100, faciaHeight - 50)) / 1_000_000).toFixed(3)),
         });
         parts.push({
           id: `${item.id}-closet-drawer-bottom-${colIdx}-${keySuffix}`,
