@@ -308,6 +308,7 @@ export const PrintableCadLayout: React.FC<PrintableCadLayoutProps> = ({ items, c
                                   const { count, widths, gapMm } = getShutterLayout(item);
                                   const isSliding = item.doorType === 'sliding';
                                   const isLiftTop = item.doorType === 'lift_top';
+                                  const isArch = item.shutterStyle === 'arch';
                                   let acc = 0;
                                   return Array.from({ length: count }).map((_, sIdx) => {
                                     const shutterWidthMm = widths[sIdx];
@@ -315,12 +316,26 @@ export const PrintableCadLayout: React.FC<PrintableCadLayoutProps> = ({ items, c
                                     const shutterWpx = shutterWidthMm * scaleX;
                                     acc += shutterWidthMm + gapMm;
                                     const isHingeLeft = sIdx % 2 === 0;
+                                    // A classic arch-top door routs a shallow elliptical arch
+                                    // across the panel's top edge, peaking at center - drawn here
+                                    // as a profile line just inside the flat frame opening (the
+                                    // carcass/frame itself stays rectangular; only the door panel
+                                    // profile curves).
+                                    const archDip = Math.min(14, doorHeightPx * 0.12);
                                     return (
                                       <g key={sIdx}>
                                         {sIdx > 0 && (
                                           <line x1={sx} y1={doorTopY} x2={sx} y2={boxY + h} stroke="#0f172a" strokeWidth={0.6} />
                                         )}
                                         {isLiftTop && <line x1={sx} y1={doorTopY} x2={sx + shutterWpx} y2={doorTopY} stroke="#0f172a" strokeWidth={1.8} />}
+                                        {isArch && shutterWpx > 10 && (
+                                          <path
+                                            d={`M ${sx + 2} ${doorTopY + archDip} A ${shutterWpx / 2 - 2} ${archDip} 0 0 1 ${sx + shutterWpx - 2} ${doorTopY + archDip}`}
+                                            fill="none"
+                                            stroke="#0f172a"
+                                            strokeWidth={0.7}
+                                          />
+                                        )}
                                         {w > 40 && doorHeightPx > 34 && (
                                           <text x={sx + shutterWpx / 2} y={doorTopY + 11} textAnchor="middle" fontSize="6" fontWeight="bold" fill="#0f172a" letterSpacing="0.3">
                                             {isLiftTop ? 'LIFT TOP' : 'SHUTTER'}
@@ -732,6 +747,7 @@ export const PrintableCadLayout: React.FC<PrintableCadLayoutProps> = ({ items, c
                                 (() => {
                                   const isSliding = item.doorType === 'sliding';
                                   const isLiftTop = item.doorType === 'lift_top';
+                                  const isArch = item.shutterStyle === 'arch';
                                   let acc = 0;
                                   return Array.from({ length: shutterCount }).map((_, sIdx) => {
                                     const shutterWidthMm = shutterWidths[sIdx];
@@ -750,11 +766,20 @@ export const PrintableCadLayout: React.FC<PrintableCadLayoutProps> = ({ items, c
                                     // center on every panel instead.
                                     const isHingeLeft = sIdx % 2 === 0;
                                     const handleH = Math.min(40, boxHeightPx * (isSliding ? 0.14 : 0.2));
+                                    const archDip = Math.min(18, boxHeightPx * 0.1);
                                     return (
                                       <g key={sIdx}>
                                         {sIdx > 0 && <line x1={sx} y1={0} x2={sx} y2={boxHeightPx} stroke="#0f172a" strokeWidth={0.8} />}
                                         {isLiftTop && (
                                           <line x1={sx} y1={1} x2={sx + spx} y2={1} stroke="#0f172a" strokeWidth={2.2} />
+                                        )}
+                                        {isArch && spx > 14 && (
+                                          <path
+                                            d={`M ${sx + 3} ${archDip} A ${spx / 2 - 3} ${archDip} 0 0 1 ${sx + spx - 3} ${archDip}`}
+                                            fill="none"
+                                            stroke="#0f172a"
+                                            strokeWidth={0.8}
+                                          />
                                         )}
                                         <text x={sx + spx / 2} y={boxHeightPx / 2} textAnchor="middle" fontSize="8" fontWeight="bold" fill="#334155">
                                           {isLiftTop ? 'LIFT TOP' : 'SHUTTER'}

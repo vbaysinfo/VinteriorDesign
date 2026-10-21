@@ -20,6 +20,16 @@ export type DoorType = 'hinged' | 'sliding' | 'lift_top';
 // calculateHardwareBOM / calculateMaterialUsage).
 export type DrawerType = 'standard' | 'tandem';
 
+// A shutter panel's own top-edge profile. 'plain' (the default/undefined) is
+// a flat rectangular panel; 'arch' routes a single elliptical arch across
+// the panel's full top edge after cutting - a traditional/classic wardrobe
+// look. Purely a visual/CNC-profile distinction: the panel is still cut
+// from the same rectangular blank at the same Width x Height as a plain
+// shutter (an arch is routed OUT of material already accounted for, not
+// added), so it changes nothing about the cut-list dimensions or hardware -
+// only how the Wall Elevation and Wardrobe Design Sheets draw it.
+export type ShutterStyle = 'plain' | 'arch';
+
 export type WallType = 'front' | 'left' | 'right' | 'back';
 
 // The closed set of cut-part types a modular item can generate. Shared
@@ -132,6 +142,7 @@ export interface ModularItem {
   projectType?: ProjectType; // Optional per-item override; blank/undefined inherits the project-wide Semi/Full Modular toggle
   shutterCount: number;
   doorType?: DoorType; // blank/undefined = hinged (open/close); 'sliding' = track-mounted, never drawn with a hinge swing
+  shutterStyle?: ShutterStyle; // blank/undefined = plain rectangular panel; 'arch' = elliptical arch routed across the top edge
   drawerCount: number;
   drawerType?: DrawerType; // blank/undefined = standard soft-close drawer; 'tandem' = tandem box (pot/pan) channel hardware instead
   shelfCount: number;
